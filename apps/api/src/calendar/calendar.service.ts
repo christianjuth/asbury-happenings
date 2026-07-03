@@ -506,6 +506,9 @@ export function extractEventsFromHtml(
     };
 
     const title = readValue(config.selectors.title);
+    const missingStartTime = Boolean(
+      config.selectors.startDate && config.selectors.startTime && !readOptional(config.selectors.startTime)
+    );
     const start = readEventDate({
       fullDateTimeSelector: config.selectors.start,
       dateSelector: config.selectors.startDate,
@@ -520,25 +523,27 @@ export function extractEventsFromHtml(
       return;
     }
 
-    const end =
-      readEventDate({
-        fullDateTimeSelector: config.selectors.end,
-        dateSelector: config.selectors.endDate ?? config.selectors.startDate,
-        timeSelector: config.selectors.endTime,
-        readValue,
-        readOptional,
-        config,
-        referenceDate,
-        requireTimeWhenTimeSelectorProvided: true
-      }) ?? addMinutes(start, config.defaultDurationMinutes ?? 60);
+    const end = missingStartTime
+      ? addDays(start, 1)
+      : readEventDate({
+          fullDateTimeSelector: config.selectors.end,
+          dateSelector: config.selectors.endDate ?? config.selectors.startDate,
+          timeSelector: config.selectors.endTime,
+          readValue,
+          readOptional,
+          config,
+          referenceDate,
+          requireTimeWhenTimeSelectorProvided: true
+        }) ?? addMinutes(start, config.defaultDurationMinutes ?? 60);
 
     const address = readOptional(config.selectors.address) ?? config.defaultAddress;
     const location = readOptional(config.selectors.location) ?? address;
 
     events.push({
-      title,
+      title: missingStartTime ? `${title} (MISSING TIME)` : title,
       start,
       end,
+      allDay: missingStartTime,
       description: readOptional(config.selectors.description),
       location,
       address,
@@ -939,6 +944,13 @@ export function renderSourcePages(template: string, now = new Date()): SourcePag
 function addMonths(date: Date, months: number): Date {
   const next = new Date(date);
   next.setUTCMonth(next.getUTCMonth() + months);
+
+  return next;
+}
+
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
 
   return next;
 }

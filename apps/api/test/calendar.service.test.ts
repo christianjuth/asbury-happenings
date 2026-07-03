@@ -478,9 +478,10 @@ describe("extractEventsFromHtml", () => {
     expect(events[2]?.title).toBe("Bob Egan's 'Piano Party'");
     expect(events[2]?.start.toISOString()).toBe("2026-07-07T22:30:00.000Z");
     expect(events[2]?.end.toISOString()).toBe("2026-07-08T00:30:00.000Z");
-    expect(events[3]?.title).toBe("A Medium Gallery with Linda Shields");
+    expect(events[3]?.title).toBe("A Medium Gallery with Linda Shields (MISSING TIME)");
+    expect(events[3]?.allDay).toBe(true);
     expect(events[3]?.start.toISOString()).toBe("2026-07-09T04:00:00.000Z");
-    expect(events[3]?.end.toISOString()).toBe("2026-07-09T06:00:00.000Z");
+    expect(events[3]?.end.toISOString()).toBe("2026-07-10T04:00:00.000Z");
   });
 
   it("parses AP Rooftop event list cards", () => {
