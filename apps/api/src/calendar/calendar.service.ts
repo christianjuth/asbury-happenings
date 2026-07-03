@@ -92,6 +92,7 @@ interface BaseCalendarSourceConfig {
   id: string;
   name: string;
   url: string;
+  browserAllowedOrigins?: string[];
   timeZone?: string;
   defaultAddress?: string;
   cacheTtlSeconds?: number;

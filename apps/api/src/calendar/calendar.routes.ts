@@ -1,6 +1,7 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import { getCachedCalendarDebugText, getCachedCalendarFeed } from "./calendar.cache.js";
 import { CALENDAR_SOURCES, getCalendarSource } from "./calendar.config.js";
+import type { CalendarSourceConfig } from "./calendar.service.js";
 
 export async function registerCalendarRoutes(server: FastifyInstance) {
   server.get("/calendar", async () => ({
@@ -20,6 +21,8 @@ export async function registerCalendarRoutes(server: FastifyInstance) {
         throw server.httpErrors.notFound("Unknown calendar");
       }
 
+      applyCalendarCorsHeaders(request.headers.origin, config, reply);
+
       if (isDebugRequest(request.query.debug)) {
         const debugText = getCachedCalendarDebugText(config, request.query.filter);
 
@@ -38,8 +41,37 @@ export async function registerCalendarRoutes(server: FastifyInstance) {
         .send(feed);
     }
   );
+
+  server.options<{ Params: { calendarId: string } }>("/calendar/:calendarId.ics", async (request, reply) => {
+    const config = getCalendarSource(request.params.calendarId);
+
+    if (!config) {
+      throw server.httpErrors.notFound("Unknown calendar");
+    }
+
+    applyCalendarCorsHeaders(request.headers.origin, config, reply);
+
+    return reply
+      .header("access-control-allow-methods", "GET, OPTIONS")
+      .header("access-control-allow-headers", "accept, content-type")
+      .header("access-control-max-age", "3600")
+      .code(204)
+      .send();
+  });
 }
 
 function isDebugRequest(value: string | undefined): boolean {
   return value === "1" || value === "true" || value === "text";
+}
+
+function applyCalendarCorsHeaders(
+  origin: string | undefined,
+  config: CalendarSourceConfig,
+  reply: FastifyReply
+): void {
+  reply.header("vary", "Origin");
+
+  if (origin && config.browserAllowedOrigins?.includes(origin)) {
+    reply.header("access-control-allow-origin", origin);
+  }
 }

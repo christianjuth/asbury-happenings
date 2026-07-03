@@ -171,4 +171,56 @@ describe("server", () => {
 
     await server.close();
   });
+
+  it("allows browser access only for Samantha Dress from the configured origin", async () => {
+    const server = await buildServer();
+
+    const allowedResponse = await server.inject({
+      method: "GET",
+      url: "/calendar/samantha-dress.ics",
+      headers: {
+        origin: "https://samanthadress.com"
+      }
+    });
+    const disallowedFeedResponse = await server.inject({
+      method: "GET",
+      url: "/calendar/asbury-book-coop.ics",
+      headers: {
+        origin: "https://samanthadress.com"
+      }
+    });
+    const disallowedOriginResponse = await server.inject({
+      method: "GET",
+      url: "/calendar/samantha-dress.ics",
+      headers: {
+        origin: "https://example.com"
+      }
+    });
+
+    expect(allowedResponse.headers["access-control-allow-origin"]).toBe("https://samanthadress.com");
+    expect(allowedResponse.headers.vary).toBe("Origin");
+    expect(disallowedFeedResponse.headers["access-control-allow-origin"]).toBeUndefined();
+    expect(disallowedOriginResponse.headers["access-control-allow-origin"]).toBeUndefined();
+
+    await server.close();
+  });
+
+  it("supports Samantha Dress CORS preflight from the configured origin", async () => {
+    const server = await buildServer();
+
+    const response = await server.inject({
+      method: "OPTIONS",
+      url: "/calendar/samantha-dress.ics",
+      headers: {
+        origin: "https://samanthadress.com",
+        "access-control-request-method": "GET"
+      }
+    });
+
+    expect(response.statusCode).toBe(204);
+    expect(response.headers["access-control-allow-origin"]).toBe("https://samanthadress.com");
+    expect(response.headers["access-control-allow-methods"]).toBe("GET, OPTIONS");
+
+    await server.close();
+  });
 });
