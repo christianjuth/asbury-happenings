@@ -1,4 +1,8 @@
-import { stripHtmlFromEventLocation, type CalendarSourceConfig } from "./calendar.service.js";
+import {
+  stripHtmlFromEventDescription,
+  stripHtmlFromEventLocation,
+  type CalendarSourceConfig
+} from "./calendar.service.js";
 
 const SQUARESPACE_JSON_SOURCE = {
   sourceType: "json",
@@ -163,6 +167,30 @@ export const CALENDAR_SOURCES = [
     defaultAddress: "R Bar & Restaurant, 1114 Main St, Asbury Park, NJ 07712",
     cacheTtlSeconds: 900,
     defaultDurationMinutes: 180
+  },
+  {
+    id: "wonder-bar",
+    name: "Wonder Bar",
+    sourceType: "json",
+    url: "https://apboardwalk.com/wp-json/apb/v1/shows/64",
+    fields: {
+      title: "title",
+      start: {
+        path: "date.start",
+        dateFormat: "epoch-seconds"
+      },
+      description: "details",
+      address: "venue.addr",
+      url: {
+        path: ["ticket", "more"]
+      },
+      location: "venue.addr"
+    },
+    timeZone: "America/New_York",
+    defaultAddress: "Wonder Bar, 1213 Ocean Ave, Asbury Park, NJ 07712",
+    cacheTtlSeconds: 900,
+    defaultDurationMinutes: 180,
+    transformEvent: stripHtmlFromEventDescription
   },
   {
     id: "house-of-independents",

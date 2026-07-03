@@ -533,6 +533,15 @@ export function stripHtmlFromEventLocation(event: CalendarEvent): CalendarEvent 
   };
 }
 
+export function stripHtmlFromEventDescription(event: CalendarEvent): CalendarEvent {
+  const description = event.description ? stripHtml(event.description) : event.description;
+
+  return {
+    ...event,
+    description
+  };
+}
+
 function extractEventsFromSourceText(text: string, config: CalendarSourceConfig, sourcePage: SourcePage): CalendarEvent[] {
   switch (config.sourceType) {
     case "html":
@@ -589,6 +598,10 @@ function readJsonText(item: unknown, field: JsonFieldSpec | undefined): string |
   const value = readJsonValue(item, field);
 
   if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (typeof value === "boolean") {
     return undefined;
   }
 
@@ -878,6 +891,7 @@ function stripHtml(value: string): string {
 
   $("style, script, noscript").remove();
   $("br").replaceWith(" ");
+  $("p, div, li, h1, h2, h3, h4, h5, h6").append(" ");
 
   return normalizeText($.root().text());
 }

@@ -770,6 +770,78 @@ describe("extractEventsFromJson", () => {
     expect(events[0]?.start.toISOString()).toBe("2026-07-04T18:00:00.000Z");
     expect(events[0]?.end.toISOString()).toBe("2026-07-04T18:45:00.000Z");
   });
+
+  it("parses Wonder Bar API events", () => {
+    const wonderBarConfig = getCalendarSource("wonder-bar");
+
+    if (!wonderBarConfig || wonderBarConfig.sourceType !== "json") {
+      throw new Error("Missing Wonder Bar calendar config");
+    }
+
+    const rawEvents = extractEventsFromJson(
+      JSON.stringify([
+        {
+          id: 24466,
+          title: "Promised Land",
+          date: {
+            start: 1783123200,
+            end: 1783123200,
+            timezone: "America/New_York"
+          },
+          details:
+            "<p><strong>Promised Land</strong><br />Classic Jersey Shore Music Tribute</p><p>Doors 8:00pm<br />Show 8:30pm</p>",
+          ticket: "https://www.ticketmaster.com/event/0000648DC1A6E988",
+          more: false,
+          info: "American Hit Parade Show",
+          venue: {
+            name: "Wonder Bar",
+            addr: "1213 Ocean Avenue Asbury Park, NJ 07712"
+          }
+        },
+        {
+          id: 24871,
+          title: "Happy Mondays",
+          date: {
+            start: 1783378800,
+            end: 1783378800,
+            timezone: "America/New_York"
+          },
+          details: "<p>SEIKO Presents<br /><strong>HAPPY MONDAYS</strong><br />Free admission</p>",
+          ticket: false,
+          more: false,
+          info: "Honey Bree, James Barrett",
+          venue: {
+            name: "Wonder Bar",
+            addr: "1213 Ocean Avenue Asbury Park, NJ 07712"
+          }
+        }
+      ]),
+      wonderBarConfig,
+      "https://apboardwalk.com/wp-json/apb/v1/shows/64"
+    );
+    const events = rawEvents.map((event) => {
+      const transformed = wonderBarConfig.transformEvent?.(event) ?? event;
+
+      if (!transformed) {
+        throw new Error("Wonder Bar transform unexpectedly removed event");
+      }
+
+      return transformed;
+    });
+
+    expect(events).toHaveLength(2);
+    expect(events[0]).toMatchObject({
+      title: "Promised Land",
+      description: "Promised Land Classic Jersey Shore Music Tribute Doors 8:00pm Show 8:30pm",
+      address: "1213 Ocean Avenue Asbury Park, NJ 07712",
+      location: "1213 Ocean Avenue Asbury Park, NJ 07712",
+      url: "https://www.ticketmaster.com/event/0000648DC1A6E988"
+    });
+    expect(events[0]?.start.toISOString()).toBe("2026-07-04T00:00:00.000Z");
+    expect(events[0]?.end.toISOString()).toBe("2026-07-04T03:00:00.000Z");
+    expect(events[1]?.title).toBe("Happy Mondays");
+    expect(events[1]?.url).toBeUndefined();
+  });
 });
 
 describe("extractEventsFromIcs", () => {
