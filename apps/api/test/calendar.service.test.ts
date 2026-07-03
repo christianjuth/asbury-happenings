@@ -7,6 +7,7 @@ import {
   renderSourceUrls,
   type CalendarSourceConfig
 } from "../src/calendar/calendar.service.js";
+import { getCalendarSource } from "../src/calendar/calendar.config.js";
 
 afterEach(() => {
   clearCalendarFetchCache();
@@ -470,6 +471,57 @@ describe("extractEventsFromHtml", () => {
     expect(events[3]?.title).toBe("A Medium Gallery with Linda Shields");
     expect(events[3]?.start.toISOString()).toBe("2026-07-09T04:00:00.000Z");
     expect(events[3]?.end.toISOString()).toBe("2026-07-09T06:00:00.000Z");
+  });
+
+  it("parses AP Rooftop event list cards", () => {
+    const apRooftopConfig = getCalendarSource("ap-rooftop");
+
+    if (!apRooftopConfig) {
+      throw new Error("Missing AP Rooftop calendar config");
+    }
+
+    const events = extractEventsFromHtml(
+      `
+        <div id="main-content-sub">
+          <div style="width: 100%; position: relative; margin-left: auto; margin-right: auto;">
+            <div class="events_col1_image events_col1_image_reg"></div>
+            <div class="events_col2">
+              <div class="event_date">Friday, July 3</div>
+              <h2>DJ MoTalent from Mo Talent Live</h2>
+              <div>Location: <strong>Arthur Pryor Bandshell - Outdoor Concert</strong>, 1200 Ocean Ave, Third Floor, Asbury Park, NJ</div>
+              <div>7:00pm - 10:00pm</div>
+            </div>
+          </div>
+          <div style="width: 100%; position: relative; margin-left: auto; margin-right: auto;">
+            <div class="events_col1">
+              <div>Friday</div>
+              <div>10</div>
+              <div>July</div>
+            </div>
+            <div class="events_col2">
+              <h2>DJ Quikdish</h2>
+              <div>Location: <strong>Arthur Pryor Bandshell - Outdoor Concert</strong>, 1200 Ocean Ave, Third Floor, Asbury Park, NJ</div>
+              <div>7:00pm</div>
+            </div>
+          </div>
+        </div>
+      `,
+      apRooftopConfig,
+      "https://aprooftop.com/events.php",
+      new Date("2026-07-03T00:00:00Z")
+    );
+
+    expect(events).toHaveLength(2);
+    expect(events[0]).toMatchObject({
+      title: "DJ MoTalent from Mo Talent Live",
+      address: "Arthur Pryor Bandshell, 1200 Ocean Ave, Asbury Park, NJ 07712",
+      location: "Arthur Pryor Bandshell, 1200 Ocean Ave, Asbury Park, NJ 07712"
+    });
+    expect(events[0]?.start.toISOString()).toBe("2026-07-03T23:00:00.000Z");
+    expect(events[0]?.end.toISOString()).toBe("2026-07-04T02:00:00.000Z");
+    expect(events[1]?.title).toBe("DJ Quikdish");
+    expect(events[1]?.start.toISOString()).toBe("2026-07-10T23:00:00.000Z");
+    expect(events[1]?.end.toISOString()).toBe("2026-07-11T02:00:00.000Z");
   });
 
   it("parses R Bar Squarespace event list cards", () => {
