@@ -1169,6 +1169,103 @@ describe("fetchCalendarEvents", () => {
     expect(result.events[0]?.location).toBe("City Hall 1 Municipal Plaza");
   });
 
+  it("fetches and parses ShowRoom Cinemas coming-soon listings", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        `
+          <div class="show-list">
+            <div class="show-details">
+              <div class="showtimes-description">
+                <h2 class="show-title">
+                  <a class="title" href="https://showroomcinemas.com/movies/from-russia-with-love/">From Russia with Love</a>
+                </h2>
+                <ul class="datelist">
+                  <li class="show-date first selected" data-date="1783494000">
+                    <span>Wed,  Jul 8</span>
+                  </li>
+                </ul>
+                <ol class="showtimes showtime-button-row">
+                  <li data-date="1783494000">
+                    <a href="https://showroomcinemas.com/purchase/259184/" class="showtime">7:30 pm</a>
+                  </li>
+                </ol>
+                <div class="show-content"><p>The world's masters of murder pull out all the stops.</p></div>
+              </div>
+            </div>
+            <div class="show-details">
+              <div class="showtimes-description">
+                <h2 class="show-title">
+                  <a class="title" href="https://showroomcinemas.com/movies/jaws/">Jaws</a>
+                </h2>
+                <ul class="datelist">
+                  <li class="show-date first selected" data-date="1783753200">
+                    <span>Sat,  Jul 11</span>
+                  </li>
+                  <li class="show-date" data-date="1784098800">
+                    <span>Wed,  Jul 15</span>
+                  </li>
+                </ul>
+                <ol class="showtimes showtime-button-row">
+                  <li data-date="1783753200">
+                    <a href="https://showroomcinemas.com/purchase/257805/" class="showtime">7:30 pm</a>
+                  </li>
+                  <li data-date="1784098800" style="display: none">
+                    <a href="https://showroomcinemas.com/purchase/257807/" class="showtime">7:30 pm</a>
+                  </li>
+                </ol>
+                <div class="show-content"><p>The terrifying motion picture.</p></div>
+              </div>
+            </div>
+            <div class="show-details">
+              <div class="showtimes-description">
+                <h2 class="show-title">
+                  <a class="title" href="https://showroomcinemas.com/movies/a-cell-phone-movie/">A Cell Phone Movie</a>
+                </h2>
+                <div class="showtimes-container clearfix no-showtimes">
+                  <div class="date-selector empty">
+                    <div class="no-showtimes-date">Opens on August 7</div>
+                  </div>
+                </div>
+                <div class="show-content"><p>It's Just like Rocky.</p></div>
+              </div>
+            </div>
+          </div>
+        `
+      )
+    );
+    const showroomConfig = getCalendarSource("showroom-cinemas");
+
+    if (!showroomConfig) {
+      throw new Error("Missing ShowRoom Cinemas calendar config");
+    }
+
+    const result = await fetchCalendarEvents(showroomConfig, new Date("2026-07-03T00:00:00Z"));
+
+    expect(result.sourceUrls).toEqual(["https://showroomcinemas.com/coming-soon/"]);
+    expect(result.events).toHaveLength(4);
+    expect(result.events[0]).toMatchObject({
+      title: "From Russia with Love",
+      description: "The world's masters of murder pull out all the stops.",
+      address: "ShowRoom Cinemas, 707 Cookman Avenue, Asbury Park, NJ 07712",
+      location: "ShowRoom Cinemas, 707 Cookman Avenue, Asbury Park, NJ 07712",
+      url: "https://showroomcinemas.com/purchase/259184/"
+    });
+    expect(result.events[0]?.start.toISOString()).toBe("2026-07-08T23:30:00.000Z");
+    expect(result.events[0]?.end.toISOString()).toBe("2026-07-09T01:30:00.000Z");
+    expect(result.events[1]?.title).toBe("Jaws");
+    expect(result.events[1]?.start.toISOString()).toBe("2026-07-11T23:30:00.000Z");
+    expect(result.events[2]?.title).toBe("Jaws");
+    expect(result.events[2]?.start.toISOString()).toBe("2026-07-15T23:30:00.000Z");
+    expect(result.events[2]?.url).toBe("https://showroomcinemas.com/purchase/257807/");
+    expect(result.events[3]).toMatchObject({
+      title: "A Cell Phone Movie",
+      allDay: true,
+      url: "https://showroomcinemas.com/movies/a-cell-phone-movie/"
+    });
+    expect(result.events[3]?.start.toISOString()).toBe("2026-08-07T04:00:00.000Z");
+    expect(result.events[3]?.end.toISOString()).toBe("2026-08-08T04:00:00.000Z");
+  });
+
   it("serves stale cached HTML when upstream starts failing", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")

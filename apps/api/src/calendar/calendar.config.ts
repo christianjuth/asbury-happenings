@@ -1,4 +1,5 @@
 import {
+  extractShowroomComingSoonEvents,
   stripHtmlFromEventDescription,
   stripHtmlFromEventLocation,
   type CalendarSourceConfig
@@ -234,6 +235,36 @@ export const CALENDAR_SOURCES = [
     defaultAddress: "House of Independents, 572 Cookman Ave, Asbury Park, NJ 07712",
     cacheTtlSeconds: 900,
     defaultDurationMinutes: 180
+  },
+  {
+    id: "showroom-cinemas",
+    name: "ShowRoom Cinemas",
+    sourceType: "html",
+    url: "https://showroomcinemas.com/coming-soon/",
+    containerSelector: ".show-list > .show-details",
+    selectors: {
+      title: ".show-title .title",
+      startDate: {
+        selector: ".selected-date span, .no-showtimes-date",
+        pattern: /(?:[A-Za-z]{3},\s*)?((?:[A-Za-z]{3}|[A-Za-z]+)\s+\d{1,2})/i,
+        format: ["MMM D", "MMMM D"]
+      },
+      startTime: {
+        selector: ".showtime",
+        pattern: /([0-9]{1,2}:[0-9]{2}\s*[ap]m)/i,
+        format: ["h:mm a", "h:mma"]
+      },
+      description: ".show-content",
+      url: {
+        selector: ".show-title .title",
+        attr: "href"
+      }
+    },
+    timeZone: "America/New_York",
+    defaultAddress: "ShowRoom Cinemas, 707 Cookman Avenue, Asbury Park, NJ 07712",
+    cacheTtlSeconds: 900,
+    defaultDurationMinutes: 120,
+    extractEvents: extractShowroomComingSoonEvents
   },
   {
     id: "asbury-park-brewery",
