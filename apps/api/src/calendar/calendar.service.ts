@@ -256,6 +256,8 @@ async function fetchSourceHtml(
   }
 }
 
+let cookie = ""
+
 async function fetchFreshHtml(sourceUrl: string): Promise<string> {
   const existingFetch = pendingFetches.get(sourceUrl);
 
@@ -264,10 +266,18 @@ async function fetchFreshHtml(sourceUrl: string): Promise<string> {
   }
 
   const pendingFetch = fetch(sourceUrl, {
-    headers: buildRequestHeaders()
+    headers: {
+      ...buildRequestHeaders(),
+      cookie
+    }
   }).then(async (response) => {
     if (!response.ok) {
       throw new Error(`Failed to fetch ${sourceUrl}: ${response.status}`);
+    }
+
+    const newCookie = response.headers.get("set-cookie")
+    if (newCookie && newCookie.toLowerCase().includes("x_obolus_proof")) {
+      cookie = newCookie
     }
 
     return response.text();
