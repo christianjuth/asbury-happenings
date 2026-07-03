@@ -26,6 +26,7 @@ export const calendarSources = [
       }
     },
     dateFormats: ["MMM DD"],
+    timeZone: "UTC",
     cacheTtlSeconds: 900,
     defaultDurationMinutes: 60
   },
@@ -59,6 +60,7 @@ export const calendarSources = [
       }
     },
     dateFormats: ["MMM DD", "MMM D", "MMMM DD", "MMMM D"],
+    timeZone: "America/New_York",
     cacheTtlSeconds: 900,
     defaultDurationMinutes: 60
   }

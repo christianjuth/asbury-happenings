@@ -98,11 +98,12 @@ Calendar sources are configured in `src/calendar/calendar.config.ts`. Each sourc
     location: ".location",
     description: ".description",
     url: { selector: "a.details", attr: "href" }
-  }
+  },
+  timeZone: "America/New_York"
 }
 ```
 
-Date parsing is forgiving by default for common date shapes like `Jul 02`, `July 2`, `7/2/2026`, and `2026-07-02`. Date selectors can include `format` for site-specific dates:
+Date parsing is forgiving by default for common date shapes like `Jul 02`, `July 2`, `7/2/2026`, and `2026-07-02`. Set `timeZone` to parse site-local times before converting to UTC for the ICS feed. Use IANA timezone names like `America/New_York`; this handles EST/EDT daylight saving changes. Date selectors can include `format` for site-specific dates:
 
 ```ts
 start: {

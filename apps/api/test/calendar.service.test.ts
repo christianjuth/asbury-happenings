@@ -203,6 +203,49 @@ describe("extractEventsFromHtml", () => {
     expect(events[0]?.start.toISOString()).toBe("2026-07-06T19:00:00.000Z");
     expect(events[0]?.end.toISOString()).toBe("2026-07-06T20:30:00.000Z");
   });
+
+  it("parses configured local timezone before converting to UTC", () => {
+    const easternConfig: CalendarSourceConfig = {
+      ...config,
+      timeZone: "America/New_York",
+      selectors: {
+        title: ".event-list__title",
+        startDate: {
+          selector: ".event-list__details",
+          pattern: /[A-Za-z]{3},\s*([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4})/,
+          format: "M/D/YYYY"
+        },
+        startTime: {
+          selector: ".event-list__details",
+          pattern: /([0-9]{1,2}:[0-9]{2}\s*[ap]m)\s*-/i,
+          format: ["h:mma", "h:mm a"]
+        },
+        endTime: {
+          selector: ".event-list__details",
+          pattern: /-\s*([0-9]{1,2}:[0-9]{2}\s*[ap]m)/i,
+          format: ["h:mma", "h:mm a"]
+        }
+      }
+    };
+
+    const events = extractEventsFromHtml(
+      `
+        <article class="event-list">
+          <h2 class="event-list__title">Author Talk</h2>
+          <div class="event-list__details">
+            Mon, 7/6/2026
+            7:00pm - 8:30pm
+          </div>
+        </article>
+      `,
+      easternConfig,
+      "https://example.com/events"
+    );
+
+    expect(events).toHaveLength(1);
+    expect(events[0]?.start.toISOString()).toBe("2026-07-06T23:00:00.000Z");
+    expect(events[0]?.end.toISOString()).toBe("2026-07-07T00:30:00.000Z");
+  });
 });
 
 describe("renderSourceUrl", () => {

@@ -1,8 +1,12 @@
 import * as cheerio from "cheerio";
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat.js";
+import timezone from "dayjs/plugin/timezone.js";
+import utc from "dayjs/plugin/utc.js";
 import ical from "ical-generator";
 
+dayjs.extend(utc);
+dayjs.extend(timezone);
 dayjs.extend(customParseFormat);
 
 const defaultDateFormats = [
@@ -62,6 +66,7 @@ export interface CalendarSourceConfig {
   selectors: EventSelectorConfig;
   dateFormats?: string[];
   timeFormats?: string[];
+  timeZone?: string;
   cacheTtlSeconds?: number;
   defaultDurationMinutes?: number;
 }
@@ -339,7 +344,7 @@ function readEventDate({
     const value = readOptional(fullDateTimeSelector);
 
     if (value) {
-      return parseDateOrNull(value, fullDateTimeSelector, config.dateFormats, referenceDate);
+      return parseDateOrNull(value, fullDateTimeSelector, config.dateFormats, referenceDate, config.timeZone);
     }
   }
 
@@ -356,7 +361,7 @@ function readEventDate({
   const timeValue = readOptional(timeSelector);
 
   if (!timeValue) {
-    return parseDateOrNull(dateValue, dateSelector, config.dateFormats, referenceDate);
+    return parseDateOrNull(dateValue, dateSelector, config.dateFormats, referenceDate, config.timeZone);
   }
 
   return parseDateAndTimeOrNull(
@@ -366,7 +371,8 @@ function readEventDate({
     timeSelector,
     config.dateFormats,
     config.timeFormats,
-    referenceDate
+    referenceDate,
+    config.timeZone
   );
 }
 
@@ -374,10 +380,11 @@ function parseDateOrNull(
   value: string,
   selector: SelectorSpec | undefined,
   fallbackFormats: string[] | undefined,
-  referenceDate: Date
+  referenceDate: Date,
+  timeZone?: string
 ): Date | null {
   for (const format of getDateFormats(selector, fallbackFormats)) {
-    const parsed = parseFormattedDate(value, format, referenceDate);
+    const parsed = parseFormattedDate(value, format, referenceDate, timeZone);
 
     if (parsed) {
       return parsed;
@@ -400,11 +407,12 @@ function parseDateAndTimeOrNull(
   timeSelector: SelectorSpec | undefined,
   fallbackDateFormats: string[] | undefined,
   fallbackTimeFormats: string[] | undefined,
-  referenceDate: Date
+  referenceDate: Date,
+  timeZone?: string
 ): Date | null {
   for (const dateFormat of getDateFormats(dateSelector, fallbackDateFormats)) {
     for (const timeFormat of getTimeFormats(timeSelector, fallbackTimeFormats)) {
-      const parsed = parseFormattedDateTime(dateValue, dateFormat, timeValue, timeFormat, referenceDate);
+      const parsed = parseFormattedDateTime(dateValue, dateFormat, timeValue, timeFormat, referenceDate, timeZone);
 
       if (parsed) {
         return parsed;
@@ -412,7 +420,7 @@ function parseDateAndTimeOrNull(
     }
   }
 
-  return parseDateOrNull(`${dateValue} ${timeValue}`, undefined, fallbackDateFormats, referenceDate);
+  return parseDateOrNull(`${dateValue} ${timeValue}`, undefined, fallbackDateFormats, referenceDate, timeZone);
 }
 
 function getDateFormats(selector: SelectorSpec | undefined, fallbackFormats: string[] | undefined): string[] {
@@ -437,12 +445,14 @@ function getTimeFormats(selector: SelectorSpec | undefined, fallbackFormats: str
   return [...new Set([...selectorFormats, ...(fallbackFormats ?? []), ...defaultTimeFormats])];
 }
 
-function parseFormattedDate(value: string, format: string, referenceDate: Date): Date | null {
+function parseFormattedDate(value: string, format: string, referenceDate: Date, timeZone?: string): Date | null {
   const parseValue = formatHasYear(format)
     ? value
     : `${value} ${referenceDate.getUTCFullYear()}`;
   const parseFormat = formatHasYear(format) ? format : `${format} YYYY`;
-  const parsed = dayjs(parseValue, parseFormat, true);
+  const parsed = timeZone
+    ? dayjs.tz(parseValue, parseFormat, timeZone)
+    : dayjs(parseValue, parseFormat, true);
 
   return parsed.isValid() ? parsed.toDate() : null;
 }
@@ -452,7 +462,8 @@ function parseFormattedDateTime(
   dateFormat: string,
   timeValue: string,
   timeFormat: string,
-  referenceDate: Date
+  referenceDate: Date,
+  timeZone?: string
 ): Date | null {
   const value = formatHasYear(dateFormat)
     ? `${dateValue} ${timeValue}`
@@ -460,7 +471,9 @@ function parseFormattedDateTime(
   const format = formatHasYear(dateFormat)
     ? `${dateFormat} ${timeFormat}`
     : `${dateFormat} YYYY ${timeFormat}`;
-  const parsed = dayjs(value, format, true);
+  const parsed = timeZone
+    ? dayjs.tz(value, format, timeZone)
+    : dayjs(value, format, true);
 
   return parsed.isValid() ? parsed.toDate() : null;
 }
