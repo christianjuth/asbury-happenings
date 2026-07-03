@@ -1,6 +1,6 @@
 import type { CalendarSourceConfig } from "./calendar.service.js";
 
-export const calendarSources = [
+export const CALENDAR_SOURCES = [
   {
     id: "asbury-book-coop",
     name: "Asbury Book Coop",
@@ -88,5 +88,5 @@ export const calendarSources = [
 ] satisfies CalendarSourceConfig[];
 
 export function getCalendarSource(id: string): CalendarSourceConfig | undefined {
-  return calendarSources.find((source) => source.id === id);
+  return CALENDAR_SOURCES.find((source) => source.id === id);
 }

@@ -1,10 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import { getCachedCalendarDebugText, getCachedCalendarFeed } from "./calendar.cache.js";
-import { calendarSources, getCalendarSource } from "./calendar.config.js";
+import { CALENDAR_SOURCES, getCalendarSource } from "./calendar.config.js";
 
 export async function registerCalendarRoutes(server: FastifyInstance) {
   server.get("/calendar", async () => ({
-    calendars: calendarSources.map((source) => ({
+    calendars: CALENDAR_SOURCES.map((source) => ({
       id: source.id,
       name: source.name,
       path: `/calendar/${source.id}.ics`

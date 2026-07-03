@@ -1,11 +1,11 @@
 import { buildServer } from "./server.js";
-import { env } from "./env.js";
+import { ENV } from "./env.js";
 
-const server = await buildServer();
+const SERVER = await buildServer();
 
 try {
-  await server.listen({ port: env.PORT, host: env.HOST });
+  await SERVER.listen({ port: ENV.PORT, host: ENV.HOST });
 } catch (error) {
-  server.log.error(error);
+  SERVER.log.error(error);
   process.exit(1);
 }

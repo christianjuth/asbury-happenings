@@ -10,7 +10,7 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 dayjs.extend(customParseFormat);
 
-const defaultDateFormats = [
+const DEFAULT_DATE_FORMATS = [
   "ddd, M/D/YYYY",
   "ddd, MM/DD/YYYY",
   "MMM DD",
@@ -26,8 +26,8 @@ const defaultDateFormats = [
   "YYYY-MM-DD"
 ];
 
-const defaultTimeFormats = ["h:mma", "h:mm a", "ha", "h a", "H:mm", "HH:mm"];
-const defaultCacheTtlSeconds = 15 * 60;
+const DEFAULT_TIME_FORMATS = ["h:mma", "h:mm a", "ha", "h a", "H:mm", "HH:mm"];
+const DEFAULT_CACHE_TTL_SECONDS = 15 * 60;
 
 interface HtmlCacheEntry {
   html: string;
@@ -41,9 +41,9 @@ export interface SourcePage {
   referenceDate: Date;
 }
 
-const htmlCache = new Map<string, HtmlCacheEntry>();
-const pendingFetches = new Map<string, Promise<string>>();
-const cookieJar = new Map<string, Map<string, string>>();
+const HTML_CACHE = new Map<string, HtmlCacheEntry>();
+const PENDING_FETCHES = new Map<string, Promise<string>>();
+const COOKIE_JAR = new Map<string, Map<string, string>>();
 
 export type SelectorSpec =
   | string
@@ -225,17 +225,17 @@ export function eventsToDebugText(
 }
 
 export function clearCalendarFetchCache(): void {
-  htmlCache.clear();
-  pendingFetches.clear();
-  cookieJar.clear();
+  HTML_CACHE.clear();
+  PENDING_FETCHES.clear();
+  COOKIE_JAR.clear();
 }
 
 async function fetchSourceHtml(
   sourceUrl: string,
-  cacheTtlSeconds = defaultCacheTtlSeconds
+  cacheTtlSeconds = DEFAULT_CACHE_TTL_SECONDS
 ): Promise<{ html: string; cacheStatus: FetchStatus }> {
   const now = Date.now();
-  const cached = htmlCache.get(sourceUrl);
+  const cached = HTML_CACHE.get(sourceUrl);
 
   if (cached && cached.expiresAt > now) {
     return { html: cached.html, cacheStatus: "hit" };
@@ -244,7 +244,7 @@ async function fetchSourceHtml(
   try {
     const html = await fetchFreshHtml(sourceUrl);
 
-    htmlCache.set(sourceUrl, {
+    HTML_CACHE.set(sourceUrl, {
       html,
       expiresAt: now + cacheTtlSeconds * 1000
     });
@@ -260,7 +260,7 @@ async function fetchSourceHtml(
 }
 
 async function fetchFreshHtml(sourceUrl: string): Promise<string> {
-  const existingFetch = pendingFetches.get(sourceUrl);
+  const existingFetch = PENDING_FETCHES.get(sourceUrl);
 
   if (existingFetch) {
     return existingFetch;
@@ -285,12 +285,12 @@ async function fetchFreshHtml(sourceUrl: string): Promise<string> {
     return response.text();
   });
 
-  pendingFetches.set(sourceUrl, pendingFetch);
+  PENDING_FETCHES.set(sourceUrl, pendingFetch);
 
   try {
     return await pendingFetch;
   } finally {
-    pendingFetches.delete(sourceUrl);
+    PENDING_FETCHES.delete(sourceUrl);
   }
 }
 
@@ -301,7 +301,7 @@ function buildRequestHeaders(): Record<string, string> {
 }
 
 function getCookieHeader(sourceUrl: string): string | undefined {
-  const hostCookies = cookieJar.get(getCookieHost(sourceUrl));
+  const hostCookies = COOKIE_JAR.get(getCookieHost(sourceUrl));
 
   if (!hostCookies?.size) {
     return undefined;
@@ -318,7 +318,7 @@ function storeResponseCookies(sourceUrl: string, headers: Headers): void {
   }
 
   const host = getCookieHost(sourceUrl);
-  const hostCookies = cookieJar.get(host) ?? new Map<string, string>();
+  const hostCookies = COOKIE_JAR.get(host) ?? new Map<string, string>();
 
   for (const setCookie of setCookieHeaders) {
     const [cookiePair] = setCookie.split(";");
@@ -337,7 +337,7 @@ function storeResponseCookies(sourceUrl: string, headers: Headers): void {
   }
 
   if (hostCookies.size) {
-    cookieJar.set(host, hostCookies);
+    COOKIE_JAR.set(host, hostCookies);
   }
 }
 
@@ -613,7 +613,7 @@ function getDateFormats(selector: SelectorSpec | undefined, fallbackFormats: str
       ? lodash.castArray(selector.format)
       : [];
 
-  return lodash.uniq([...selectorFormats, ...(fallbackFormats ?? []), ...defaultDateFormats]);
+  return lodash.uniq([...selectorFormats, ...(fallbackFormats ?? []), ...DEFAULT_DATE_FORMATS]);
 }
 
 function getTimeFormats(selector: SelectorSpec | undefined, fallbackFormats: string[] | undefined): string[] {
@@ -622,7 +622,7 @@ function getTimeFormats(selector: SelectorSpec | undefined, fallbackFormats: str
       ? lodash.castArray(selector.format)
       : [];
 
-  return lodash.uniq([...selectorFormats, ...(fallbackFormats ?? []), ...defaultTimeFormats]);
+  return lodash.uniq([...selectorFormats, ...(fallbackFormats ?? []), ...DEFAULT_TIME_FORMATS]);
 }
 
 function parseFormattedDate(value: string, format: string, referenceDate: Date, timeZone?: string): Date | null {

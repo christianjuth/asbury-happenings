@@ -1,5 +1,5 @@
 import type { FastifyBaseLogger } from "fastify";
-import { calendarSources } from "./calendar.config.js";
+import { CALENDAR_SOURCES } from "./calendar.config.js";
 import {
   dedupeEvents,
   eventsToDebugText,
@@ -12,7 +12,7 @@ import {
   type SourcePage
 } from "./calendar.service.js";
 
-const cacheTickMs = 5 * 60_000;
+const CACHE_TICK_MS = 5 * 60_000;
 
 interface CachedPage {
   events: CalendarEvent[];
@@ -29,7 +29,7 @@ interface CalendarSnapshot {
   ready: boolean;
 }
 
-const pageCache = new Map<string, CachedPage>();
+const PAGE_CACHE = new Map<string, CachedPage>();
 
 let scheduler: NodeJS.Timeout | undefined;
 let nextPageIndex = 1;
@@ -67,18 +67,18 @@ export async function warmCalendarPage(
   try {
     const { events, cacheStatus } = await fetchCalendarSourcePage(config, sourcePage);
 
-    pageCache.set(cacheKey(config.id, sourcePage.sourceUrl), {
+    PAGE_CACHE.set(cacheKey(config.id, sourcePage.sourceUrl), {
       events,
       fetchedAt: new Date(),
       sourcePage,
       status: cacheStatus
     });
   } catch (error) {
-    const existing = pageCache.get(cacheKey(config.id, sourcePage.sourceUrl));
+    const existing = PAGE_CACHE.get(cacheKey(config.id, sourcePage.sourceUrl));
     const message = error instanceof Error ? error.message : String(error);
 
     if (existing) {
-      pageCache.set(cacheKey(config.id, sourcePage.sourceUrl), {
+      PAGE_CACHE.set(cacheKey(config.id, sourcePage.sourceUrl), {
         ...existing,
         status: "stale",
         error: message
@@ -86,7 +86,7 @@ export async function warmCalendarPage(
       return;
     }
 
-    pageCache.set(cacheKey(config.id, sourcePage.sourceUrl), {
+    PAGE_CACHE.set(cacheKey(config.id, sourcePage.sourceUrl), {
       events: [],
       fetchedAt: new Date(),
       sourcePage,
@@ -103,7 +103,7 @@ export function startCalendarCacheScheduler(logger: FastifyBaseLogger): () => vo
   scheduler = setInterval(() => {
     void warmAllCalendarsPage(nextPageIndex, logger);
     nextPageIndex = (nextPageIndex + 1) % 3;
-  }, cacheTickMs);
+  }, CACHE_TICK_MS);
 
   return stopCalendarCacheScheduler;
 }
@@ -116,7 +116,7 @@ export function stopCalendarCacheScheduler(): void {
 }
 
 export function clearCalendarPageCache(): void {
-  pageCache.clear();
+  PAGE_CACHE.clear();
   nextPageIndex = 1;
   warming = false;
 }
@@ -129,7 +129,7 @@ async function warmAllCalendarsPage(pageIndex: number, logger: FastifyBaseLogger
   warming = true;
 
   try {
-    for (const config of calendarSources) {
+    for (const config of CALENDAR_SOURCES) {
       await warmCalendarPage(config, pageIndex, new Date(), logger);
     }
   } finally {
@@ -139,7 +139,7 @@ async function warmAllCalendarsPage(pageIndex: number, logger: FastifyBaseLogger
 
 function getCalendarSnapshot(config: CalendarSourceConfig, now: Date): CalendarSnapshot {
   const sourcePages = renderSourcePages(config.url, now);
-  const cachedPages = sourcePages.map((sourcePage) => pageCache.get(cacheKey(config.id, sourcePage.sourceUrl)));
+  const cachedPages = sourcePages.map((sourcePage) => PAGE_CACHE.get(cacheKey(config.id, sourcePage.sourceUrl)));
   const events = dedupeEvents(cachedPages.flatMap((page) => page?.events ?? []));
   const statuses = cachedPages.map((page) => page?.status ?? "warming");
 
