@@ -185,8 +185,8 @@ export function eventsToDebugText(
   events: CalendarEvent[],
   cacheStatus?: FetchStatus | FetchStatus[]
 ): string {
-  const sourceUrls = Array.isArray(sourceUrl) ? sourceUrl : [sourceUrl];
-  const cacheStatuses = Array.isArray(cacheStatus) ? cacheStatus : cacheStatus ? [cacheStatus] : [];
+  const sourceUrls = lodash.castArray(sourceUrl);
+  const cacheStatuses = cacheStatus ? lodash.castArray(cacheStatus) : [];
   const lines = [
     `Calendar: ${calendarName}`,
     `Source: ${sourceUrls.join(", ")}`,
@@ -355,7 +355,7 @@ function getSetCookieHeaders(headers: Headers): string[] {
 }
 
 function splitSetCookieHeader(value: string): string[] {
-  return value.split(/,(?=\s*[^;,]+=)/).map((cookie) => cookie.trim()).filter(Boolean);
+  return lodash.compact(value.split(/,(?=\s*[^;,]+=)/).map((cookie) => cookie.trim()));
 }
 
 function getCookieHost(sourceUrl: string): string {
@@ -455,7 +455,7 @@ export function renderSourcePages(template: string, now = new Date()): SourcePag
     return [{ sourceUrl: renderSourceUrl(template, now), referenceDate: now }];
   }
 
-  return [0, 1, 2].map((monthOffset) => {
+  return lodash.range(3).map((monthOffset) => {
     const referenceDate = addMonths(now, monthOffset);
 
     return {
@@ -610,23 +610,19 @@ function parseDateAndTimeOrNull(
 function getDateFormats(selector: SelectorSpec | undefined, fallbackFormats: string[] | undefined): string[] {
   const selectorFormats =
     typeof selector === "object" && selector.format
-      ? Array.isArray(selector.format)
-        ? selector.format
-        : [selector.format]
+      ? lodash.castArray(selector.format)
       : [];
 
-  return [...new Set([...selectorFormats, ...(fallbackFormats ?? []), ...defaultDateFormats])];
+  return lodash.uniq([...selectorFormats, ...(fallbackFormats ?? []), ...defaultDateFormats]);
 }
 
 function getTimeFormats(selector: SelectorSpec | undefined, fallbackFormats: string[] | undefined): string[] {
   const selectorFormats =
     typeof selector === "object" && selector.format
-      ? Array.isArray(selector.format)
-        ? selector.format
-        : [selector.format]
+      ? lodash.castArray(selector.format)
       : [];
 
-  return [...new Set([...selectorFormats, ...(fallbackFormats ?? []), ...defaultTimeFormats])];
+  return lodash.uniq([...selectorFormats, ...(fallbackFormats ?? []), ...defaultTimeFormats]);
 }
 
 function parseFormattedDate(value: string, format: string, referenceDate: Date, timeZone?: string): Date | null {
