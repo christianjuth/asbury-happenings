@@ -46,6 +46,25 @@ Build and run app:
 docker compose up --build
 ```
 
+## Fly.io
+
+This app listens on `0.0.0.0:3000`. Fly's generated config used port `8080`, which makes the proxy time out. `fly.toml` is updated to:
+
+```toml
+[env]
+  PORT = '3000'
+  HOST = '0.0.0.0'
+
+[http_service]
+  internal_port = 3000
+```
+
+Redeploy after changing Fly config:
+
+```bash
+fly deploy
+```
+
 ## Scripts
 
 ```bash
