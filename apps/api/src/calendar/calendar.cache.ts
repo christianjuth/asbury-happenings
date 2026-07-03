@@ -4,10 +4,12 @@ import {
   dedupeEvents,
   eventsToDebugText,
   eventsToIcs,
+  filterCalendarEvents,
   fetchCalendarSourcePage,
   renderSourcePages,
   type CalendarEvent,
   type CalendarSourceConfig,
+  type EventFilterInput,
   type FetchStatus,
   type SourcePage
 } from "./calendar.service.js";
@@ -35,20 +37,33 @@ let scheduler: NodeJS.Timeout | undefined;
 let nextPageIndex = 1;
 let warming = false;
 
-export function getCachedCalendarFeed(config: CalendarSourceConfig, now = new Date()): string | null {
+export function getCachedCalendarFeed(
+  config: CalendarSourceConfig,
+  filters?: EventFilterInput,
+  now = new Date()
+): string | null {
   const snapshot = getCalendarSnapshot(config, now);
 
   if (!snapshot.ready) {
     return null;
   }
 
-  return eventsToIcs(config.name, snapshot.events);
+  return eventsToIcs(config.name, filterCalendarEvents(snapshot.events, filters));
 }
 
-export function getCachedCalendarDebugText(config: CalendarSourceConfig, now = new Date()): string {
+export function getCachedCalendarDebugText(
+  config: CalendarSourceConfig,
+  filters?: EventFilterInput,
+  now = new Date()
+): string {
   const snapshot = getCalendarSnapshot(config, now);
 
-  return eventsToDebugText(config.name, snapshot.sourceUrls, snapshot.events, snapshot.statuses);
+  return eventsToDebugText(
+    config.name,
+    snapshot.sourceUrls,
+    filterCalendarEvents(snapshot.events, filters),
+    snapshot.statuses
+  );
 }
 
 export async function warmCalendarPage(

@@ -11,7 +11,7 @@ export async function registerCalendarRoutes(server: FastifyInstance) {
     }))
   }));
 
-  server.get<{ Params: { calendarId: string }; Querystring: { debug?: string } }>(
+  server.get<{ Params: { calendarId: string }; Querystring: { debug?: string; filter?: string | string[] } }>(
     "/calendar/:calendarId.ics",
     async (request, reply) => {
       const config = getCalendarSource(request.params.calendarId);
@@ -21,12 +21,12 @@ export async function registerCalendarRoutes(server: FastifyInstance) {
       }
 
       if (isDebugRequest(request.query.debug)) {
-        const debugText = getCachedCalendarDebugText(config);
+        const debugText = getCachedCalendarDebugText(config, request.query.filter);
 
         return reply.type("text/plain; charset=utf-8").send(debugText);
       }
 
-      const feed = getCachedCalendarFeed(config);
+      const feed = getCachedCalendarFeed(config, request.query.filter);
 
       if (!feed) {
         return reply.code(503).type("text/plain; charset=utf-8").send("Calendar cache warming");

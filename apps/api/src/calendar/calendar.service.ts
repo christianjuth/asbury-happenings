@@ -125,6 +125,7 @@ export interface CalendarEvent {
   url?: string;
 }
 
+export type EventFilterInput = string | string[] | undefined;
 export type CalendarEventTransform = (event: CalendarEvent) => CalendarEvent | null;
 
 export interface IcsCalendarSourceConfig extends BaseCalendarSourceConfig {
@@ -133,16 +134,24 @@ export interface IcsCalendarSourceConfig extends BaseCalendarSourceConfig {
 
 export type CalendarSourceConfig = HtmlCalendarSourceConfig | JsonCalendarSourceConfig | IcsCalendarSourceConfig;
 
-export async function buildCalendarFeed(config: CalendarSourceConfig, now = new Date()): Promise<string> {
+export async function buildCalendarFeed(
+  config: CalendarSourceConfig,
+  now = new Date(),
+  filters?: EventFilterInput
+): Promise<string> {
   const { events } = await fetchCalendarEvents(config, now);
 
-  return eventsToIcs(config.name, events);
+  return eventsToIcs(config.name, filterCalendarEvents(events, filters));
 }
 
-export async function buildCalendarDebugText(config: CalendarSourceConfig, now = new Date()): Promise<string> {
+export async function buildCalendarDebugText(
+  config: CalendarSourceConfig,
+  now = new Date(),
+  filters?: EventFilterInput
+): Promise<string> {
   const { sourceUrls, events, cacheStatuses } = await fetchCalendarEvents(config, now);
 
-  return eventsToDebugText(config.name, sourceUrls, events, cacheStatuses);
+  return eventsToDebugText(config.name, sourceUrls, filterCalendarEvents(events, filters), cacheStatuses);
 }
 
 export async function fetchCalendarEvents(
@@ -218,6 +227,24 @@ export function eventsToIcs(calendarName: string, events: CalendarEvent[]): stri
   }
 
   return calendar.toString();
+}
+
+export function filterCalendarEvents(events: CalendarEvent[], filters: EventFilterInput): CalendarEvent[] {
+  const { include, exclude } = parseEventFilters(filters);
+
+  if (!include.length && !exclude.length) {
+    return events;
+  }
+
+  return events.filter((event) => {
+    const searchText = getEventSearchText(event);
+
+    if (include.length && !include.some((keyword) => searchText.includes(keyword))) {
+      return false;
+    }
+
+    return !exclude.some((keyword) => searchText.includes(keyword));
+  });
 }
 
 export function eventsToDebugText(
@@ -398,6 +425,47 @@ function getSetCookieHeaders(headers: Headers): string[] {
 
 function splitSetCookieHeader(value: string): string[] {
   return lodash.compact(value.split(/,(?=\s*[^;,]+=)/).map((cookie) => cookie.trim()));
+}
+
+function parseEventFilters(filters: EventFilterInput): { include: string[]; exclude: string[] } {
+  const include: string[] = [];
+  const exclude: string[] = [];
+
+  for (const rawFilter of lodash.castArray(filters)) {
+    const filter = normalizeText(rawFilter);
+
+    if (!filter) {
+      continue;
+    }
+
+    if (filter.startsWith("!")) {
+      const keyword = normalizeFilterKeyword(filter.slice(1));
+
+      if (keyword) {
+        exclude.push(keyword);
+      }
+      continue;
+    }
+
+    const keyword = normalizeFilterKeyword(filter);
+
+    if (keyword) {
+      include.push(keyword);
+    }
+  }
+
+  return { include, exclude };
+}
+
+function normalizeFilterKeyword(value: string): string {
+  return normalizeText(value).toLowerCase();
+}
+
+function getEventSearchText(event: CalendarEvent): string {
+  return lodash
+    .compact([event.title, event.description, event.location, event.address, event.url])
+    .join(" ")
+    .toLowerCase();
 }
 
 function getCookieHost(sourceUrl: string): string {

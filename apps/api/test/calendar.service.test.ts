@@ -5,6 +5,7 @@ import {
   extractEventsFromIcs,
   extractEventsFromJson,
   eventsToIcs,
+  filterCalendarEvents,
   fetchCalendarEvents,
   renderSourceUrl,
   renderSourceUrls,
@@ -947,6 +948,50 @@ describe("extractEventsFromIcs", () => {
     expect(events[0]?.allDay).toBe(true);
     expect(feed).toContain("DTSTART;VALUE=DATE:20260828");
     expect(feed).toContain("DTEND;VALUE=DATE:20260829");
+  });
+});
+
+describe("filterCalendarEvents", () => {
+  const events = [
+    {
+      title: "Promised Land",
+      start: new Date("2026-07-04T00:00:00Z"),
+      end: new Date("2026-07-04T03:00:00Z"),
+      description: "Classic Jersey Shore Music Tribute",
+      location: "Wonder Bar"
+    },
+    {
+      title: "Happy Mondays",
+      start: new Date("2026-07-06T23:00:00Z"),
+      end: new Date("2026-07-07T02:00:00Z"),
+      description: "Free admission",
+      location: "Wonder Bar"
+    },
+    {
+      title: "Council Meeting",
+      start: new Date("2026-07-07T23:00:00Z"),
+      end: new Date("2026-07-08T00:00:00Z"),
+      location: "City Hall"
+    }
+  ];
+
+  it("includes events matching any positive filter", () => {
+    expect(filterCalendarEvents(events, ["promised", "council"]).map((event) => event.title)).toEqual([
+      "Promised Land",
+      "Council Meeting"
+    ]);
+  });
+
+  it("excludes events matching any negated filter", () => {
+    expect(filterCalendarEvents(events, ["!wonder", "!council"]).map((event) => event.title)).toEqual([]);
+  });
+
+  it("combines include and exclude filters", () => {
+    expect(filterCalendarEvents(events, ["wonder", "!free"]).map((event) => event.title)).toEqual(["Promised Land"]);
+  });
+
+  it("ignores empty filters and matches case-insensitively", () => {
+    expect(filterCalendarEvents(events, ["", "  MONDAYS  "]).map((event) => event.title)).toEqual(["Happy Mondays"]);
   });
 });
 
