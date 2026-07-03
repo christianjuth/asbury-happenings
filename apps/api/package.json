@@ -20,9 +20,11 @@
     "dayjs": "^1.11.13",
     "fastify": "^5.0.0",
     "ical-generator": "^8.0.0",
+    "lodash": "4.18.1",
     "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@types/lodash": "4.17.24",
     "@types/node": "^22.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
@@ -31,9 +33,21 @@
   "packageManager": "pnpm@9.15.0",
   "pnpm": {
     "supportedArchitectures": {
-      "os": ["current", "darwin", "linux"],
-      "cpu": ["current", "x64", "arm64"],
-      "libc": ["current", "glibc", "musl"]
+      "os": [
+        "current",
+        "darwin",
+        "linux"
+      ],
+      "cpu": [
+        "current",
+        "x64",
+        "arm64"
+      ],
+      "libc": [
+        "current",
+        "glibc",
+        "musl"
+      ]
     }
   }
 }

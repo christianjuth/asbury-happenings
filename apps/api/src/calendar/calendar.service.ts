@@ -4,6 +4,7 @@ import customParseFormat from "dayjs/plugin/customParseFormat.js";
 import timezone from "dayjs/plugin/timezone.js";
 import utc from "dayjs/plugin/utc.js";
 import ical from "ical-generator";
+import lodash from "lodash";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -472,21 +473,11 @@ function addMonths(date: Date, months: number): Date {
 }
 
 export function dedupeEvents(events: CalendarEvent[]): CalendarEvent[] {
-  const seen = new Set<string>();
-  const uniqueEvents: CalendarEvent[] = [];
+  return lodash.uniqBy(events, getEventDedupeKey);
+}
 
-  for (const event of events) {
-    const key = [event.title, event.start.toISOString(), event.url ?? ""].join("|");
-
-    if (seen.has(key)) {
-      continue;
-    }
-
-    seen.add(key);
-    uniqueEvents.push(event);
-  }
-
-  return uniqueEvents;
+function getEventDedupeKey(event: CalendarEvent): string {
+  return [event.title, event.start.toISOString(), event.url ?? ""].join("|");
 }
 
 function normalizeText(value: string | undefined): string {
