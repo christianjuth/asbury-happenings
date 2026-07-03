@@ -668,9 +668,13 @@ function parseFormattedDateTime(
 }
 
 function parseWithOptionalTimeZone(value: string, format: string, timeZone: string | undefined): dayjs.Dayjs {
+  if (!timeZone) {
+    return dayjs.utc(value, format, true);
+  }
+
   const parsed = dayjs(value, format, true);
 
-  if (!timeZone || !parsed.isValid()) {
+  if (!parsed.isValid()) {
     return parsed;
   }
 

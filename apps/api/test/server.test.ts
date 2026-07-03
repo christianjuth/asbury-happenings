@@ -37,11 +37,6 @@ describe("server", () => {
     expect(response.json()).toMatchObject({
       calendars: [
         {
-          id: "example-events",
-          name: "Example Events",
-          path: "/calendar/example-events.ics"
-        },
-        {
           id: "asbury-book-coop",
           name: "Asbury Book Coop",
           path: "/calendar/asbury-book-coop.ics"
@@ -61,16 +56,17 @@ describe("server", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
       new Response(
         `
-          <article>
-            <h2 class="event-title">Query Debug Event</h2>
-            <time class="start" datetime="2026-07-04T18:00:00Z">July 4</time>
-          </article>
+          <div class="events_col2">
+            <div class="event_date">Saturday, July 4</div>
+            <h2><a href="events.php?id=1">Query Debug Event</a></h2>
+            <div>6:00pm - 8:00pm</div>
+          </div>
         `
       )
     );
 
     const server = await buildServer();
-    const config = getCalendarSource("example-events");
+    const config = getCalendarSource("tim-mcloones-supper-club");
 
     if (!config) {
       throw new Error("Missing test calendar config");
@@ -80,12 +76,12 @@ describe("server", () => {
 
     const response = await server.inject({
       method: "GET",
-      url: "/calendar/example-events.ics?debug=1"
+      url: "/calendar/tim-mcloones-supper-club.ics?debug=1"
     });
 
     expect(response.statusCode).toBe(200);
     expect(response.headers["content-type"]).toContain("text/plain");
-    expect(response.body).toContain("Calendar: Example Events");
+    expect(response.body).toContain("Calendar: Tim McLoone's Supper Club");
     expect(response.body).toContain("#1 Query Debug Event");
 
     await server.close();
