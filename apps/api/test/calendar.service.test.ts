@@ -246,6 +246,138 @@ describe("extractEventsFromHtml", () => {
     expect(events[0]?.start.toISOString()).toBe("2026-07-06T23:00:00.000Z");
     expect(events[0]?.end.toISOString()).toBe("2026-07-07T00:30:00.000Z");
   });
+
+  it("extracts description from the event container after removing metadata", () => {
+    const descriptionConfig: CalendarSourceConfig = {
+      ...config,
+      selectors: {
+        title: ".event-list__title",
+        startDate: {
+          selector: ".event-list__details",
+          pattern: /[A-Za-z]{3},\s*([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4})/,
+          format: "M/D/YYYY"
+        },
+        startTime: {
+          selector: ".event-list__details",
+          pattern: /([0-9]{1,2}:[0-9]{2}\s*[ap]m)\s*-/i,
+          format: ["h:mma", "h:mm a"]
+        },
+        description: {
+          selector: ":self",
+          remove: [".event-list__title", ".event-list__details", ".event-list__links"]
+        },
+        url: {
+          selector: "a.event-list__links--event",
+          attr: "href"
+        }
+      }
+    };
+
+    const events = extractEventsFromHtml(
+      `
+        <article class="event-list">
+          <h2 class="event-list__title">Author Talk</h2>
+          <div class="event-list__details">
+            Mon, 7/6/2026
+            7:00pm - 8:30pm
+          </div>
+          <p>Meet the author for a reading and conversation.</p>
+          <div class="event-list__links">
+            <a class="event-list__links--event" href="/events/author-talk">View Event</a>
+          </div>
+        </article>
+      `,
+      descriptionConfig,
+      "https://example.com/events"
+    );
+
+    expect(events[0]?.description).toBe("Meet the author for a reading and conversation.");
+    expect(events[0]?.description).not.toContain("Author Talk");
+    expect(events[0]?.description).not.toContain("7:00pm");
+    expect(events[0]?.description).not.toContain("View Event");
+  });
+
+  it("extracts address and uses it as ICS location when no location selector is configured", () => {
+    const addressConfig: CalendarSourceConfig = {
+      ...config,
+      selectors: {
+        title: ".event-list__title",
+        startDate: {
+          selector: ".event-list__details",
+          pattern: /[A-Za-z]{3},\s*([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4})/,
+          format: "M/D/YYYY"
+        },
+        startTime: {
+          selector: ".event-list__details",
+          pattern: /([0-9]{1,2}:[0-9]{2}\s*[ap]m)\s*-/i,
+          format: ["h:mma", "h:mm a"]
+        },
+        address: {
+          selector: ".event-list__details",
+          pattern: /Place:\s*(.+)$/i
+        }
+      }
+    };
+
+    const events = extractEventsFromHtml(
+      `
+        <article class="event-list">
+          <h2 class="event-list__title">Author Talk</h2>
+          <div class="event-list__details">
+            Mon, 7/6/2026
+            7:00pm - 8:30pm
+            Place: Asbury Book Cooperative 644A Cookman Ave Asbury Park, NJ 07712
+          </div>
+        </article>
+      `,
+      addressConfig,
+      "https://example.com/events"
+    );
+
+    expect(events[0]?.address).toBe("Asbury Book Cooperative 644A Cookman Ave Asbury Park, NJ 07712");
+    expect(events[0]?.location).toBe("Asbury Book Cooperative 644A Cookman Ave Asbury Park, NJ 07712");
+  });
+
+  it("uses default address when no address is found", () => {
+    const addressConfig: CalendarSourceConfig = {
+      ...config,
+      defaultAddress: "Asbury Book Cooperative, 644A Cookman Ave, Asbury Park, NJ 07712",
+      selectors: {
+        title: ".event-list__title",
+        startDate: {
+          selector: ".event-list__details",
+          pattern: /[A-Za-z]{3},\s*([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4})/,
+          format: "M/D/YYYY"
+        },
+        startTime: {
+          selector: ".event-list__details",
+          pattern: /([0-9]{1,2}:[0-9]{2}\s*[ap]m)\s*-/i,
+          format: ["h:mma", "h:mm a"]
+        },
+        address: {
+          selector: ".event-list__details",
+          pattern: /Place:\s*(.+)$/i
+        }
+      }
+    };
+
+    const events = extractEventsFromHtml(
+      `
+        <article class="event-list">
+          <h2 class="event-list__title">Author Talk</h2>
+          <div class="event-list__details">
+            Mon, 7/6/2026
+            7:00pm - 8:30pm
+          </div>
+        </article>
+      `,
+      addressConfig,
+      "https://example.com/events"
+    );
+
+    expect(events[0]?.address).toBe("Asbury Book Cooperative, 644A Cookman Ave, Asbury Park, NJ 07712");
+    expect(events[0]?.location).toBe("Asbury Book Cooperative, 644A Cookman Ave, Asbury Park, NJ 07712");
+  });
 });
 
 describe("renderSourceUrl", () => {

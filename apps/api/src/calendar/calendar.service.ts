@@ -43,6 +43,7 @@ export type SelectorSpec =
       attr?: string;
       format?: string | string[];
       pattern?: string | RegExp;
+      remove?: string[];
     };
 
 export interface EventSelectorConfig {
@@ -55,6 +56,7 @@ export interface EventSelectorConfig {
   endTime?: SelectorSpec;
   description?: SelectorSpec;
   location?: SelectorSpec;
+  address?: SelectorSpec;
   url?: SelectorSpec;
 }
 
@@ -67,6 +69,7 @@ export interface CalendarSourceConfig {
   dateFormats?: string[];
   timeFormats?: string[];
   timeZone?: string;
+  defaultAddress?: string;
   cacheTtlSeconds?: number;
   defaultDurationMinutes?: number;
 }
@@ -77,6 +80,7 @@ export interface CalendarEvent {
   end: Date;
   description?: string;
   location?: string;
+  address?: string;
   url?: string;
 }
 
@@ -149,6 +153,10 @@ export function eventsToDebugText(
 
     if (event.location) {
       lines.push(`Location: ${event.location}`);
+    }
+
+    if (event.address && event.address !== event.location) {
+      lines.push(`Address: ${event.address}`);
     }
 
     if (event.url) {
@@ -242,7 +250,13 @@ export function extractEventsFromHtml(
     const container = $(element);
     const readValue = (selector: SelectorSpec): string => {
       const selectorConfig = typeof selector === "string" ? { selector } : selector;
-      const selected = container.find(selectorConfig.selector).first();
+      const selected =
+        selectorConfig.selector === ":self" ? container.clone() : container.find(selectorConfig.selector).first().clone();
+
+      for (const removeSelector of selectorConfig.remove ?? []) {
+        selected.find(removeSelector).remove();
+      }
+
       const rawValue = selectorConfig.attr ? selected.attr(selectorConfig.attr) : selected.text();
       const value = normalizeText(rawValue);
 
@@ -282,12 +296,16 @@ export function extractEventsFromHtml(
         referenceDate
       }) ?? addMinutes(start, config.defaultDurationMinutes ?? 60);
 
+    const address = readOptional(config.selectors.address) ?? config.defaultAddress;
+    const location = readOptional(config.selectors.location) ?? address;
+
     events.push({
       title,
       start,
       end,
       description: readOptional(config.selectors.description),
-      location: readOptional(config.selectors.location),
+      location,
+      address,
       url: resolveOptionalUrl(readOptional(config.selectors.url), sourceUrl)
     });
   });

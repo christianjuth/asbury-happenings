@@ -96,10 +96,12 @@ Calendar sources are configured in `src/calendar/calendar.config.ts`. Each sourc
     start: { selector: "time.start", attr: "datetime" },
     end: { selector: "time.end", attr: "datetime" },
     location: ".location",
+    address: ".address",
     description: ".description",
     url: { selector: "a.details", attr: "href" }
   },
-  timeZone: "America/New_York"
+  timeZone: "America/New_York",
+  defaultAddress: "Asbury Book Cooperative, 644A Cookman Ave, Asbury Park, NJ 07712"
 }
 ```
 
@@ -136,6 +138,17 @@ selectors: {
   }
 }
 ```
+
+Descriptions can be read from a specific child selector, or from the whole event container with `:self`. Use `remove` to strip title/date/link elements first:
+
+```ts
+description: {
+  selector: ":self",
+  remove: [".event-list__title", ".event-list__details", ".event-list__links"]
+}
+```
+
+Addresses can be parsed with `address`; if no separate `location` is found, the address becomes the ICS `LOCATION`. Use `defaultAddress` for venues where every event has the same address but the listing sometimes omits it.
 
 `{year}` and `{month}` use the current UTC year and zero-padded month. Each `containerSelector` match becomes one event. `title` plus either `start` or `startDate` are required; containers missing them are skipped. If no end date/time is found, `defaultDurationMinutes` is used.
 

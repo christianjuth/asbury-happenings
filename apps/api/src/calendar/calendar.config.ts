@@ -53,7 +53,19 @@ export const calendarSources = [
         format: ["h:mma", "h:mm a"]
       },
       location: ".location",
-      description: ".description",
+      address: {
+        selector: "address",
+        pattern: /.*$/i
+      },
+      description: {
+        selector: ".event-list__body",
+        remove: [
+          ".event-list__title",
+          ".event-list__details",
+          ".event-list__links",
+          ".event-list__links--event"
+        ]
+      },
       url: {
         selector: "a.event-list__links--event",
         attr: "href"
@@ -61,6 +73,7 @@ export const calendarSources = [
     },
     dateFormats: ["MMM DD", "MMM D", "MMMM DD", "MMMM D"],
     timeZone: "America/New_York",
+    defaultAddress: "Asbury Book Cooperative, 644A Cookman Ave, Asbury Park, NJ 07712",
     cacheTtlSeconds: 900,
     defaultDurationMinutes: 60
   }
