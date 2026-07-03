@@ -45,6 +45,11 @@ describe("server", () => {
           id: "tim-mcloones-supper-club",
           name: "Tim McLoone's Supper Club",
           path: "/calendar/tim-mcloones-supper-club.ics"
+        },
+        {
+          id: "r-bar",
+          name: "R Bar",
+          path: "/calendar/r-bar.ics"
         }
       ]
     });

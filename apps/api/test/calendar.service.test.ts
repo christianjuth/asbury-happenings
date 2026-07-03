@@ -471,6 +471,99 @@ describe("extractEventsFromHtml", () => {
     expect(events[3]?.start.toISOString()).toBe("2026-07-09T04:00:00.000Z");
     expect(events[3]?.end.toISOString()).toBe("2026-07-09T06:00:00.000Z");
   });
+
+  it("parses R Bar Squarespace event list cards", () => {
+    const rBarConfig: CalendarSourceConfig = {
+      id: "r-bar",
+      name: "R Bar",
+      url: "https://www.itsrbar.com/events",
+      containerSelector: "article.eventlist-event",
+      selectors: {
+        title: ".eventlist-title-link",
+        startDate: {
+          selector: "time.event-date",
+          attr: "datetime",
+          format: "YYYY-MM-DD"
+        },
+        startTime: {
+          selector: ".event-time-localized-start",
+          format: ["h:mm A", "h:mm a"]
+        },
+        endTime: {
+          selector: ".event-time-localized-end",
+          format: ["h:mm A", "h:mm a"]
+        },
+        description: ".eventlist-excerpt, .eventlist-description",
+        url: {
+          selector: ".eventlist-title-link",
+          attr: "href"
+        }
+      },
+      timeZone: "America/New_York",
+      defaultAddress: "R Bar & Restaurant, 1114 Main St, Asbury Park, NJ 07712",
+      defaultDurationMinutes: 180
+    };
+
+    const events = extractEventsFromHtml(
+      `
+        <article class="eventlist-event eventlist-event--upcoming">
+          <h1 class="eventlist-title">
+            <a href="/events/high-standards-trio" class="eventlist-title-link">High Standards Trio</a>
+          </h1>
+          <ul class="eventlist-meta event-meta">
+            <li class="eventlist-meta-date">
+              <time class="event-date" datetime="2026-07-02">Thursday, July 2, 2026</time>
+            </li>
+            <li class="eventlist-meta-time">
+              <span class="event-time-localized">
+                <time class="event-time-localized-start" datetime="2026-07-02">6:00 PM</time>
+                <time class="event-time-localized-end" datetime="2026-07-02">9:00 PM</time>
+              </span>
+            </li>
+          </ul>
+          <div class="eventlist-description"></div>
+          <a href="/events/high-standards-trio" class="eventlist-button">View Event</a>
+        </article>
+        <article class="eventlist-event eventlist-event--upcoming">
+          <h1 class="eventlist-title">
+            <a href="/events/2026/6/23/ocean-avenue-swingers" class="eventlist-title-link">4th of July High Standard Stomp Off</a>
+          </h1>
+          <ul class="eventlist-meta event-meta">
+            <li class="eventlist-meta-date">
+              <time class="event-date" datetime="2026-07-04">Saturday, July 4, 2026</time>
+            </li>
+            <li class="eventlist-meta-time">
+              <span class="event-time-localized">
+                <time class="event-time-localized-start" datetime="2026-07-04">2:00 PM</time>
+                <time class="event-time-localized-end" datetime="2026-07-04">5:00 PM</time>
+              </span>
+            </li>
+          </ul>
+          <div class="eventlist-excerpt">
+            <p>R Bar Presents R Yard Saturdays A High Standard Stomp Off</p>
+            <p>No cover</p>
+          </div>
+          <a href="/events/2026/6/23/ocean-avenue-swingers" class="eventlist-button">View Event</a>
+        </article>
+      `,
+      rBarConfig,
+      "https://www.itsrbar.com/events",
+      new Date("2026-07-03T00:00:00Z")
+    );
+
+    expect(events).toHaveLength(2);
+    expect(events[0]).toMatchObject({
+      title: "High Standards Trio",
+      address: "R Bar & Restaurant, 1114 Main St, Asbury Park, NJ 07712",
+      location: "R Bar & Restaurant, 1114 Main St, Asbury Park, NJ 07712",
+      url: "https://www.itsrbar.com/events/high-standards-trio"
+    });
+    expect(events[0]?.start.toISOString()).toBe("2026-07-02T22:00:00.000Z");
+    expect(events[0]?.end.toISOString()).toBe("2026-07-03T01:00:00.000Z");
+    expect(events[1]?.description).toBe("R Bar Presents R Yard Saturdays A High Standard Stomp Off No cover");
+    expect(events[1]?.start.toISOString()).toBe("2026-07-04T18:00:00.000Z");
+    expect(events[1]?.end.toISOString()).toBe("2026-07-04T21:00:00.000Z");
+  });
 });
 
 describe("renderSourceUrl", () => {
