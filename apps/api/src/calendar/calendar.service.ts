@@ -118,6 +118,7 @@ export interface CalendarEvent {
   title: string;
   start: Date;
   end: Date;
+  allDay?: boolean;
   description?: string;
   location?: string;
   address?: string;
@@ -209,6 +210,7 @@ export function eventsToIcs(calendarName: string, events: CalendarEvent[]): stri
       summary: event.title,
       start: event.start,
       end: event.end,
+      allDay: event.allDay,
       description: event.description,
       location: event.location,
       url: event.url
@@ -500,13 +502,17 @@ export function extractEventsFromIcs(icsText: string, config: IcsCalendarSourceC
         return null;
       }
 
-      const end = readIcsDate(component, "DTEND", config) ?? addMinutes(start, config.defaultDurationMinutes ?? 60);
+      const end = readIcsDate(component, "DTEND", config) ?? {
+        date: addMinutes(start.date, config.defaultDurationMinutes ?? 60),
+        allDay: start.allDay
+      };
       const location = readIcsText(component, "LOCATION") ?? config.defaultAddress;
 
       return {
         title,
-        start,
-        end,
+        start: start.date,
+        end: end.date,
+        allDay: start.allDay,
         description: readIcsText(component, "DESCRIPTION"),
         location,
         address: location,
@@ -662,6 +668,11 @@ interface IcsContentLine {
   value: string;
 }
 
+interface IcsDateValue {
+  date: Date;
+  allDay: boolean;
+}
+
 function readIcsEventComponents(icsText: string): IcsContentLine[][] {
   const components: IcsContentLine[][] = [];
   let currentComponent: IcsContentLine[] | undefined;
@@ -743,7 +754,7 @@ function readIcsText(component: IcsContentLine[], name: string): string | undefi
   return value ? normalizeText(unescapeIcsText(value)) || undefined : undefined;
 }
 
-function readIcsDate(component: IcsContentLine[], name: string, config: IcsCalendarSourceConfig): Date | null {
+function readIcsDate(component: IcsContentLine[], name: string, config: IcsCalendarSourceConfig): IcsDateValue | null {
   const line = component.find((contentLine) => contentLine.name === name);
 
   if (!line) {
@@ -753,7 +764,11 @@ function readIcsDate(component: IcsContentLine[], name: string, config: IcsCalen
   return parseIcsDateOrNull(line.value, line.params, config.timeZone);
 }
 
-function parseIcsDateOrNull(value: string, params: Record<string, string>, fallbackTimeZone?: string): Date | null {
+function parseIcsDateOrNull(
+  value: string,
+  params: Record<string, string>,
+  fallbackTimeZone?: string
+): IcsDateValue | null {
   const normalizedValue = normalizeText(value);
 
   if (!normalizedValue) {
@@ -763,13 +778,13 @@ function parseIcsDateOrNull(value: string, params: Record<string, string>, fallb
   if (params.VALUE === "DATE" || /^\d{8}$/.test(normalizedValue)) {
     const parsed = dayjs.utc(normalizedValue, "YYYYMMDD", true);
 
-    return parsed.isValid() ? parsed.toDate() : null;
+    return parsed.isValid() ? { date: parsed.toDate(), allDay: true } : null;
   }
 
   if (/^\d{8}T\d{6}Z$/.test(normalizedValue)) {
     const parsed = dayjs.utc(normalizedValue, "YYYYMMDDTHHmmss[Z]", true);
 
-    return parsed.isValid() ? parsed.toDate() : null;
+    return parsed.isValid() ? { date: parsed.toDate(), allDay: false } : null;
   }
 
   if (/^\d{8}T\d{6}$/.test(normalizedValue)) {
@@ -779,12 +794,12 @@ function parseIcsDateOrNull(value: string, params: Record<string, string>, fallb
       normalizeIcsTimeZone(params.TZID, fallbackTimeZone)
     );
 
-    return parsed.isValid() ? parsed.toDate() : null;
+    return parsed.isValid() ? { date: parsed.toDate(), allDay: false } : null;
   }
 
   const date = new Date(normalizedValue);
 
-  return Number.isNaN(date.getTime()) ? null : date;
+  return Number.isNaN(date.getTime()) ? null : { date, allDay: false };
 }
 
 function normalizeIcsTimeZone(tzid: string | undefined, fallbackTimeZone: string | undefined): string | undefined {
@@ -861,6 +876,7 @@ function normalizeText(value: string | undefined): string {
 function stripHtml(value: string): string {
   const $ = cheerio.load(value);
 
+  $("style, script, noscript").remove();
   $("br").replaceWith(" ");
 
   return normalizeText($.root().text());

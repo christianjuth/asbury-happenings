@@ -4,6 +4,7 @@ import {
   extractEventsFromHtml,
   extractEventsFromIcs,
   extractEventsFromJson,
+  eventsToIcs,
   fetchCalendarEvents,
   renderSourceUrl,
   renderSourceUrls,
@@ -841,6 +842,39 @@ describe("extractEventsFromIcs", () => {
 
     expect(event.location).toBe("City Hall 1 Municipal Plaza & Offices");
     expect(event.address).toBe("City Hall 1 Municipal Plaza & Offices");
+  });
+
+  it("removes embedded css when stripping html from event locations", () => {
+    const event = stripHtmlFromEventLocation({
+      title: "CSS Location",
+      start: new Date("2026-08-28T21:00:00Z"),
+      end: new Date("2026-08-28T23:00:00Z"),
+      location:
+        "<style>p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica}</style><p class=\"p1\">Pine Street between Second and Third Avenues - Asbury Park NJ 07712</p>"
+    });
+
+    expect(event.location).toBe("Pine Street between Second and Third Avenues - Asbury Park NJ 07712");
+  });
+
+  it("preserves date-only ICS entries as all-day events", () => {
+    const events = extractEventsFromIcs(
+      [
+        "BEGIN:VCALENDAR",
+        "BEGIN:VEVENT",
+        "SUMMARY:All Day City Event",
+        "DTSTART;VALUE=DATE:20260828",
+        "DTEND;VALUE=DATE:20260829",
+        "END:VEVENT",
+        "END:VCALENDAR"
+      ].join("\r\n"),
+      icsConfig
+    );
+    const feed = eventsToIcs("City", events);
+
+    expect(events).toHaveLength(1);
+    expect(events[0]?.allDay).toBe(true);
+    expect(feed).toContain("DTSTART;VALUE=DATE:20260828");
+    expect(feed).toContain("DTEND;VALUE=DATE:20260829");
   });
 });
 
