@@ -4,6 +4,7 @@ import {
   extractEventsFromHtml,
   fetchCalendarEvents,
   renderSourceUrl,
+  renderSourceUrls,
   type CalendarSourceConfig
 } from "../src/calendar/calendar.service.js";
 
@@ -478,11 +479,24 @@ describe("renderSourceUrl", () => {
       "https://example.com/2026/07"
     );
   });
+
+  it("renders this month and next month when template contains month token", () => {
+    expect(renderSourceUrls("https://example.com/{year}/{month}", new Date("2026-12-03T00:00:00Z"))).toEqual([
+      "https://example.com/2026/12",
+      "https://example.com/2027/01"
+    ]);
+  });
+
+  it("renders one source URL when template has no month token", () => {
+    expect(renderSourceUrls("https://example.com/events", new Date("2026-07-03T00:00:00Z"))).toEqual([
+      "https://example.com/events"
+    ]);
+  });
 });
 
 describe("fetchCalendarEvents", () => {
   it("caches upstream HTML for repeated calendar requests", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
       new Response(
         `
           <article>
@@ -492,14 +506,64 @@ describe("fetchCalendarEvents", () => {
         `
       )
     );
+    const noTokenConfig: CalendarSourceConfig = {
+      ...config,
+      url: "https://example.com/events"
+    };
 
-    const first = await fetchCalendarEvents(config, new Date("2026-07-03T00:00:00Z"));
-    const second = await fetchCalendarEvents(config, new Date("2026-07-03T00:00:00Z"));
+    const first = await fetchCalendarEvents(noTokenConfig, new Date("2026-07-03T00:00:00Z"));
+    const second = await fetchCalendarEvents(noTokenConfig, new Date("2026-07-03T00:00:00Z"));
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(first.cacheStatus).toBe("miss");
     expect(second.cacheStatus).toBe("hit");
     expect(second.events[0]?.title).toBe("Cached Event");
+  });
+
+  it("fetches this month and next month when URL has month token", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      const title = url.endsWith("/08") ? "Next Month Event" : "This Month Event";
+
+      return new Response(
+        `
+          <article>
+            <h2 class="event-title">${title}</h2>
+            <time class="start" datetime="2026-07-04T18:00:00Z">July 4</time>
+          </article>
+        `
+      );
+    });
+
+    const result = await fetchCalendarEvents(config, new Date("2026-07-03T00:00:00Z"));
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.sourceUrls).toEqual(["https://example.com/events/2026/07", "https://example.com/events/2026/08"]);
+    expect(result.cacheStatuses).toEqual(["miss", "miss"]);
+    expect(result.events.map((event) => event.title)).toEqual(["This Month Event", "Next Month Event"]);
+  });
+
+  it("fetches one URL when URL has no month token", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        `
+          <article>
+            <h2 class="event-title">Single URL Event</h2>
+            <time class="start" datetime="2026-07-04T18:00:00Z">July 4</time>
+          </article>
+        `
+      )
+    );
+
+    const noTokenConfig: CalendarSourceConfig = {
+      ...config,
+      url: "https://example.com/events"
+    };
+    const result = await fetchCalendarEvents(noTokenConfig, new Date("2026-07-03T00:00:00Z"));
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.sourceUrls).toEqual(["https://example.com/events"]);
+    expect(result.events[0]?.title).toBe("Single URL Event");
   });
 
   it("serves stale cached HTML when upstream starts failing", async () => {
@@ -519,6 +583,7 @@ describe("fetchCalendarEvents", () => {
 
     const noCacheConfig: CalendarSourceConfig = {
       ...config,
+      url: "https://example.com/events",
       cacheTtlSeconds: 0
     };
 

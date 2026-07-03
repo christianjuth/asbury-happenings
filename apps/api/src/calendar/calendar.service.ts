@@ -33,18 +33,20 @@ interface HtmlCacheEntry {
   expiresAt: number;
 }
 
+type FetchStatus = "hit" | "miss" | "stale" | "error";
+
 const htmlCache = new Map<string, HtmlCacheEntry>();
 const pendingFetches = new Map<string, Promise<string>>();
 
 export type SelectorSpec =
   | string
   | {
-      selector: string;
-      attr?: string;
-      format?: string | string[];
-      pattern?: string | RegExp;
-      remove?: string[];
-    };
+    selector: string;
+    attr?: string;
+    format?: string | string[];
+    pattern?: string | RegExp;
+    remove?: string[];
+  };
 
 export interface EventSelectorConfig {
   title: SelectorSpec;
@@ -91,20 +93,50 @@ export async function buildCalendarFeed(config: CalendarSourceConfig, now = new 
 }
 
 export async function buildCalendarDebugText(config: CalendarSourceConfig, now = new Date()): Promise<string> {
-  const { sourceUrl, events, cacheStatus } = await fetchCalendarEvents(config, now);
+  const { sourceUrls, events, cacheStatuses } = await fetchCalendarEvents(config, now);
 
-  return eventsToDebugText(config.name, sourceUrl, events, cacheStatus);
+  return eventsToDebugText(config.name, sourceUrls, events, cacheStatuses);
 }
 
 export async function fetchCalendarEvents(
   config: CalendarSourceConfig,
   now = new Date()
-): Promise<{ sourceUrl: string; events: CalendarEvent[]; cacheStatus: "hit" | "miss" | "stale" }> {
-  const sourceUrl = renderSourceUrl(config.url, now);
-  const { html, cacheStatus } = await fetchSourceHtml(sourceUrl, config.cacheTtlSeconds);
-  const events = extractEventsFromHtml(html, config, sourceUrl, now);
+): Promise<{
+  sourceUrl: string;
+  sourceUrls: string[];
+  events: CalendarEvent[];
+  cacheStatus: FetchStatus;
+  cacheStatuses: FetchStatus[];
+}> {
+  const sourceUrls = renderSourceUrls(config.url, now);
+  const allEvents: CalendarEvent[] = [];
+  const cacheStatuses: FetchStatus[] = [];
 
-  return { sourceUrl, events, cacheStatus };
+  for (const sourceUrl of sourceUrls) {
+    try {
+      const { html, cacheStatus } = await fetchSourceHtml(sourceUrl, config.cacheTtlSeconds);
+      const events = extractEventsFromHtml(html, config, sourceUrl, now);
+
+      allEvents.push(...events);
+      cacheStatuses.push(cacheStatus);
+    } catch (error) {
+      if (sourceUrls.length === 1) {
+        throw error;
+      }
+
+      cacheStatuses.push("error");
+    }
+  }
+
+  const events = dedupeEvents(allEvents);
+
+  return {
+    sourceUrl: sourceUrls[0] ?? config.url,
+    sourceUrls,
+    events,
+    cacheStatus: cacheStatuses[0] ?? "miss",
+    cacheStatuses
+  };
 }
 
 export function eventsToIcs(calendarName: string, events: CalendarEvent[]): string {
@@ -132,14 +164,16 @@ export function eventsToIcs(calendarName: string, events: CalendarEvent[]): stri
 
 export function eventsToDebugText(
   calendarName: string,
-  sourceUrl: string,
+  sourceUrl: string | string[],
   events: CalendarEvent[],
-  cacheStatus?: "hit" | "miss" | "stale"
+  cacheStatus?: FetchStatus | FetchStatus[]
 ): string {
+  const sourceUrls = Array.isArray(sourceUrl) ? sourceUrl : [sourceUrl];
+  const cacheStatuses = Array.isArray(cacheStatus) ? cacheStatus : cacheStatus ? [cacheStatus] : [];
   const lines = [
     `Calendar: ${calendarName}`,
-    `Source: ${sourceUrl}`,
-    `Fetch: cache ${cacheStatus ?? "unknown"}`,
+    `Source: ${sourceUrls.join(", ")}`,
+    `Fetch: cache ${cacheStatuses.length ? cacheStatuses.join(", ") : "unknown"}`,
     `Events: ${events.length}`,
     ""
   ];
@@ -181,7 +215,7 @@ export function clearCalendarFetchCache(): void {
 async function fetchSourceHtml(
   sourceUrl: string,
   cacheTtlSeconds = defaultCacheTtlSeconds
-): Promise<{ html: string; cacheStatus: "hit" | "miss" | "stale" }> {
+): Promise<{ html: string; cacheStatus: FetchStatus }> {
   const now = Date.now();
   const cached = htmlCache.get(sourceUrl);
 
@@ -319,6 +353,42 @@ export function renderSourceUrl(template: string, now = new Date()): string {
   const year = String(now.getUTCFullYear());
 
   return template.replaceAll("{month}", month).replaceAll("{year}", year);
+}
+
+export function renderSourceUrls(template: string, now = new Date()): string[] {
+  if (!template.includes("{month}")) {
+    return [renderSourceUrl(template, now)];
+  }
+
+  return [
+    renderSourceUrl(template, now),
+    renderSourceUrl(template, addMonths(now, 1)),
+  ];
+}
+
+function addMonths(date: Date, months: number): Date {
+  const next = new Date(date);
+  next.setUTCMonth(next.getUTCMonth() + months);
+
+  return next;
+}
+
+function dedupeEvents(events: CalendarEvent[]): CalendarEvent[] {
+  const seen = new Set<string>();
+  const uniqueEvents: CalendarEvent[] = [];
+
+  for (const event of events) {
+    const key = [event.title, event.start.toISOString(), event.url ?? ""].join("|");
+
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    uniqueEvents.push(event);
+  }
+
+  return uniqueEvents;
 }
 
 function normalizeText(value: string | undefined): string {

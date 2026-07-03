@@ -55,7 +55,7 @@ describe("server", () => {
   });
 
   it("returns plain text debug output from the ics route with debug query", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
       new Response(
         `
           <article>
