@@ -42,6 +42,11 @@ describe("server", () => {
           id: "asbury-book-coop",
           name: "Asbury Book Coop",
           path: "/calendar/asbury-book-coop.ics"
+        },
+        {
+          id: "tim-mcloones-supper-club",
+          name: "Tim McLoone's Supper Club",
+          path: "/calendar/tim-mcloones-supper-club.ics"
         }
       ]
     });

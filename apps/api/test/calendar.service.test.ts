@@ -378,6 +378,98 @@ describe("extractEventsFromHtml", () => {
     expect(events[0]?.address).toBe("Asbury Book Cooperative, 644A Cookman Ave, Asbury Park, NJ 07712");
     expect(events[0]?.location).toBe("Asbury Book Cooperative, 644A Cookman Ave, Asbury Park, NJ 07712");
   });
+
+  it("parses Tim McLoone event list cards", () => {
+    const timMclooneConfig: CalendarSourceConfig = {
+      id: "tim-mcloones-supper-club",
+      name: "Tim McLoone's Supper Club",
+      url: "https://timmcloonessupperclub.com/events.php",
+      containerSelector: ".events_col2",
+      selectors: {
+        title: "h2 a",
+        startDate: {
+          selector: ".event_date",
+          pattern: /^[A-Za-z]+,\s*(.+)$/,
+          format: "MMMM D"
+        },
+        startTime: {
+          selector: ":self",
+          pattern: /([0-9]{1,2}:[0-9]{2}\s*[ap]m)/i,
+          format: ["h:mma", "h:mm a"]
+        },
+        endTime: {
+          selector: ":self",
+          pattern: /-\s*([0-9]{1,2}:[0-9]{2}\s*[ap]m)/i,
+          format: ["h:mma", "h:mm a"]
+        },
+        description: {
+          selector: ":self",
+          remove: ["h2", ".event_date", "a", ".btn_events"]
+        },
+        url: {
+          selector: "h2 a",
+          attr: "href"
+        }
+      },
+      dateFormats: ["MMMM D"],
+      timeZone: "America/New_York",
+      defaultAddress: "Tim McLoone's Supper Club, 1200 Ocean Avenue, Asbury Park, NJ 07712",
+      defaultDurationMinutes: 120
+    };
+
+    const events = extractEventsFromHtml(
+      `
+        <div class="events_col2">
+          <div class="event_date">Thursday, July 2</div>
+          <h2><a href="events.php?id=7329">Gonzo's Band of Brothers &amp; Sisters SUMMER JAM!</a></h2>
+          <div class="event_subtitle"><h3>featuring Layonne Holmes &amp; Reagan Richards</h3></div>
+          <div>7:00pm</div>
+          <a href="events.php?id=7329"><div class="btn_events">DETAILS</div></a>
+        </div>
+        <div class="events_col2">
+          <div class="event_date">Friday, July 3</div>
+          <h2><a href="events.php?id=7430">Asbury Park Fireworks w/ Shore Thing!</a></h2>
+          <div>No Cover Charge. Reservations through OpenTable. Click "Tickets" to Reserve!, 6:00pm - 10:00pm</div>
+          <a href="events.php?id=7430"><div class="btn_events">DETAILS</div></a>
+        </div>
+        <div class="events_col2">
+          <div class="event_date">Tuesday, July 7</div>
+          <h2><a href="events.php?id=7441">Bob Egan's 'Piano Party'</a></h2>
+          <div>NO COVER CHARGE!, 6:30pm - 8:30pm</div>
+          <a href="events.php?id=7441"><div class="btn_events">DETAILS</div></a>
+        </div>
+        <div class="events_col2">
+          <div class="event_date">Thursday, July 9</div>
+          <h2><a href="events.php?id=6797">A Medium Gallery with Linda Shields</a></h2>
+          <div class="event_subtitle"><h3>"THE JERSEY SHORE MEDIUM"</h3></div>
+          <a href="events.php?id=6797"><div class="btn_events">DETAILS</div></a>
+        </div>
+      `,
+      timMclooneConfig,
+      "https://timmcloonessupperclub.com/events.php",
+      new Date("2026-07-03T00:00:00Z")
+    );
+
+    expect(events).toHaveLength(4);
+    expect(events[0]).toMatchObject({
+      title: "Gonzo's Band of Brothers & Sisters SUMMER JAM!",
+      description: "featuring Layonne Holmes & Reagan Richards 7:00pm",
+      address: "Tim McLoone's Supper Club, 1200 Ocean Avenue, Asbury Park, NJ 07712",
+      location: "Tim McLoone's Supper Club, 1200 Ocean Avenue, Asbury Park, NJ 07712",
+      url: "https://timmcloonessupperclub.com/events.php?id=7329"
+    });
+    expect(events[0]?.start.toISOString()).toBe("2026-07-02T23:00:00.000Z");
+    expect(events[0]?.end.toISOString()).toBe("2026-07-03T01:00:00.000Z");
+    expect(events[1]?.title).toBe("Asbury Park Fireworks w/ Shore Thing!");
+    expect(events[1]?.start.toISOString()).toBe("2026-07-03T22:00:00.000Z");
+    expect(events[1]?.end.toISOString()).toBe("2026-07-04T02:00:00.000Z");
+    expect(events[2]?.title).toBe("Bob Egan's 'Piano Party'");
+    expect(events[2]?.start.toISOString()).toBe("2026-07-07T22:30:00.000Z");
+    expect(events[2]?.end.toISOString()).toBe("2026-07-08T00:30:00.000Z");
+    expect(events[3]?.title).toBe("A Medium Gallery with Linda Shields");
+    expect(events[3]?.start.toISOString()).toBe("2026-07-09T04:00:00.000Z");
+    expect(events[3]?.end.toISOString()).toBe("2026-07-09T06:00:00.000Z");
+  });
 });
 
 describe("renderSourceUrl", () => {

@@ -293,7 +293,8 @@ export function extractEventsFromHtml(
         readValue,
         readOptional,
         config,
-        referenceDate
+        referenceDate,
+        requireTimeWhenTimeSelectorProvided: true
       }) ?? addMinutes(start, config.defaultDurationMinutes ?? 60);
 
     const address = readOptional(config.selectors.address) ?? config.defaultAddress;
@@ -347,6 +348,7 @@ interface ReadEventDateOptions {
   readOptional(selector?: SelectorSpec): string | undefined;
   config: CalendarSourceConfig;
   referenceDate: Date;
+  requireTimeWhenTimeSelectorProvided?: boolean;
 }
 
 function readEventDate({
@@ -356,7 +358,8 @@ function readEventDate({
   readValue,
   readOptional,
   config,
-  referenceDate
+  referenceDate,
+  requireTimeWhenTimeSelectorProvided = false
 }: ReadEventDateOptions): Date | null {
   if (fullDateTimeSelector) {
     const value = readOptional(fullDateTimeSelector);
@@ -379,6 +382,10 @@ function readEventDate({
   const timeValue = readOptional(timeSelector);
 
   if (!timeValue) {
+    if (timeSelector && requireTimeWhenTimeSelectorProvided) {
+      return null;
+    }
+
     return parseDateOrNull(dateValue, dateSelector, config.dateFormats, referenceDate, config.timeZone);
   }
 
@@ -468,9 +475,7 @@ function parseFormattedDate(value: string, format: string, referenceDate: Date, 
     ? value
     : `${value} ${referenceDate.getUTCFullYear()}`;
   const parseFormat = formatHasYear(format) ? format : `${format} YYYY`;
-  const parsed = timeZone
-    ? dayjs.tz(parseValue, parseFormat, timeZone)
-    : dayjs(parseValue, parseFormat, true);
+  const parsed = parseWithOptionalTimeZone(parseValue, parseFormat, timeZone);
 
   return parsed.isValid() ? parsed.toDate() : null;
 }
@@ -489,11 +494,23 @@ function parseFormattedDateTime(
   const format = formatHasYear(dateFormat)
     ? `${dateFormat} ${timeFormat}`
     : `${dateFormat} YYYY ${timeFormat}`;
-  const parsed = timeZone
-    ? dayjs.tz(value, format, timeZone)
-    : dayjs(value, format, true);
+  const parsed = parseWithOptionalTimeZone(value, format, timeZone);
 
   return parsed.isValid() ? parsed.toDate() : null;
+}
+
+function parseWithOptionalTimeZone(value: string, format: string, timeZone: string | undefined): dayjs.Dayjs {
+  const parsed = dayjs(value, format, true);
+
+  if (!timeZone || !parsed.isValid()) {
+    return parsed;
+  }
+
+  try {
+    return dayjs.tz(parsed.format("YYYY-MM-DD HH:mm:ss"), "YYYY-MM-DD HH:mm:ss", timeZone);
+  } catch {
+    return parsed;
+  }
 }
 
 function formatHasYear(format: string): boolean {

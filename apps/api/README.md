@@ -30,6 +30,7 @@ Calendar feed:
 
 ```bash
 curl http://localhost:3000/calendar/example-events.ics
+curl http://localhost:3000/calendar/tim-mcloones-supper-club.ics
 ```
 
 Plain-text debug output:
