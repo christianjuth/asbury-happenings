@@ -295,6 +295,15 @@ export const CALENDAR_SOURCES = [
     cacheTtlSeconds: 900,
     defaultDurationMinutes: 60,
     transformEvent: stripHtmlFromEventLocation
+  },
+  {
+    id: "samantha-dress",
+    name: "Samantha Dress",
+    sourceType: "ics",
+    url: "https://calendar.google.com/calendar/ical/65138dbc87c80e90f51e1ad6850a279be725a04b3a71786550afa5e1c38d63fe%40group.calendar.google.com/public/basic.ics",
+    timeZone: "America/New_York",
+    cacheTtlSeconds: 900,
+    defaultDurationMinutes: 60
   }
 ] satisfies CalendarSourceConfig[];
 

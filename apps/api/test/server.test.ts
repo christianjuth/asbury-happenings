@@ -85,6 +85,11 @@ describe("server", () => {
           id: "asbury-park-city",
           name: "City of Asbury Park",
           path: "/calendar/asbury-park-city.ics"
+        },
+        {
+          id: "samantha-dress",
+          name: "Samantha Dress",
+          path: "/calendar/samantha-dress.ics"
         }
       ]
     });
