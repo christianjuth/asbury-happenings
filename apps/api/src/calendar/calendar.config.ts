@@ -55,7 +55,7 @@ export const calendarSources = [
       location: ".location",
       description: ".description",
       url: {
-        selector: "a.details",
+        selector: "a.event-list__links--event",
         attr: "href"
       }
     },
