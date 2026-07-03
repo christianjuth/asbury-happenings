@@ -65,6 +65,11 @@ describe("server", () => {
           id: "black-swan",
           name: "The Black Swan Public House",
           path: "/calendar/black-swan.ics"
+        },
+        {
+          id: "asbury-park-city",
+          name: "City of Asbury Park",
+          path: "/calendar/asbury-park-city.ics"
         }
       ]
     });

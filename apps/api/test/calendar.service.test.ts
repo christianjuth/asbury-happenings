@@ -2,12 +2,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clearCalendarFetchCache,
   extractEventsFromHtml,
+  extractEventsFromIcs,
   extractEventsFromJson,
   fetchCalendarEvents,
   renderSourceUrl,
   renderSourceUrls,
+  stripHtmlFromEventLocation,
   type CalendarSourceConfig,
   type HtmlCalendarSourceConfig,
+  type IcsCalendarSourceConfig,
   type JsonCalendarSourceConfig
 } from "../src/calendar/calendar.service.js";
 import { getCalendarSource } from "../src/calendar/calendar.config.js";
@@ -704,6 +707,79 @@ describe("extractEventsFromJson", () => {
   });
 });
 
+describe("extractEventsFromIcs", () => {
+  const icsConfig: IcsCalendarSourceConfig = {
+    id: "city",
+    name: "City",
+    sourceType: "ics",
+    url: "https://example.com/calendar.ics",
+    timeZone: "America/New_York",
+    defaultDurationMinutes: 60
+  };
+
+  it("parses VEVENT fields into normalized calendar events", () => {
+    const events = extractEventsFromIcs(
+      [
+        "BEGIN:VCALENDAR",
+        "BEGIN:VEVENT",
+        "SUMMARY:Council Meeting",
+        "DTSTART;TZID=America/New_York:20260706T190000",
+        "DTEND;TZID=America/New_York:20260706T203000",
+        "DESCRIPTION:Agenda\\nPublic comment",
+        "LOCATION:<p>City Hall<br>1 Municipal Plaza</p>",
+        "URL:https://example.com/events/1",
+        "END:VEVENT",
+        "END:VCALENDAR"
+      ].join("\r\n"),
+      icsConfig
+    );
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      title: "Council Meeting",
+      description: "Agenda Public comment",
+      location: "<p>City Hall<br>1 Municipal Plaza</p>",
+      address: "<p>City Hall<br>1 Municipal Plaza</p>",
+      url: "https://example.com/events/1"
+    });
+    expect(events[0]?.start.toISOString()).toBe("2026-07-06T23:00:00.000Z");
+    expect(events[0]?.end.toISOString()).toBe("2026-07-07T00:30:00.000Z");
+  });
+
+  it("unfolds long lines and applies default duration", () => {
+    const events = extractEventsFromIcs(
+      [
+        "BEGIN:VCALENDAR",
+        "BEGIN:VEVENT",
+        "SUMMARY:Folded",
+        " continuation",
+        "DTSTART:20260706T190000Z",
+        "END:VEVENT",
+        "END:VCALENDAR"
+      ].join("\n"),
+      icsConfig
+    );
+
+    expect(events).toHaveLength(1);
+    expect(events[0]?.title).toBe("Foldedcontinuation");
+    expect(events[0]?.start.toISOString()).toBe("2026-07-06T19:00:00.000Z");
+    expect(events[0]?.end.toISOString()).toBe("2026-07-06T20:00:00.000Z");
+  });
+
+  it("strips html from event locations", () => {
+    const event = stripHtmlFromEventLocation({
+      title: "HTML Location",
+      start: new Date("2026-07-06T19:00:00Z"),
+      end: new Date("2026-07-06T20:00:00Z"),
+      location: "<p>City Hall<br>1 Municipal Plaza &amp; Offices</p>",
+      address: "<p>City Hall<br>1 Municipal Plaza &amp; Offices</p>"
+    });
+
+    expect(event.location).toBe("City Hall 1 Municipal Plaza & Offices");
+    expect(event.address).toBe("City Hall 1 Municipal Plaza & Offices");
+  });
+});
+
 describe("renderSourceUrl", () => {
   it("replaces year and zero-padded month tokens", () => {
     expect(renderSourceUrl("https://example.com/{year}/{month}", new Date("2026-07-03T00:00:00Z"))).toBe(
@@ -846,6 +922,35 @@ describe("fetchCalendarEvents", () => {
     ]);
     expect(result.events[0]?.title).toBe("JSON Event");
     expect(result.events[0]?.url).toBe("https://example.com/events/json-event");
+  });
+
+  it("fetches and transforms ICS source calendars", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        [
+          "BEGIN:VCALENDAR",
+          "BEGIN:VEVENT",
+          "SUMMARY:ICS Event",
+          "DTSTART:20260706T190000Z",
+          "DTEND:20260706T200000Z",
+          "LOCATION:<p>City Hall<br>1 Municipal Plaza</p>",
+          "END:VEVENT",
+          "END:VCALENDAR"
+        ].join("\r\n")
+      )
+    );
+    const icsConfig: CalendarSourceConfig = {
+      id: "ics-source",
+      name: "ICS Source",
+      sourceType: "ics",
+      url: "https://example.com/calendar.ics",
+      transformEvent: stripHtmlFromEventLocation
+    };
+    const result = await fetchCalendarEvents(icsConfig, new Date("2026-07-03T00:00:00Z"));
+
+    expect(result.sourceUrls).toEqual(["https://example.com/calendar.ics"]);
+    expect(result.events[0]?.title).toBe("ICS Event");
+    expect(result.events[0]?.location).toBe("City Hall 1 Municipal Plaza");
   });
 
   it("serves stale cached HTML when upstream starts failing", async () => {

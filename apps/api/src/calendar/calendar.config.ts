@@ -1,4 +1,4 @@
-import type { CalendarSourceConfig } from "./calendar.service.js";
+import { stripHtmlFromEventLocation, type CalendarSourceConfig } from "./calendar.service.js";
 
 const SQUARESPACE_JSON_SOURCE = {
   sourceType: "json",
@@ -183,6 +183,16 @@ export const CALENDAR_SOURCES = [
     defaultAddress: "The Black Swan Public House, 601 Mattison Avenue, Asbury Park, NJ 07712",
     cacheTtlSeconds: 900,
     defaultDurationMinutes: 180
+  },
+  {
+    id: "asbury-park-city",
+    name: "City of Asbury Park",
+    sourceType: "ics",
+    url: "https://www.cityofasburypark.com/common/modules/iCalendar/iCalendar.aspx?catID=14&feed=calendar",
+    timeZone: "America/New_York",
+    cacheTtlSeconds: 900,
+    defaultDurationMinutes: 60,
+    transformEvent: stripHtmlFromEventLocation
   }
 ] satisfies CalendarSourceConfig[];
 
