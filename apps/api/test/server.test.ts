@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { clearCalendarPageCache, warmCalendarPage } from "../src/calendar/calendar.cache.js";
+import { getCalendarSource } from "../src/calendar/calendar.config.js";
 import { buildServer } from "../src/server.js";
 
 afterEach(() => {
+  clearCalendarPageCache();
   vi.restoreAllMocks();
 });
 
@@ -67,6 +70,13 @@ describe("server", () => {
     );
 
     const server = await buildServer();
+    const config = getCalendarSource("example-events");
+
+    if (!config) {
+      throw new Error("Missing test calendar config");
+    }
+
+    await warmCalendarPage(config, 0, new Date("2026-07-03T00:00:00Z"));
 
     const response = await server.inject({
       method: "GET",

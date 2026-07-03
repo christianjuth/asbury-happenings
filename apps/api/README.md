@@ -39,7 +39,7 @@ Plain-text debug output:
 curl "http://localhost:3000/calendar/example-events.ics?debug=1"
 ```
 
-Debug output includes whether the upstream HTML fetch was a cache `miss`, `hit`, or `stale`.
+Debug output includes cache page status. `warming` means that page has not been fetched by the background job yet.
 
 ## Docker
 
@@ -151,9 +151,11 @@ description: {
 
 Addresses can be parsed with `address`; if no separate `location` is found, the address becomes the ICS `LOCATION`. Use `defaultAddress` for venues where every event has the same address but the listing sometimes omits it.
 
-`{year}` and `{month}` use the current UTC year and zero-padded month. If a source URL contains `{month}`, the app fetches this month and next month. URLs without `{month}` are fetched once. Each `containerSelector` match becomes one event. `title` plus either `start` or `startDate` are required; containers missing them are skipped. If no end date/time is found, `defaultDurationMinutes` is used.
+`{year}` and `{month}` use the current UTC year and zero-padded month. If a source URL contains `{month}`, the app caches this month plus the next two months. URLs without `{month}` have one cache page. Each `containerSelector` match becomes one event. `title` plus either `start` or `startDate` are required; containers missing them are skipped. If no end date/time is found, `defaultDurationMinutes` is used.
 
-Each calendar source can set `cacheTtlSeconds`. The app keeps fetched upstream HTML in memory for that TTL. If the source starts returning errors after a successful fetch, stale cached HTML is served until the process restarts or a later fetch succeeds.
+The app keeps parsed calendar pages in memory. On startup it kicks off page 0 immediately, then every 5 minutes warms one page across all calendars. Sources with `{month}` rotate across this month plus the next two months; sources without `{month}` have one page. Calendar routes return only cached data and respond with `503 Calendar cache warming` until at least one page is warm.
+
+Fly is configured with `min_machines_running = 1` so the scheduler keeps running.
 
 ## Add Redis Later
 

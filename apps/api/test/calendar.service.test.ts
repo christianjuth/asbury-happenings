@@ -483,7 +483,8 @@ describe("renderSourceUrl", () => {
   it("renders this month and next month when template contains month token", () => {
     expect(renderSourceUrls("https://example.com/{year}/{month}", new Date("2026-12-03T00:00:00Z"))).toEqual([
       "https://example.com/2026/12",
-      "https://example.com/2027/01"
+      "https://example.com/2027/01",
+      "https://example.com/2027/02"
     ]);
   });
 
@@ -520,10 +521,14 @@ describe("fetchCalendarEvents", () => {
     expect(second.events[0]?.title).toBe("Cached Event");
   });
 
-  it("fetches this month and next month when URL has month token", async () => {
+  it("fetches this month and the next two months when URL has month token", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = String(input);
-      const title = url.endsWith("/08") ? "Next Month Event" : "This Month Event";
+      const title = url.endsWith("/09")
+        ? "Third Month Event"
+        : url.endsWith("/08")
+          ? "Next Month Event"
+          : "This Month Event";
 
       return new Response(
         `
@@ -537,10 +542,18 @@ describe("fetchCalendarEvents", () => {
 
     const result = await fetchCalendarEvents(config, new Date("2026-07-03T00:00:00Z"));
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(result.sourceUrls).toEqual(["https://example.com/events/2026/07", "https://example.com/events/2026/08"]);
-    expect(result.cacheStatuses).toEqual(["miss", "miss"]);
-    expect(result.events.map((event) => event.title)).toEqual(["This Month Event", "Next Month Event"]);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(result.sourceUrls).toEqual([
+      "https://example.com/events/2026/07",
+      "https://example.com/events/2026/08",
+      "https://example.com/events/2026/09"
+    ]);
+    expect(result.cacheStatuses).toEqual(["miss", "miss", "miss"]);
+    expect(result.events.map((event) => event.title)).toEqual([
+      "This Month Event",
+      "Next Month Event",
+      "Third Month Event"
+    ]);
   });
 
   it("fetches one URL when URL has no month token", async () => {

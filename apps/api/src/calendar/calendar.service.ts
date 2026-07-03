@@ -33,7 +33,12 @@ interface HtmlCacheEntry {
   expiresAt: number;
 }
 
-type FetchStatus = "hit" | "miss" | "stale" | "error";
+export type FetchStatus = "hit" | "miss" | "stale" | "error" | "cached" | "warming";
+
+export interface SourcePage {
+  sourceUrl: string;
+  referenceDate: Date;
+}
 
 const htmlCache = new Map<string, HtmlCacheEntry>();
 const pendingFetches = new Map<string, Promise<string>>();
@@ -108,14 +113,14 @@ export async function fetchCalendarEvents(
   cacheStatus: FetchStatus;
   cacheStatuses: FetchStatus[];
 }> {
-  const sourceUrls = renderSourceUrls(config.url, now);
+  const sourcePages = renderSourcePages(config.url, now);
+  const sourceUrls = sourcePages.map((page) => page.sourceUrl);
   const allEvents: CalendarEvent[] = [];
   const cacheStatuses: FetchStatus[] = [];
 
-  for (const sourceUrl of sourceUrls) {
+  for (const sourcePage of sourcePages) {
     try {
-      const { html, cacheStatus } = await fetchSourceHtml(sourceUrl, config.cacheTtlSeconds);
-      const events = extractEventsFromHtml(html, config, sourceUrl, now);
+      const { events, cacheStatus } = await fetchCalendarSourcePage(config, sourcePage);
 
       allEvents.push(...events);
       cacheStatuses.push(cacheStatus);
@@ -137,6 +142,16 @@ export async function fetchCalendarEvents(
     cacheStatus: cacheStatuses[0] ?? "miss",
     cacheStatuses
   };
+}
+
+export async function fetchCalendarSourcePage(
+  config: CalendarSourceConfig,
+  sourcePage: SourcePage
+): Promise<{ events: CalendarEvent[]; cacheStatus: FetchStatus }> {
+  const { html, cacheStatus } = await fetchSourceHtml(sourcePage.sourceUrl, config.cacheTtlSeconds);
+  const events = extractEventsFromHtml(html, config, sourcePage.sourceUrl, sourcePage.referenceDate);
+
+  return { events, cacheStatus };
 }
 
 export function eventsToIcs(calendarName: string, events: CalendarEvent[]): string {
@@ -249,11 +264,7 @@ async function fetchFreshHtml(sourceUrl: string): Promise<string> {
   }
 
   const pendingFetch = fetch(sourceUrl, {
-    headers: {
-      accept: "text/html,application/xhtml+xml",
-      "accept-language": "en-US,en;q=0.9",
-      "user-agent": "chaotic-backend/0.1 calendar scraper"
-    }
+    headers: buildRequestHeaders()
   }).then(async (response) => {
     if (!response.ok) {
       throw new Error(`Failed to fetch ${sourceUrl}: ${response.status}`);
@@ -269,6 +280,12 @@ async function fetchFreshHtml(sourceUrl: string): Promise<string> {
   } finally {
     pendingFetches.delete(sourceUrl);
   }
+}
+
+function buildRequestHeaders(): Record<string, string> {
+  return {
+    "user-agent": "chaotic-backend/0.1 calendar scraper"
+  };
 }
 
 export function extractEventsFromHtml(
@@ -356,14 +373,22 @@ export function renderSourceUrl(template: string, now = new Date()): string {
 }
 
 export function renderSourceUrls(template: string, now = new Date()): string[] {
+  return renderSourcePages(template, now).map((page) => page.sourceUrl);
+}
+
+export function renderSourcePages(template: string, now = new Date()): SourcePage[] {
   if (!template.includes("{month}")) {
-    return [renderSourceUrl(template, now)];
+    return [{ sourceUrl: renderSourceUrl(template, now), referenceDate: now }];
   }
 
-  return [
-    renderSourceUrl(template, now),
-    renderSourceUrl(template, addMonths(now, 1)),
-  ];
+  return [0, 1, 2].map((monthOffset) => {
+    const referenceDate = addMonths(now, monthOffset);
+
+    return {
+      sourceUrl: renderSourceUrl(template, referenceDate),
+      referenceDate
+    };
+  });
 }
 
 function addMonths(date: Date, months: number): Date {
@@ -373,7 +398,7 @@ function addMonths(date: Date, months: number): Date {
   return next;
 }
 
-function dedupeEvents(events: CalendarEvent[]): CalendarEvent[] {
+export function dedupeEvents(events: CalendarEvent[]): CalendarEvent[] {
   const seen = new Set<string>();
   const uniqueEvents: CalendarEvent[] = [];
 

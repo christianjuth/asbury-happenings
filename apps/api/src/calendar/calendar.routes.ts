@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { buildCalendarDebugText, buildCalendarFeed } from "./calendar.service.js";
+import { getCachedCalendarDebugText, getCachedCalendarFeed } from "./calendar.cache.js";
 import { calendarSources, getCalendarSource } from "./calendar.config.js";
 
 export async function registerCalendarRoutes(server: FastifyInstance) {
@@ -21,12 +21,16 @@ export async function registerCalendarRoutes(server: FastifyInstance) {
       }
 
       if (isDebugRequest(request.query.debug)) {
-        const debugText = await buildCalendarDebugText(config);
+        const debugText = getCachedCalendarDebugText(config);
 
         return reply.type("text/plain; charset=utf-8").send(debugText);
       }
 
-      const feed = await buildCalendarFeed(config);
+      const feed = getCachedCalendarFeed(config);
+
+      if (!feed) {
+        return reply.code(503).type("text/plain; charset=utf-8").send("Calendar cache warming");
+      }
 
       return reply
         .header("cache-control", "public, max-age=300")
