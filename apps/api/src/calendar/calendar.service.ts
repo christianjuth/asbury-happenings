@@ -74,9 +74,9 @@ export type JsonDateFormat = "epoch-ms" | "epoch-seconds" | "iso";
 export type JsonFieldSpec =
   | string
   | {
-      path: string | string[];
-      dateFormat?: JsonDateFormat;
-    };
+    path: string | string[];
+    dateFormat?: JsonDateFormat;
+  };
 
 export interface JsonEventFieldConfig {
   title: JsonFieldSpec;
@@ -371,8 +371,8 @@ async function fetchFreshText(sourceUrl: string): Promise<string> {
 
 function buildRequestHeaders(): Record<string, string> {
   return {
-    "user-agent":
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+    // "user-agent":
+    //   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
   };
 }
 
@@ -533,15 +533,15 @@ export function extractEventsFromHtml(
     const end = missingStartTime
       ? addDays(start, 1)
       : readEventDate({
-          fullDateTimeSelector: config.selectors.end,
-          dateSelector: config.selectors.endDate ?? config.selectors.startDate,
-          timeSelector: config.selectors.endTime,
-          readValue,
-          readOptional,
-          config,
-          referenceDate,
-          requireTimeWhenTimeSelectorProvided: true
-        }) ?? addMinutes(start, config.defaultDurationMinutes ?? 60);
+        fullDateTimeSelector: config.selectors.end,
+        dateSelector: config.selectors.endDate ?? config.selectors.startDate,
+        timeSelector: config.selectors.endTime,
+        readValue,
+        readOptional,
+        config,
+        referenceDate,
+        requireTimeWhenTimeSelectorProvided: true
+      }) ?? addMinutes(start, config.defaultDurationMinutes ?? 60);
 
     const address = readOptional(config.selectors.address) ?? config.defaultAddress;
     const location = readOptional(config.selectors.location) ?? address;
@@ -701,12 +701,12 @@ export function extractShowroomComingSoonEvents(
     const opensOnDateText = normalizeShowroomDateText(opensOnText);
     const opensOnDate = opensOnDateText
       ? parseDateOrNull(
-          opensOnDateText,
-          { selector: ":self", format: ["MMM D", "MMMM D"] },
-          undefined,
-          sourcePage.referenceDate,
-          config.timeZone
-        )
+        opensOnDateText,
+        { selector: ":self", format: ["MMM D", "MMMM D"] },
+        undefined,
+        sourcePage.referenceDate,
+        config.timeZone
+      )
       : null;
 
     if (opensOnDate) {
