@@ -1,24 +1,41 @@
 import type { FastifyInstance } from "fastify";
-import { z } from "zod";
-import { buildCalendarFeed } from "./calendar.service.js";
-
-const querySchema = z.object({
-  url: z.string().url()
-});
+import { buildCalendarDebugText, buildCalendarFeed } from "./calendar.service.js";
+import { calendarSources, getCalendarSource } from "./calendar.config.js";
 
 export async function registerCalendarRoutes(server: FastifyInstance) {
-  server.get("/calendar/webpage.ics", async (request, reply) => {
-    const query = querySchema.safeParse(request.query);
+  server.get("/calendar", async () => ({
+    calendars: calendarSources.map((source) => ({
+      id: source.id,
+      name: source.name,
+      path: `/calendar/${source.id}.ics`
+    }))
+  }));
 
-    if (!query.success) {
-      throw server.httpErrors.badRequest("Expected query param: url");
+  server.get<{ Params: { calendarId: string }; Querystring: { debug?: string } }>(
+    "/calendar/:calendarId.ics",
+    async (request, reply) => {
+      const config = getCalendarSource(request.params.calendarId);
+
+      if (!config) {
+        throw server.httpErrors.notFound("Unknown calendar");
+      }
+
+      if (isDebugRequest(request.query.debug)) {
+        const debugText = await buildCalendarDebugText(config);
+
+        return reply.type("text/plain; charset=utf-8").send(debugText);
+      }
+
+      const feed = await buildCalendarFeed(config);
+
+      return reply
+        .header("cache-control", "public, max-age=300")
+        .type("text/calendar; charset=utf-8")
+        .send(feed);
     }
+  );
+}
 
-    const feed = await buildCalendarFeed(query.data.url);
-
-    return reply
-      .header("cache-control", "public, max-age=300")
-      .type("text/calendar; charset=utf-8")
-      .send(feed);
-  });
+function isDebugRequest(value: string | undefined): boolean {
+  return value === "1" || value === "true" || value === "text";
 }

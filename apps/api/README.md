@@ -20,10 +20,22 @@ Health check:
 curl http://localhost:3000/health
 ```
 
-Calendar feed stub:
+List configured calendars:
 
 ```bash
-curl "http://localhost:3000/calendar/webpage.ics?url=https://example.com"
+curl http://localhost:3000/calendar
+```
+
+Calendar feed:
+
+```bash
+curl http://localhost:3000/calendar/example-events.ics
+```
+
+Plain-text debug output:
+
+```bash
+curl "http://localhost:3000/calendar/example-events.ics?debug=1"
 ```
 
 ## Docker
@@ -46,9 +58,64 @@ pnpm lint       # typecheck
 
 ## Calendar Endpoint
 
-`GET /calendar/webpage.ics?url=https://example.com`
+`GET /calendar/:calendarId.ics`
 
-Current implementation fetches a page, uses its `<title>` as a placeholder event title, and returns a valid `.ics` response. Replace `extractEventsFromHtml` in `src/calendar/calendar.service.ts` with site-specific scraping logic.
+`GET /calendar/:calendarId.ics?debug=1`
+
+Calendar sources are configured in `src/calendar/calendar.config.ts`. Each source defines:
+
+```ts
+{
+  id: "example-events",
+  name: "Example Events",
+  url: "https://example.com/events/{year}/{month}",
+  containerSelector: "article",
+  selectors: {
+    title: ".event-title",
+    start: { selector: "time.start", attr: "datetime" },
+    end: { selector: "time.end", attr: "datetime" },
+    location: ".location",
+    description: ".description",
+    url: { selector: "a.details", attr: "href" }
+  }
+}
+```
+
+Date parsing is forgiving by default for common date shapes like `Jul 02`, `July 2`, `7/2/2026`, and `2026-07-02`. Date selectors can include `format` for site-specific dates:
+
+```ts
+start: {
+  selector: ".event-date",
+  format: "MMM DD"
+}
+```
+
+Text like `Jul 02` uses the current UTC year when the matched format does not include a year. `dateFormats` on the source can provide fallback formats.
+
+Date and time can also be split across config fields. `pattern` extracts the first capture group from selected text:
+
+```ts
+selectors: {
+  title: ".event-list__title",
+  startDate: {
+    selector: ".event-list__details",
+    pattern: /[A-Za-z]{3},\s*([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4})/,
+    format: "M/D/YYYY"
+  },
+  startTime: {
+    selector: ".event-list__details",
+    pattern: /([0-9]{1,2}:[0-9]{2}\s*[ap]m)\s*-/i,
+    format: ["h:mma", "h:mm a"]
+  },
+  endTime: {
+    selector: ".event-list__details",
+    pattern: /-\s*([0-9]{1,2}:[0-9]{2}\s*[ap]m)/i,
+    format: ["h:mma", "h:mm a"]
+  }
+}
+```
+
+`{year}` and `{month}` use the current UTC year and zero-padded month. Each `containerSelector` match becomes one event. `title` plus either `start` or `startDate` are required; containers missing them are skipped. If no end date/time is found, `defaultDurationMinutes` is used.
 
 ## Add Redis Later
 
