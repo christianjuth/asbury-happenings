@@ -169,6 +169,23 @@ export const CALENDAR_SOURCES = [
     defaultAddress: "Asbury Park Brewery, 614 Cookman Ave, Asbury Park, NJ 07712",
     cacheTtlSeconds: 900,
     defaultDurationMinutes: 180
+  },
+  {
+    id: "black-swan",
+    name: "The Black Swan Public House",
+    sourceType: "json",
+    url: "https://www.theblackswanap.com/api/open/GetItemsByMonth?month={month}-{year}&collectionId=651eeb68bc08695a75179d3b",
+    fields: {
+      title: "title",
+      start: "startDate",
+      end: "endDate",
+      url: "fullUrl"
+    },
+    dateFormat: "epoch-ms",
+    timeZone: "America/New_York",
+    defaultAddress: "The Black Swan Public House, 601 Mattison Avenue, Asbury Park, NJ 07712",
+    cacheTtlSeconds: 900,
+    defaultDurationMinutes: 180
   }
 ] satisfies CalendarSourceConfig[];
 
