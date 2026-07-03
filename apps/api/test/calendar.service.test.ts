@@ -625,6 +625,70 @@ describe("extractEventsFromHtml", () => {
     expect(events[1]?.start.toISOString()).toBe("2026-07-04T18:00:00.000Z");
     expect(events[1]?.end.toISOString()).toBe("2026-07-04T21:00:00.000Z");
   });
+
+  it("parses House of Independents event list cards", () => {
+    const houseOfIndependentsConfig = getCalendarSource("house-of-independents");
+
+    if (!houseOfIndependentsConfig || houseOfIndependentsConfig.sourceType !== "html") {
+      throw new Error("Missing House of Independents calendar config");
+    }
+
+    const events = extractEventsFromHtml(
+      `
+        <div class="col-12 eventWrapper rhpSingleEvent py-4 px-0 rhp-event__single-event--list">
+          <div class="eventDateListTop rhp-event__date--list">
+            <div id="eventDate" class="mb-0 eventMonth singleEventDate text-uppercase">Fri, Jul 03</div>
+          </div>
+          <div class="belowLowTicketSection p-2">
+            <div class="eventTitleDiv">
+              <a id="eventTitle" class="url" href="https://houseofindependents.com/event/90s-night-dance-party-2/house-of-independents/asbury-park-new-jersey/">
+                <h2>90’S NIGHT DANCE PARTY</h2>
+              </a>
+            </div>
+            <div class="eventAgeRestriction">Ages 21 and up</div>
+            <div class="eventTagLine">House of Independents presents</div>
+            <div class="rhpEventDetails">
+              <span class="rhp-event__time-text--list">Show: 9 pm || Doors: 9 pm</span>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 eventWrapper rhpSingleEvent py-4 px-0 rhp-event__single-event--list">
+          <div class="eventDateListTop rhp-event__date--list">
+            <div id="eventDate" class="mb-0 eventMonth singleEventDate text-uppercase">Mon, Jul 06</div>
+          </div>
+          <div class="belowLowTicketSection p-2">
+            <div class="eventTitleDiv">
+              <a id="eventTitle" class="url" href="/event/elysia/house-of-independents/asbury-park-new-jersey/">
+                <h2>Elysia</h2>
+              </a>
+            </div>
+            <div class="eventTagLine">Hellfest Presents..</div>
+            <div class="rhpEventDetails">
+              <span class="rhp-event__time-text--list">Show: 6:30 pm || Doors: 6 pm</span>
+            </div>
+          </div>
+        </div>
+      `,
+      houseOfIndependentsConfig,
+      "https://houseofindependents.com/events/",
+      new Date("2026-07-03T00:00:00Z")
+    );
+
+    expect(events).toHaveLength(2);
+    expect(events[0]).toMatchObject({
+      title: "90’S NIGHT DANCE PARTY",
+      description: "House of Independents presents",
+      address: "House of Independents, 572 Cookman Ave, Asbury Park, NJ 07712",
+      location: "House of Independents, 572 Cookman Ave, Asbury Park, NJ 07712",
+      url: "https://houseofindependents.com/event/90s-night-dance-party-2/house-of-independents/asbury-park-new-jersey/"
+    });
+    expect(events[0]?.start.toISOString()).toBe("2026-07-04T01:00:00.000Z");
+    expect(events[0]?.end.toISOString()).toBe("2026-07-04T04:00:00.000Z");
+    expect(events[1]?.title).toBe("Elysia");
+    expect(events[1]?.description).toBe("Hellfest Presents..");
+    expect(events[1]?.url).toBe("https://houseofindependents.com/event/elysia/house-of-independents/asbury-park-new-jersey/");
+    expect(events[1]?.start.toISOString()).toBe("2026-07-06T22:30:00.000Z");
+  });
 });
 
 describe("extractEventsFromJson", () => {

@@ -57,6 +57,11 @@ describe("server", () => {
           path: "/calendar/r-bar.ics"
         },
         {
+          id: "house-of-independents",
+          name: "House of Independents",
+          path: "/calendar/house-of-independents.ics"
+        },
+        {
           id: "asbury-park-brewery",
           name: "Asbury Park Brewery",
           path: "/calendar/asbury-park-brewery.ics"
