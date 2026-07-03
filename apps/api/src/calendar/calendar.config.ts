@@ -2,35 +2,6 @@ import type { CalendarSourceConfig } from "./calendar.service.js";
 
 export const calendarSources = [
   {
-    id: "example-events",
-    name: "Example Events",
-    url: "https://example.com/events/{year}/{month}",
-    containerSelector: "article",
-    selectors: {
-      title: ".event-title",
-      start: {
-        selector: "time.start",
-        attr: "datetime",
-        format: "YYYY-MM-DDTHH:mm:ss[Z]"
-      },
-      end: {
-        selector: "time.end",
-        attr: "datetime",
-        format: "YYYY-MM-DDTHH:mm:ss[Z]"
-      },
-      location: ".location",
-      description: ".description",
-      url: {
-        selector: "a.details",
-        attr: "href"
-      }
-    },
-    dateFormats: ["MMM DD"],
-    timeZone: "UTC",
-    cacheTtlSeconds: 900,
-    defaultDurationMinutes: 60
-  },
-  {
     id: "asbury-book-coop",
     name: "Asbury Book Coop",
     url: "https://asburybookcoop.com/events/{year}/{month}",

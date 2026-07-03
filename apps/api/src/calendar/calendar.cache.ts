@@ -12,7 +12,7 @@ import {
   type SourcePage
 } from "./calendar.service.js";
 
-const cacheTickMs = 30 * 60_000;
+const cacheTickMs = 5 * 60_000;
 
 interface CachedPage {
   events: CalendarEvent[];

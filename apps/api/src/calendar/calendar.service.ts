@@ -42,6 +42,7 @@ export interface SourcePage {
 
 const htmlCache = new Map<string, HtmlCacheEntry>();
 const pendingFetches = new Map<string, Promise<string>>();
+const cookieJar = new Map<string, Map<string, string>>();
 
 export type SelectorSpec =
   | string
@@ -225,6 +226,7 @@ export function eventsToDebugText(
 export function clearCalendarFetchCache(): void {
   htmlCache.clear();
   pendingFetches.clear();
+  cookieJar.clear();
 }
 
 async function fetchSourceHtml(
@@ -256,8 +258,6 @@ async function fetchSourceHtml(
   }
 }
 
-let cookie = ""
-
 async function fetchFreshHtml(sourceUrl: string): Promise<string> {
   const existingFetch = pendingFetches.get(sourceUrl);
 
@@ -265,20 +265,21 @@ async function fetchFreshHtml(sourceUrl: string): Promise<string> {
     return existingFetch;
   }
 
+  const requestHeaders = buildRequestHeaders();
+  const cookie = getCookieHeader(sourceUrl);
+
+  if (cookie) {
+    requestHeaders.cookie = cookie;
+  }
+
   const pendingFetch = fetch(sourceUrl, {
-    headers: {
-      ...buildRequestHeaders(),
-      cookie
-    }
+    headers: requestHeaders
   }).then(async (response) => {
     if (!response.ok) {
       throw new Error(`Failed to fetch ${sourceUrl}: ${response.status}`);
     }
 
-    const newCookie = response.headers.get("set-cookie")
-    if (newCookie && newCookie.toLowerCase().includes("x_obolus_proof")) {
-      cookie = newCookie
-    }
+    storeResponseCookies(sourceUrl, response.headers);
 
     return response.text();
   });
@@ -296,6 +297,68 @@ function buildRequestHeaders(): Record<string, string> {
   return {
     "user-agent": "chaotic-backend/0.1 calendar scraper"
   };
+}
+
+function getCookieHeader(sourceUrl: string): string | undefined {
+  const hostCookies = cookieJar.get(getCookieHost(sourceUrl));
+
+  if (!hostCookies?.size) {
+    return undefined;
+  }
+
+  return [...hostCookies.entries()].map(([name, value]) => `${name}=${value}`).join("; ");
+}
+
+function storeResponseCookies(sourceUrl: string, headers: Headers): void {
+  const setCookieHeaders = getSetCookieHeaders(headers);
+
+  if (!setCookieHeaders.length) {
+    return;
+  }
+
+  const host = getCookieHost(sourceUrl);
+  const hostCookies = cookieJar.get(host) ?? new Map<string, string>();
+
+  for (const setCookie of setCookieHeaders) {
+    const [cookiePair] = setCookie.split(";");
+    const separatorIndex = cookiePair.indexOf("=");
+
+    if (separatorIndex <= 0) {
+      continue;
+    }
+
+    const name = cookiePair.slice(0, separatorIndex).trim();
+    const value = cookiePair.slice(separatorIndex + 1).trim();
+
+    if (name) {
+      hostCookies.set(name, value);
+    }
+  }
+
+  if (hostCookies.size) {
+    cookieJar.set(host, hostCookies);
+  }
+}
+
+function getSetCookieHeaders(headers: Headers): string[] {
+  const headersWithSetCookie = headers as Headers & { getSetCookie?: () => string[] };
+  const setCookieHeaders = headersWithSetCookie.getSetCookie?.();
+
+  if (setCookieHeaders?.length) {
+    return setCookieHeaders;
+  }
+
+  const setCookie = headers.get("set-cookie");
+
+  return setCookie ? splitSetCookieHeader(setCookie) : [];
+}
+
+function splitSetCookieHeader(value: string): string[] {
+  return value.split(/,(?=\s*[^;,]+=)/).map((cookie) => cookie.trim()).filter(Boolean);
+}
+
+function getCookieHost(sourceUrl: string): string {
+  return new URL(sourceUrl).host;
 }
 
 export function extractEventsFromHtml(

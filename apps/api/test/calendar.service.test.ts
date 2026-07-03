@@ -607,4 +607,71 @@ describe("fetchCalendarEvents", () => {
     expect(stale.cacheStatus).toBe("stale");
     expect(stale.events[0]?.title).toBe("Stale Event");
   });
+
+  it("stores set-cookie values by host and sends cookie pairs back", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      const response = new Response(
+        `
+          <article>
+            <h2 class="event-title">Cookie Event</h2>
+            <time class="start" datetime="2026-07-04T18:00:00Z">July 4</time>
+          </article>
+        `
+      );
+      Object.defineProperty(response.headers, "getSetCookie", {
+        value: () => ["X_Obolus_Proof=abc123; Path=/; HttpOnly", "source_session=def456; Secure"]
+      });
+
+      return response;
+    });
+    const noCacheConfig: CalendarSourceConfig = {
+      ...config,
+      url: "https://example.com/events",
+      cacheTtlSeconds: 0
+    };
+
+    await fetchCalendarEvents(noCacheConfig, new Date("2026-07-03T00:00:00Z"));
+    await fetchCalendarEvents(noCacheConfig, new Date("2026-07-03T00:00:00Z"));
+
+    const secondRequestHeaders = fetchMock.mock.calls[1]?.[1]?.headers as Record<string, string>;
+
+    expect(secondRequestHeaders.cookie).toBe("X_Obolus_Proof=abc123; source_session=def456");
+  });
+
+  it("does not send cookies across source hosts", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      const response = new Response(
+        `
+          <article>
+            <h2 class="event-title">Host Event</h2>
+            <time class="start" datetime="2026-07-04T18:00:00Z">July 4</time>
+          </article>
+        `,
+        {
+          headers: {
+            "set-cookie": "source_session=example-cookie; Path=/"
+          }
+        }
+      );
+
+      return response;
+    });
+    const exampleConfig: CalendarSourceConfig = {
+      ...config,
+      url: "https://example.com/events",
+      cacheTtlSeconds: 0
+    };
+    const otherConfig: CalendarSourceConfig = {
+      ...config,
+      url: "https://events.example.net/events",
+      cacheTtlSeconds: 0
+    };
+
+    await fetchCalendarEvents(exampleConfig, new Date("2026-07-03T00:00:00Z"));
+    await fetchCalendarEvents(otherConfig, new Date("2026-07-03T00:00:00Z"));
+
+    const secondRequestHeaders = fetchMock.mock.calls[1]?.[1]?.headers as Record<string, string>;
+
+    expect(secondRequestHeaders.cookie).toBeUndefined();
+  });
 });
