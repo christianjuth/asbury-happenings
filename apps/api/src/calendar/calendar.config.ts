@@ -1,5 +1,16 @@
 import type { CalendarSourceConfig } from "./calendar.service.js";
 
+const SQUARESPACE_JSON_SOURCE = {
+  sourceType: "json",
+  fields: {
+    title: "title",
+    start: "startDate",
+    end: "endDate",
+    url: "fullUrl"
+  },
+  dateFormat: "epoch-ms"
+} satisfies Partial<CalendarSourceConfig>;
+
 export const CALENDAR_SOURCES = [
   {
     id: "asbury-book-coop",
@@ -156,15 +167,8 @@ export const CALENDAR_SOURCES = [
   {
     id: "asbury-park-brewery",
     name: "Asbury Park Brewery",
-    sourceType: "json",
+    ...SQUARESPACE_JSON_SOURCE,
     url: "https://www.asburyparkbrewery.com/api/open/GetItemsByMonth?month={month}-{year}&collectionId=58d9e4bd2e69cf858dea5613",
-    fields: {
-      title: "title",
-      start: "startDate",
-      end: "endDate",
-      url: "fullUrl"
-    },
-    dateFormat: "epoch-ms",
     timeZone: "America/New_York",
     defaultAddress: "Asbury Park Brewery, 614 Cookman Ave, Asbury Park, NJ 07712",
     cacheTtlSeconds: 900,
@@ -173,15 +177,8 @@ export const CALENDAR_SOURCES = [
   {
     id: "black-swan",
     name: "The Black Swan Public House",
-    sourceType: "json",
+    ...SQUARESPACE_JSON_SOURCE,
     url: "https://www.theblackswanap.com/api/open/GetItemsByMonth?month={month}-{year}&collectionId=651eeb68bc08695a75179d3b",
-    fields: {
-      title: "title",
-      start: "startDate",
-      end: "endDate",
-      url: "fullUrl"
-    },
-    dateFormat: "epoch-ms",
     timeZone: "America/New_York",
     defaultAddress: "The Black Swan Public House, 601 Mattison Avenue, Asbury Park, NJ 07712",
     cacheTtlSeconds: 900,
