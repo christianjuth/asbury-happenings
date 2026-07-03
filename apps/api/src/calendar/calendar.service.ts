@@ -29,8 +29,8 @@ const DEFAULT_DATE_FORMATS = [
 const DEFAULT_TIME_FORMATS = ["h:mma", "h:mm a", "ha", "h a", "H:mm", "HH:mm"];
 const DEFAULT_CACHE_TTL_SECONDS = 15 * 60;
 
-interface HtmlCacheEntry {
-  html: string;
+interface SourceTextCacheEntry {
+  text: string;
   expiresAt: number;
 }
 
@@ -41,7 +41,7 @@ export interface SourcePage {
   referenceDate: Date;
 }
 
-const HTML_CACHE = new Map<string, HtmlCacheEntry>();
+const SOURCE_TEXT_CACHE = new Map<string, SourceTextCacheEntry>();
 const PENDING_FETCHES = new Map<string, Promise<string>>();
 const COOKIE_JAR = new Map<string, Map<string, string>>();
 
@@ -69,19 +69,51 @@ export interface EventSelectorConfig {
   url?: SelectorSpec;
 }
 
-export interface CalendarSourceConfig {
+export type JsonDateFormat = "epoch-ms" | "epoch-seconds" | "iso";
+
+export type JsonFieldSpec =
+  | string
+  | {
+      path: string | string[];
+      dateFormat?: JsonDateFormat;
+    };
+
+export interface JsonEventFieldConfig {
+  title: JsonFieldSpec;
+  start: JsonFieldSpec;
+  end?: JsonFieldSpec;
+  description?: JsonFieldSpec;
+  location?: JsonFieldSpec;
+  address?: JsonFieldSpec;
+  url?: JsonFieldSpec;
+}
+
+interface BaseCalendarSourceConfig {
   id: string;
   name: string;
   url: string;
-  containerSelector: string;
-  selectors: EventSelectorConfig;
-  dateFormats?: string[];
-  timeFormats?: string[];
   timeZone?: string;
   defaultAddress?: string;
   cacheTtlSeconds?: number;
   defaultDurationMinutes?: number;
 }
+
+export interface HtmlCalendarSourceConfig extends BaseCalendarSourceConfig {
+  sourceType: "html";
+  containerSelector: string;
+  selectors: EventSelectorConfig;
+  dateFormats?: string[];
+  timeFormats?: string[];
+}
+
+export interface JsonCalendarSourceConfig extends BaseCalendarSourceConfig {
+  sourceType: "json";
+  itemsPath?: string;
+  fields: JsonEventFieldConfig;
+  dateFormat?: JsonDateFormat;
+}
+
+export type CalendarSourceConfig = HtmlCalendarSourceConfig | JsonCalendarSourceConfig;
 
 export interface CalendarEvent {
   title: string;
@@ -150,8 +182,8 @@ export async function fetchCalendarSourcePage(
   config: CalendarSourceConfig,
   sourcePage: SourcePage
 ): Promise<{ events: CalendarEvent[]; cacheStatus: FetchStatus }> {
-  const { html, cacheStatus } = await fetchSourceHtml(sourcePage.sourceUrl, config.cacheTtlSeconds);
-  const events = extractEventsFromHtml(html, config, sourcePage.sourceUrl, sourcePage.referenceDate);
+  const { text, cacheStatus } = await fetchSourceText(sourcePage.sourceUrl, config.cacheTtlSeconds);
+  const events = extractEventsFromSourceText(text, config, sourcePage);
 
   return { events, cacheStatus };
 }
@@ -225,41 +257,41 @@ export function eventsToDebugText(
 }
 
 export function clearCalendarFetchCache(): void {
-  HTML_CACHE.clear();
+  SOURCE_TEXT_CACHE.clear();
   PENDING_FETCHES.clear();
   COOKIE_JAR.clear();
 }
 
-async function fetchSourceHtml(
+async function fetchSourceText(
   sourceUrl: string,
   cacheTtlSeconds = DEFAULT_CACHE_TTL_SECONDS
-): Promise<{ html: string; cacheStatus: FetchStatus }> {
+): Promise<{ text: string; cacheStatus: FetchStatus }> {
   const now = Date.now();
-  const cached = HTML_CACHE.get(sourceUrl);
+  const cached = SOURCE_TEXT_CACHE.get(sourceUrl);
 
   if (cached && cached.expiresAt > now) {
-    return { html: cached.html, cacheStatus: "hit" };
+    return { text: cached.text, cacheStatus: "hit" };
   }
 
   try {
-    const html = await fetchFreshHtml(sourceUrl);
+    const text = await fetchFreshText(sourceUrl);
 
-    HTML_CACHE.set(sourceUrl, {
-      html,
+    SOURCE_TEXT_CACHE.set(sourceUrl, {
+      text,
       expiresAt: now + cacheTtlSeconds * 1000
     });
 
-    return { html, cacheStatus: "miss" };
+    return { text, cacheStatus: "miss" };
   } catch (error) {
     if (cached) {
-      return { html: cached.html, cacheStatus: "stale" };
+      return { text: cached.text, cacheStatus: "stale" };
     }
 
     throw error;
   }
 }
 
-async function fetchFreshHtml(sourceUrl: string): Promise<string> {
+async function fetchFreshText(sourceUrl: string): Promise<string> {
   const existingFetch = PENDING_FETCHES.get(sourceUrl);
 
   if (existingFetch) {
@@ -364,7 +396,7 @@ function getCookieHost(sourceUrl: string): string {
 
 export function extractEventsFromHtml(
   html: string,
-  config: CalendarSourceConfig,
+  config: HtmlCalendarSourceConfig,
   sourceUrl: string,
   referenceDate = new Date()
 ): CalendarEvent[] {
@@ -439,6 +471,134 @@ export function extractEventsFromHtml(
   return events;
 }
 
+export function extractEventsFromJson(
+  jsonText: string,
+  config: JsonCalendarSourceConfig,
+  sourceUrl: string
+): CalendarEvent[] {
+  const payload = JSON.parse(jsonText) as unknown;
+  const rawItems = config.itemsPath ? lodash.get(payload, config.itemsPath) : payload;
+  const items = Array.isArray(rawItems) ? rawItems : [];
+
+  return lodash.compact(items.map((item) => readJsonEvent(item, config, sourceUrl)));
+}
+
+function extractEventsFromSourceText(text: string, config: CalendarSourceConfig, sourcePage: SourcePage): CalendarEvent[] {
+  switch (config.sourceType) {
+    case "html":
+      return extractEventsFromHtml(text, config, sourcePage.sourceUrl, sourcePage.referenceDate);
+    case "json":
+      return extractEventsFromJson(text, config, sourcePage.sourceUrl);
+    default:
+      return assertNever(config);
+  }
+}
+
+function readJsonEvent(item: unknown, config: JsonCalendarSourceConfig, sourceUrl: string): CalendarEvent | null {
+  const title = readJsonText(item, config.fields.title);
+  const start = readJsonDate(item, config.fields.start, config.dateFormat);
+
+  if (!title || !start) {
+    return null;
+  }
+
+  const end =
+    readJsonDate(item, config.fields.end, config.dateFormat) ?? addMinutes(start, config.defaultDurationMinutes ?? 60);
+  const address = readJsonText(item, config.fields.address) ?? config.defaultAddress;
+  const location = readJsonText(item, config.fields.location) ?? address;
+
+  return {
+    title,
+    start,
+    end,
+    description: readJsonText(item, config.fields.description),
+    location,
+    address,
+    url: resolveOptionalUrl(readJsonText(item, config.fields.url), sourceUrl)
+  };
+}
+
+function readJsonText(item: unknown, field: JsonFieldSpec | undefined): string | undefined {
+  if (!field) {
+    return undefined;
+  }
+
+  const value = readJsonValue(item, field);
+
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  return normalizeText(String(value)) || undefined;
+}
+
+function readJsonDate(
+  item: unknown,
+  field: JsonFieldSpec | undefined,
+  fallbackFormat: JsonDateFormat | undefined
+): Date | null {
+  if (!field) {
+    return null;
+  }
+
+  return parseJsonDateOrNull(readJsonValue(item, field), getJsonDateFormat(field, fallbackFormat));
+}
+
+function readJsonValue(item: unknown, field: JsonFieldSpec): unknown {
+  const paths = lodash.castArray(typeof field === "string" ? field : field.path);
+
+  for (const path of paths) {
+    const value = lodash.get(item, path);
+
+    if (value !== undefined && value !== null && value !== "") {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+function getJsonDateFormat(field: JsonFieldSpec, fallbackFormat: JsonDateFormat | undefined): JsonDateFormat | undefined {
+  return typeof field === "object" ? field.dateFormat ?? fallbackFormat : fallbackFormat;
+}
+
+function parseJsonDateOrNull(value: unknown, dateFormat: JsonDateFormat | undefined): Date | null {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  if (typeof value === "number") {
+    const multiplier = dateFormat === "epoch-seconds" ? 1000 : 1;
+    const date = new Date(value * multiplier);
+
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalizedValue = normalizeText(value);
+
+  if (!normalizedValue) {
+    return null;
+  }
+
+  if (dateFormat === "epoch-ms" || dateFormat === "epoch-seconds") {
+    const numericValue = Number(normalizedValue);
+
+    if (!Number.isFinite(numericValue)) {
+      return null;
+    }
+
+    return parseJsonDateOrNull(numericValue, dateFormat);
+  }
+
+  const date = new Date(normalizedValue);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 export function renderSourceUrl(template: string, now = new Date()): string {
   const month = String(now.getUTCMonth() + 1).padStart(2, "0");
   const year = String(now.getUTCFullYear());
@@ -505,7 +665,7 @@ interface ReadEventDateOptions {
   timeSelector?: SelectorSpec;
   readValue(selector: SelectorSpec): string;
   readOptional(selector?: SelectorSpec): string | undefined;
-  config: CalendarSourceConfig;
+  config: HtmlCalendarSourceConfig;
   referenceDate: Date;
   requireTimeWhenTimeSelectorProvided?: boolean;
 }
@@ -686,4 +846,8 @@ function resolveOptionalUrl(value: string | undefined, sourceUrl: string): strin
   }
 
   return new URL(value, sourceUrl).toString();
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unsupported calendar source config: ${JSON.stringify(value)}`);
 }

@@ -2,10 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clearCalendarFetchCache,
   extractEventsFromHtml,
+  extractEventsFromJson,
   fetchCalendarEvents,
   renderSourceUrl,
   renderSourceUrls,
-  type CalendarSourceConfig
+  type CalendarSourceConfig,
+  type HtmlCalendarSourceConfig,
+  type JsonCalendarSourceConfig
 } from "../src/calendar/calendar.service.js";
 import { getCalendarSource } from "../src/calendar/calendar.config.js";
 
@@ -14,9 +17,10 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const config: CalendarSourceConfig = {
+const config: HtmlCalendarSourceConfig = {
   id: "community",
   name: "Community Events",
+  sourceType: "html",
   url: "https://example.com/events/{year}/{month}",
   containerSelector: "article",
   selectors: {
@@ -382,9 +386,10 @@ describe("extractEventsFromHtml", () => {
   });
 
   it("parses Tim McLoone event list cards", () => {
-    const timMclooneConfig: CalendarSourceConfig = {
+    const timMclooneConfig: HtmlCalendarSourceConfig = {
       id: "tim-mcloones-supper-club",
       name: "Tim McLoone's Supper Club",
+      sourceType: "html",
       url: "https://timmcloonessupperclub.com/events.php",
       containerSelector: ".events_col2",
       selectors: {
@@ -525,9 +530,10 @@ describe("extractEventsFromHtml", () => {
   });
 
   it("parses R Bar Squarespace event list cards", () => {
-    const rBarConfig: CalendarSourceConfig = {
+    const rBarConfig: HtmlCalendarSourceConfig = {
       id: "r-bar",
       name: "R Bar",
+      sourceType: "html",
       url: "https://www.itsrbar.com/events",
       containerSelector: "article.eventlist-event",
       selectors: {
@@ -615,6 +621,86 @@ describe("extractEventsFromHtml", () => {
     expect(events[1]?.description).toBe("R Bar Presents R Yard Saturdays A High Standard Stomp Off No cover");
     expect(events[1]?.start.toISOString()).toBe("2026-07-04T18:00:00.000Z");
     expect(events[1]?.end.toISOString()).toBe("2026-07-04T21:00:00.000Z");
+  });
+});
+
+describe("extractEventsFromJson", () => {
+  const jsonConfig: JsonCalendarSourceConfig = {
+    id: "asbury-park-brewery",
+    name: "Asbury Park Brewery",
+    sourceType: "json",
+    url: "https://www.asburyparkbrewery.com/api/open/GetItemsByMonth?month={month}-{year}&collectionId=abc",
+    fields: {
+      title: "title",
+      start: "startDate",
+      end: "endDate",
+      url: "fullUrl"
+    },
+    dateFormat: "epoch-ms",
+    defaultAddress: "Asbury Park Brewery, 614 Cookman Ave, Asbury Park, NJ 07712"
+  };
+
+  it("maps configured JSON fields to normalized calendar events", () => {
+    const events = extractEventsFromJson(
+      JSON.stringify([
+        {
+          title: "Newborn Kings",
+          fullUrl: "/events/2026/7/3/newborn-kings",
+          startDate: 1783119600236,
+          endDate: 1783130400236
+        },
+        {
+          title: "",
+          startDate: 1783184400414,
+          endDate: 1783195200414
+        }
+      ]),
+      jsonConfig,
+      "https://www.asburyparkbrewery.com/api/open/GetItemsByMonth?month=07-2026&collectionId=abc"
+    );
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      title: "Newborn Kings",
+      location: "Asbury Park Brewery, 614 Cookman Ave, Asbury Park, NJ 07712",
+      address: "Asbury Park Brewery, 614 Cookman Ave, Asbury Park, NJ 07712",
+      url: "https://www.asburyparkbrewery.com/events/2026/7/3/newborn-kings"
+    });
+    expect(events[0]?.start.toISOString()).toBe("2026-07-03T23:00:00.236Z");
+    expect(events[0]?.end.toISOString()).toBe("2026-07-04T02:00:00.236Z");
+  });
+
+  it("supports nested item and field paths with default duration", () => {
+    const nestedConfig: JsonCalendarSourceConfig = {
+      ...jsonConfig,
+      itemsPath: "data.events",
+      fields: {
+        title: "name",
+        start: "dates.start"
+      },
+      dateFormat: "iso",
+      defaultDurationMinutes: 45
+    };
+    const events = extractEventsFromJson(
+      JSON.stringify({
+        data: {
+          events: [
+            {
+              name: "Nested Event",
+              dates: {
+                start: "2026-07-04T18:00:00Z"
+              }
+            }
+          ]
+        }
+      }),
+      nestedConfig,
+      "https://example.com/events.json"
+    );
+
+    expect(events).toHaveLength(1);
+    expect(events[0]?.start.toISOString()).toBe("2026-07-04T18:00:00.000Z");
+    expect(events[0]?.end.toISOString()).toBe("2026-07-04T18:45:00.000Z");
   });
 });
 
@@ -722,6 +808,44 @@ describe("fetchCalendarEvents", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(result.sourceUrls).toEqual(["https://example.com/events"]);
     expect(result.events[0]?.title).toBe("Single URL Event");
+  });
+
+  it("fetches and parses JSON source calendars", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify([
+          {
+            title: "JSON Event",
+            startDate: 1783184400414,
+            endDate: 1783195200414,
+            fullUrl: "/events/json-event"
+          }
+        ])
+      )
+    );
+    const jsonConfig: CalendarSourceConfig = {
+      id: "json-source",
+      name: "JSON Source",
+      sourceType: "json",
+      url: "https://example.com/api/events?month={month}-{year}",
+      fields: {
+        title: "title",
+        start: "startDate",
+        end: "endDate",
+        url: "fullUrl"
+      },
+      dateFormat: "epoch-ms"
+    };
+    const result = await fetchCalendarEvents(jsonConfig, new Date("2026-07-03T00:00:00Z"));
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(result.sourceUrls).toEqual([
+      "https://example.com/api/events?month=07-2026",
+      "https://example.com/api/events?month=08-2026",
+      "https://example.com/api/events?month=09-2026"
+    ]);
+    expect(result.events[0]?.title).toBe("JSON Event");
+    expect(result.events[0]?.url).toBe("https://example.com/events/json-event");
   });
 
   it("serves stale cached HTML when upstream starts failing", async () => {

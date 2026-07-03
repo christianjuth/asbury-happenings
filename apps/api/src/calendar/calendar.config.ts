@@ -4,6 +4,7 @@ export const CALENDAR_SOURCES = [
   {
     id: "asbury-book-coop",
     name: "Asbury Book Coop",
+    sourceType: "html",
     url: "https://asburybookcoop.com/events/{year}/{month}",
     containerSelector: "article.event-list",
     selectors: {
@@ -51,6 +52,7 @@ export const CALENDAR_SOURCES = [
   {
     id: "tim-mcloones-supper-club",
     name: "Tim McLoone's Supper Club",
+    sourceType: "html",
     url: "https://timmcloonessupperclub.com/events.php",
     containerSelector: ".events_col2",
     selectors: {
@@ -88,6 +90,7 @@ export const CALENDAR_SOURCES = [
   {
     id: "ap-rooftop",
     name: "AP Rooftop",
+    sourceType: "html",
     url: "https://aprooftop.com/events.php",
     containerSelector: "#main-content-sub div:has(> .events_col2)",
     selectors: {
@@ -121,6 +124,7 @@ export const CALENDAR_SOURCES = [
   {
     id: "r-bar",
     name: "R Bar",
+    sourceType: "html",
     url: "https://www.itsrbar.com/events",
     containerSelector: "article.eventlist-event",
     selectors: {
@@ -146,6 +150,23 @@ export const CALENDAR_SOURCES = [
     },
     timeZone: "America/New_York",
     defaultAddress: "R Bar & Restaurant, 1114 Main St, Asbury Park, NJ 07712",
+    cacheTtlSeconds: 900,
+    defaultDurationMinutes: 180
+  },
+  {
+    id: "asbury-park-brewery",
+    name: "Asbury Park Brewery",
+    sourceType: "json",
+    url: "https://www.asburyparkbrewery.com/api/open/GetItemsByMonth?month={month}-{year}&collectionId=58d9e4bd2e69cf858dea5613",
+    fields: {
+      title: "title",
+      start: "startDate",
+      end: "endDate",
+      url: "fullUrl"
+    },
+    dateFormat: "epoch-ms",
+    timeZone: "America/New_York",
+    defaultAddress: "Asbury Park Brewery, 614 Cookman Ave, Asbury Park, NJ 07712",
     cacheTtlSeconds: 900,
     defaultDurationMinutes: 180
   }
