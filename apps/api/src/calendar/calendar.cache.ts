@@ -14,7 +14,7 @@ import {
   type SourcePage
 } from "./calendar.service.js";
 
-const CACHE_TICK_MS = 5 * 60_000;
+const CACHE_TICK_MS = 15 * 60_000;
 
 interface CachedPage {
   events: CalendarEvent[];
