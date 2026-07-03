@@ -26,6 +26,7 @@ export const calendarSources = [
       }
     },
     dateFormats: ["MMM DD"],
+    cacheTtlSeconds: 900,
     defaultDurationMinutes: 60
   },
   {
@@ -58,6 +59,7 @@ export const calendarSources = [
       }
     },
     dateFormats: ["MMM DD", "MMM D", "MMMM DD", "MMMM D"],
+    cacheTtlSeconds: 900,
     defaultDurationMinutes: 60
   }
 ] satisfies CalendarSourceConfig[];

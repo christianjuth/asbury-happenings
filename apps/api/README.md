@@ -38,6 +38,8 @@ Plain-text debug output:
 curl "http://localhost:3000/calendar/example-events.ics?debug=1"
 ```
 
+Debug output includes whether the upstream HTML fetch was a cache `miss`, `hit`, or `stale`.
+
 ## Docker
 
 Build and run app:
@@ -135,6 +137,8 @@ selectors: {
 ```
 
 `{year}` and `{month}` use the current UTC year and zero-padded month. Each `containerSelector` match becomes one event. `title` plus either `start` or `startDate` are required; containers missing them are skipped. If no end date/time is found, `defaultDurationMinutes` is used.
+
+Each calendar source can set `cacheTtlSeconds`. The app keeps fetched upstream HTML in memory for that TTL. If the source starts returning errors after a successful fetch, stale cached HTML is served until the process restarts or a later fetch succeeds.
 
 ## Add Redis Later
 

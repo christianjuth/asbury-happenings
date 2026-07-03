@@ -1,9 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  clearCalendarFetchCache,
   extractEventsFromHtml,
+  fetchCalendarEvents,
   renderSourceUrl,
   type CalendarSourceConfig
 } from "../src/calendar/calendar.service.js";
+
+afterEach(() => {
+  clearCalendarFetchCache();
+  vi.restoreAllMocks();
+});
 
 const config: CalendarSourceConfig = {
   id: "community",
@@ -203,5 +210,56 @@ describe("renderSourceUrl", () => {
     expect(renderSourceUrl("https://example.com/{year}/{month}", new Date("2026-07-03T00:00:00Z"))).toBe(
       "https://example.com/2026/07"
     );
+  });
+});
+
+describe("fetchCalendarEvents", () => {
+  it("caches upstream HTML for repeated calendar requests", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        `
+          <article>
+            <h2 class="event-title">Cached Event</h2>
+            <time class="start" datetime="2026-07-04T18:00:00Z">July 4</time>
+          </article>
+        `
+      )
+    );
+
+    const first = await fetchCalendarEvents(config, new Date("2026-07-03T00:00:00Z"));
+    const second = await fetchCalendarEvents(config, new Date("2026-07-03T00:00:00Z"));
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(first.cacheStatus).toBe("miss");
+    expect(second.cacheStatus).toBe("hit");
+    expect(second.events[0]?.title).toBe("Cached Event");
+  });
+
+  it("serves stale cached HTML when upstream starts failing", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(
+          `
+            <article>
+              <h2 class="event-title">Stale Event</h2>
+              <time class="start" datetime="2026-07-04T18:00:00Z">July 4</time>
+            </article>
+          `
+        )
+      )
+      .mockResolvedValueOnce(new Response("Too many requests", { status: 429 }));
+
+    const noCacheConfig: CalendarSourceConfig = {
+      ...config,
+      cacheTtlSeconds: 0
+    };
+
+    await fetchCalendarEvents(noCacheConfig, new Date("2026-07-03T00:00:00Z"));
+    const stale = await fetchCalendarEvents(noCacheConfig, new Date("2026-07-03T00:00:00Z"));
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(stale.cacheStatus).toBe("stale");
+    expect(stale.events[0]?.title).toBe("Stale Event");
   });
 });

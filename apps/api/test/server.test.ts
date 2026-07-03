@@ -37,6 +37,11 @@ describe("server", () => {
           id: "example-events",
           name: "Example Events",
           path: "/calendar/example-events.ics"
+        },
+        {
+          id: "asbury-book-coop",
+          name: "Asbury Book Coop",
+          path: "/calendar/asbury-book-coop.ics"
         }
       ]
     });

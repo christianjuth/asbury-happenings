@@ -22,6 +22,15 @@ const defaultDateFormats = [
 ];
 
 const defaultTimeFormats = ["h:mma", "h:mm a", "ha", "h a", "H:mm", "HH:mm"];
+const defaultCacheTtlSeconds = 15 * 60;
+
+interface HtmlCacheEntry {
+  html: string;
+  expiresAt: number;
+}
+
+const htmlCache = new Map<string, HtmlCacheEntry>();
+const pendingFetches = new Map<string, Promise<string>>();
 
 export type SelectorSpec =
   | string
@@ -53,6 +62,7 @@ export interface CalendarSourceConfig {
   selectors: EventSelectorConfig;
   dateFormats?: string[];
   timeFormats?: string[];
+  cacheTtlSeconds?: number;
   defaultDurationMinutes?: number;
 }
 
@@ -72,30 +82,20 @@ export async function buildCalendarFeed(config: CalendarSourceConfig, now = new 
 }
 
 export async function buildCalendarDebugText(config: CalendarSourceConfig, now = new Date()): Promise<string> {
-  const { sourceUrl, events } = await fetchCalendarEvents(config, now);
+  const { sourceUrl, events, cacheStatus } = await fetchCalendarEvents(config, now);
 
-  return eventsToDebugText(config.name, sourceUrl, events);
+  return eventsToDebugText(config.name, sourceUrl, events, cacheStatus);
 }
 
 export async function fetchCalendarEvents(
   config: CalendarSourceConfig,
   now = new Date()
-): Promise<{ sourceUrl: string; events: CalendarEvent[] }> {
+): Promise<{ sourceUrl: string; events: CalendarEvent[]; cacheStatus: "hit" | "miss" | "stale" }> {
   const sourceUrl = renderSourceUrl(config.url, now);
-  const response = await fetch(sourceUrl, {
-    headers: {
-      "user-agent": "chaotic-backend/0.1 calendar scraper"
-    }
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${sourceUrl}: ${response.status}`);
-  }
-
-  const html = await response.text();
+  const { html, cacheStatus } = await fetchSourceHtml(sourceUrl, config.cacheTtlSeconds);
   const events = extractEventsFromHtml(html, config, sourceUrl, now);
 
-  return { sourceUrl, events };
+  return { sourceUrl, events, cacheStatus };
 }
 
 export function eventsToIcs(calendarName: string, events: CalendarEvent[]): string {
@@ -124,11 +124,13 @@ export function eventsToIcs(calendarName: string, events: CalendarEvent[]): stri
 export function eventsToDebugText(
   calendarName: string,
   sourceUrl: string,
-  events: CalendarEvent[]
+  events: CalendarEvent[],
+  cacheStatus?: "hit" | "miss" | "stale"
 ): string {
   const lines = [
     `Calendar: ${calendarName}`,
     `Source: ${sourceUrl}`,
+    `Fetch: cache ${cacheStatus ?? "unknown"}`,
     `Events: ${events.length}`,
     ""
   ];
@@ -156,6 +158,70 @@ export function eventsToDebugText(
   }
 
   return lines.join("\n");
+}
+
+export function clearCalendarFetchCache(): void {
+  htmlCache.clear();
+  pendingFetches.clear();
+}
+
+async function fetchSourceHtml(
+  sourceUrl: string,
+  cacheTtlSeconds = defaultCacheTtlSeconds
+): Promise<{ html: string; cacheStatus: "hit" | "miss" | "stale" }> {
+  const now = Date.now();
+  const cached = htmlCache.get(sourceUrl);
+
+  if (cached && cached.expiresAt > now) {
+    return { html: cached.html, cacheStatus: "hit" };
+  }
+
+  try {
+    const html = await fetchFreshHtml(sourceUrl);
+
+    htmlCache.set(sourceUrl, {
+      html,
+      expiresAt: now + cacheTtlSeconds * 1000
+    });
+
+    return { html, cacheStatus: "miss" };
+  } catch (error) {
+    if (cached) {
+      return { html: cached.html, cacheStatus: "stale" };
+    }
+
+    throw error;
+  }
+}
+
+async function fetchFreshHtml(sourceUrl: string): Promise<string> {
+  const existingFetch = pendingFetches.get(sourceUrl);
+
+  if (existingFetch) {
+    return existingFetch;
+  }
+
+  const pendingFetch = fetch(sourceUrl, {
+    headers: {
+      accept: "text/html,application/xhtml+xml",
+      "accept-language": "en-US,en;q=0.9",
+      "user-agent": "chaotic-backend/0.1 calendar scraper"
+    }
+  }).then(async (response) => {
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ${sourceUrl}: ${response.status}`);
+    }
+
+    return response.text();
+  });
+
+  pendingFetches.set(sourceUrl, pendingFetch);
+
+  try {
+    return await pendingFetch;
+  } finally {
+    pendingFetches.delete(sourceUrl);
+  }
 }
 
 export function extractEventsFromHtml(
