@@ -47,6 +47,11 @@ describe("server", () => {
           path: "/calendar/asbury-lovesick.ics"
         },
         {
+          id: "stone-pony",
+          name: "The Stone Pony",
+          path: "/calendar/stone-pony.ics"
+        },
+        {
           id: "asbury-book-coop",
           name: "Asbury Book Coop",
           path: "/calendar/asbury-book-coop.ics"

@@ -499,6 +499,7 @@ export function extractEventsFromHtml(
         selected.find(removeSelector).remove();
       }
 
+      selected.find("br").replaceWith(" ");
       const rawValue = selectorConfig.attr ? selected.attr(selectorConfig.attr) : selected.text();
       const value = normalizeText(rawValue);
 

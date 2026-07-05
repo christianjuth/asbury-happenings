@@ -723,6 +723,73 @@ describe("extractEventsFromHtml", () => {
     expect(lovesickEvents[0]?.end.toISOString()).toBe("2026-07-06T05:00:00.000Z");
   });
 
+  it("parses Stone Pony EventON calendar cards", () => {
+    const stonePonyConfig = getCalendarSource("stone-pony");
+
+    if (!stonePonyConfig || stonePonyConfig.sourceType !== "html") {
+      throw new Error("Missing Stone Pony calendar config");
+    }
+
+    const events = extractEventsFromHtml(
+      `
+        <div class="eventon_list_event">
+          <div class="evo_event_schema" style="display:none">
+            <a itemprop="url" href="https://www.stoneponyonline.com/events/black-country-new-road/"></a>
+            <span itemprop="name">Black Country, New Road</span>
+            <meta itemprop="startDate" content="2026-7-5T19:00">
+            <meta itemprop="endDate" content="2026-7-5T23:50">
+          </div>
+          <span class="evcal_desc" data-location_address="913 Ocean Avenue" data-location_name="The Stone Pony">
+            <span class="evcal_desc2 evcal_event_title">Black Country, New Road</span>
+            <span class="evcal_event_subtitle">Horsegirl</span>
+          </span>
+          <div class="eventon_desc_in" itemprop="description">
+            <p><strong>Black Country, New Road</strong><br>Horsegirl</p>
+            <p>There are few contemporary bands who can do musical reinvention quite as consistently.</p>
+          </div>
+        </div>
+        <div class="eventon_list_event">
+          <div class="evo_event_schema" style="display:none">
+            <a itemprop="url" href="/events/silverstein-story-of-the-year/"></a>
+            <span itemprop="name">Silverstein &amp; Story of the Year</span>
+            <meta itemprop="startDate" content="2026-7-12T17:00">
+            <meta itemprop="endDate" content="2026-7-12T22:00">
+          </div>
+          <span class="evcal_desc" data-location_address="913 Ocean Avenue " data-location_name="The Stone Pony Summer Stage">
+            <span class="evcal_desc2 evcal_event_title">Silverstein &amp; Story of the Year</span>
+            <span class="evcal_event_subtitle">on The Stone Pony Summer Stage</span>
+          </span>
+          <div class="eventon_desc_in" itemprop="description">
+            <p><strong>Silverstein &amp; Story of the Year</strong><br>Camp Screamo Tour</p>
+            <p>4:30 Inside Stone Pony Door</p>
+          </div>
+        </div>
+      `,
+      stonePonyConfig,
+      "https://www.stoneponyonline.com/calendar/"
+    );
+
+    expect(events).toHaveLength(2);
+    expect(events[0]).toMatchObject({
+      title: "Black Country, New Road",
+      description:
+        "Black Country, New Road Horsegirl There are few contemporary bands who can do musical reinvention quite as consistently.",
+      location: "The Stone Pony",
+      address: "913 Ocean Avenue",
+      url: "https://www.stoneponyonline.com/events/black-country-new-road/"
+    });
+    expect(events[0]?.start.toISOString()).toBe("2026-07-05T23:00:00.000Z");
+    expect(events[0]?.end.toISOString()).toBe("2026-07-06T03:50:00.000Z");
+    expect(events[1]).toMatchObject({
+      title: "Silverstein & Story of the Year",
+      location: "The Stone Pony Summer Stage",
+      address: "913 Ocean Avenue",
+      url: "https://www.stoneponyonline.com/events/silverstein-story-of-the-year/"
+    });
+    expect(events[1]?.start.toISOString()).toBe("2026-07-12T21:00:00.000Z");
+    expect(events[1]?.end.toISOString()).toBe("2026-07-13T02:00:00.000Z");
+  });
+
   it("parses House of Independents event list cards", () => {
     const houseOfIndependentsConfig = getCalendarSource("house-of-independents");
 
