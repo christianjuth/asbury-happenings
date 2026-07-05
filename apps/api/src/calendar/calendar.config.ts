@@ -367,7 +367,7 @@ export const CALENDAR_SOURCES = [
     timeZone: "America/New_York",
     cacheTtlSeconds: 900,
     defaultDurationMinutes: 60,
-    defaultFilters: ["!open bowling"]
+    defaultFilters: ["!open bowling", "!bowling open"]
   },
   {
     id: "asbury-park-city",
