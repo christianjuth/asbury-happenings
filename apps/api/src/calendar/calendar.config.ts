@@ -360,6 +360,16 @@ export const CALENDAR_SOURCES = [
     defaultDurationMinutes: 180
   },
   {
+    id: "asbury-lanes",
+    name: "Asbury Lanes / Hotel",
+    sourceType: "ics",
+    url: "https://api.eventcalendarapp.com/widget-subscription/17551/aac3a1a7-2128-4dcb-99b7-31479127235c",
+    timeZone: "America/New_York",
+    cacheTtlSeconds: 900,
+    defaultDurationMinutes: 60,
+    defaultFilters: ["!open bowling"]
+  },
+  {
     id: "asbury-park-city",
     name: "City of Asbury Park",
     sourceType: "ics",

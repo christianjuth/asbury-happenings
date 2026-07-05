@@ -48,7 +48,7 @@ export function getCachedCalendarFeed(
     return null;
   }
 
-  return eventsToIcs(config.name, filterCalendarEvents(snapshot.events, filters));
+  return eventsToIcs(config.name, filterCalendarEvents(snapshot.events, filters, config.defaultFilters));
 }
 
 export function getCachedCalendarDebugText(
@@ -61,7 +61,7 @@ export function getCachedCalendarDebugText(
   return eventsToDebugText(
     config.name,
     snapshot.sourceUrls,
-    filterCalendarEvents(snapshot.events, filters),
+    filterCalendarEvents(snapshot.events, filters, config.defaultFilters),
     snapshot.statuses
   );
 }

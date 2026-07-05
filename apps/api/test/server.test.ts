@@ -97,6 +97,11 @@ describe("server", () => {
           path: "/calendar/black-swan.ics"
         },
         {
+          id: "asbury-lanes",
+          name: "Asbury Lanes / Hotel",
+          path: "/calendar/asbury-lanes.ics"
+        },
+        {
           id: "asbury-park-city",
           name: "City of Asbury Park",
           path: "/calendar/asbury-park-city.ics"

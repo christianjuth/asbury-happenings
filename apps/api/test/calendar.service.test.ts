@@ -1134,6 +1134,12 @@ describe("filterCalendarEvents", () => {
       start: new Date("2026-07-07T23:00:00Z"),
       end: new Date("2026-07-08T00:00:00Z"),
       location: "City Hall"
+    },
+    {
+      title: "Open Bowling",
+      start: new Date("2026-07-08T18:00:00Z"),
+      end: new Date("2026-07-08T20:00:00Z"),
+      location: "Bowling Alley"
     }
   ];
 
@@ -1145,15 +1151,31 @@ describe("filterCalendarEvents", () => {
   });
 
   it("excludes events matching any negated filter", () => {
-    expect(filterCalendarEvents(events, ["!wonder", "!council"]).map((event) => event.title)).toEqual([]);
+    expect(filterCalendarEvents(events, ["!wonder", "!council"]).map((event) => event.title)).toEqual([
+      "Open Bowling"
+    ]);
   });
 
   it("combines include and exclude filters", () => {
-    expect(filterCalendarEvents(events, ["wonder", "!free"]).map((event) => event.title)).toEqual(["Promised Land"]);
+    expect(filterCalendarEvents(events, ["wonder", "!promised"]).map((event) => event.title)).toEqual([
+      "Happy Mondays"
+    ]);
   });
 
   it("ignores empty filters and matches case-insensitively", () => {
     expect(filterCalendarEvents(events, ["", "  MONDAYS  "]).map((event) => event.title)).toEqual(["Happy Mondays"]);
+  });
+
+  it("does not filter against event descriptions", () => {
+    expect(filterCalendarEvents(events, ["classic", "!free"]).map((event) => event.title)).toEqual([]);
+  });
+
+  it("applies default filters before request filters", () => {
+    expect(filterCalendarEvents(events, undefined, ["!open bowling"]).map((event) => event.title)).toEqual([
+      "Promised Land",
+      "Happy Mondays",
+      "Council Meeting"
+    ]);
   });
 });
 

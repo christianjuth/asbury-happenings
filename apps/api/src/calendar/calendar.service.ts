@@ -95,6 +95,7 @@ interface BaseCalendarSourceConfig {
   browserAllowedOrigins?: string[];
   timeZone?: string;
   defaultAddress?: string;
+  defaultFilters?: string[];
   cacheTtlSeconds?: number;
   defaultDurationMinutes?: number;
   transformEvent?: CalendarEventTransform;
@@ -148,7 +149,7 @@ export async function buildCalendarFeed(
 ): Promise<string> {
   const { events } = await fetchCalendarEvents(config, now);
 
-  return eventsToIcs(config.name, filterCalendarEvents(events, filters));
+  return eventsToIcs(config.name, filterCalendarEvents(events, filters, config.defaultFilters));
 }
 
 export async function buildCalendarDebugText(
@@ -158,7 +159,12 @@ export async function buildCalendarDebugText(
 ): Promise<string> {
   const { sourceUrls, events, cacheStatuses } = await fetchCalendarEvents(config, now);
 
-  return eventsToDebugText(config.name, sourceUrls, filterCalendarEvents(events, filters), cacheStatuses);
+  return eventsToDebugText(
+    config.name,
+    sourceUrls,
+    filterCalendarEvents(events, filters, config.defaultFilters),
+    cacheStatuses
+  );
 }
 
 export async function fetchCalendarEvents(
@@ -236,8 +242,12 @@ export function eventsToIcs(calendarName: string, events: CalendarEvent[]): stri
   return calendar.toString();
 }
 
-export function filterCalendarEvents(events: CalendarEvent[], filters: EventFilterInput): CalendarEvent[] {
-  const { include, exclude } = parseEventFilters(filters);
+export function filterCalendarEvents(
+  events: CalendarEvent[],
+  filters: EventFilterInput,
+  defaultFilters: string[] = []
+): CalendarEvent[] {
+  const { include, exclude } = parseEventFilters([...defaultFilters, ...lodash.castArray(filters)]);
 
   if (!include.length && !exclude.length) {
     return events;
@@ -470,7 +480,7 @@ function normalizeFilterKeyword(value: string): string {
 
 function getEventSearchText(event: CalendarEvent): string {
   return lodash
-    .compact([event.title, event.description, event.location, event.address, event.url])
+    .compact([event.title, event.location, event.address, event.url])
     .join(" ")
     .toLowerCase();
 }
