@@ -726,8 +726,161 @@ export function extractShowroomComingSoonEvents(
   return events;
 }
 
+export function extractSmithMadeEvents(
+  html: string,
+  config: CalendarSourceConfig,
+  sourcePage: SourcePage
+): CalendarEvent[] {
+  // Smith Made event cards only render the day number in the listing, so the
+  // event month has to come from the rendered source page context. Their time
+  // ranges can also omit the start meridiem ("5:00 to 10:00 PM") or cross
+  // midnight ("9:00 to 1:00 AM"). Keeping those inferences here avoids making
+  // the generic HTML parser guess across all other calendar sources.
+  const $ = cheerio.load(html);
+  const events: CalendarEvent[] = [];
+
+  $(config.sourceType === "html" ? config.containerSelector : ".results > div").each((_, element) => {
+    const container = $(element);
+    const title = normalizeText(container.find(".event-info h2").first().text());
+    const dayText = normalizeText(container.find(".date .type--h2").first().text());
+    const timeText = normalizeText(
+      container
+        .find(".event-meta div")
+        .toArray()
+        .map((timeElement) => $(timeElement).text())
+        .find((value) => /\d/.test(value) && /\bto\b/i.test(value))
+    );
+    const start = parseSmithMadeDateTime(dayText, timeText, sourcePage.referenceDate, config.timeZone);
+
+    if (!title || !start) {
+      return;
+    }
+
+    const end =
+      parseSmithMadeEndDateTime(dayText, timeText, start, sourcePage.referenceDate, config.timeZone) ??
+      addMinutes(start, config.defaultDurationMinutes ?? 60);
+    const description = normalizeText(container.find(".event-description").first().text()) || undefined;
+    const locationName = normalizeText(container.find(".event-meta a").first().text());
+    const address = config.defaultAddress;
+
+    events.push({
+      title,
+      start,
+      end,
+      description,
+      location: address ?? locationName,
+      address,
+      url: sourcePage.sourceUrl
+    });
+  });
+
+  return events;
+}
+
 function normalizeShowroomDateText(value: string | undefined): string {
   return normalizeText(value).replace(/^(?:Opens on\s+|[A-Za-z]{3},\s*)/i, "");
+}
+
+function parseSmithMadeDateTime(
+  dayText: string,
+  timeText: string,
+  referenceDate: Date,
+  timeZone?: string
+): Date | null {
+  const timeRange = parseSmithMadeTimeRange(timeText);
+
+  if (!timeRange) {
+    const date = parseSmithMadeDate(dayText, referenceDate, timeZone);
+
+    return date;
+  }
+
+  return parseSmithMadeLocalDateTime(dayText, timeRange.startTime, referenceDate, timeZone);
+}
+
+function parseSmithMadeEndDateTime(
+  dayText: string,
+  timeText: string,
+  start: Date,
+  referenceDate: Date,
+  timeZone?: string
+): Date | null {
+  const timeRange = parseSmithMadeTimeRange(timeText);
+
+  if (!timeRange) {
+    return null;
+  }
+
+  const end = parseSmithMadeLocalDateTime(dayText, timeRange.endTime, referenceDate, timeZone);
+
+  if (!end) {
+    return null;
+  }
+
+  return end <= start ? addDays(end, 1) : end;
+}
+
+function parseSmithMadeTimeRange(timeText: string): { startTime: string; endTime: string } | null {
+  const match = timeText.match(/^(\d{1,2}(?::\d{2})?)\s*([AP]M)?\s+to\s+(\d{1,2}(?::\d{2})?)\s*([AP]M)$/i);
+
+  if (!match) {
+    return null;
+  }
+
+  const [, rawStartTime, rawStartPeriod, rawEndTime, rawEndPeriod] = match;
+  const endPeriod = rawEndPeriod.toUpperCase();
+  const startPeriod = rawStartPeriod?.toUpperCase() ?? inferSmithMadeStartPeriod(rawStartTime, rawEndTime, endPeriod);
+
+  return {
+    startTime: `${rawStartTime} ${startPeriod}`,
+    endTime: `${rawEndTime} ${endPeriod}`
+  };
+}
+
+function inferSmithMadeStartPeriod(startTime: string, endTime: string, endPeriod: string): string {
+  const startHour = Number(startTime.split(":")[0]);
+  const endHour = Number(endTime.split(":")[0]);
+
+  if (endPeriod === "AM" && startHour > endHour) {
+    return "PM";
+  }
+
+  if (endPeriod === "PM" && startHour > endHour) {
+    return "AM";
+  }
+
+  return endPeriod;
+}
+
+function parseSmithMadeDate(dayText: string, referenceDate: Date, timeZone?: string): Date | null {
+  const day = Number(dayText);
+
+  if (!Number.isInteger(day) || day < 1 || day > 31) {
+    return null;
+  }
+
+  const dateText = `${referenceDate.getUTCFullYear()}-${referenceDate.getUTCMonth() + 1}-${day}`;
+  const parsed = parseWithOptionalTimeZone(dateText, "YYYY-M-D", timeZone);
+
+  return parsed.isValid() ? parsed.toDate() : null;
+}
+
+function parseSmithMadeLocalDateTime(
+  dayText: string,
+  timeText: string,
+  referenceDate: Date,
+  timeZone?: string
+): Date | null {
+  const day = Number(dayText);
+
+  if (!Number.isInteger(day) || day < 1 || day > 31) {
+    return null;
+  }
+
+  const dateTimeText = `${referenceDate.getUTCFullYear()}-${referenceDate.getUTCMonth() + 1}-${day} ${timeText}`;
+  const parsed = parseWithOptionalTimeZone(dateTimeText, "YYYY-M-D h:mm A", timeZone);
+
+  return parsed.isValid() ? parsed.toDate() : null;
 }
 
 function parseShowroomDateTime(

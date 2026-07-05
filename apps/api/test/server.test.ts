@@ -37,6 +37,16 @@ describe("server", () => {
     expect(response.json()).toMatchObject({
       calendars: [
         {
+          id: "asbury-brickwall",
+          name: "Brickwall",
+          path: "/calendar/asbury-brickwall.ics"
+        },
+        {
+          id: "asbury-lovesick",
+          name: "Lovesick",
+          path: "/calendar/asbury-lovesick.ics"
+        },
+        {
           id: "asbury-book-coop",
           name: "Asbury Book Coop",
           path: "/calendar/asbury-book-coop.ics"

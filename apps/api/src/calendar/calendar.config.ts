@@ -1,4 +1,5 @@
 import {
+  extractSmithMadeEvents,
   extractShowroomComingSoonEvents,
   stripHtmlFromEventDescription,
   stripHtmlFromEventLocation,
@@ -17,6 +18,38 @@ const SQUARESPACE_JSON_SOURCE = {
 } satisfies Partial<CalendarSourceConfig>;
 
 export const CALENDAR_SOURCES = [
+  {
+    id: "asbury-brickwall",
+    name: "Brickwall",
+    sourceType: "html",
+    url: "https://www.smithmade.org/events/date/{year}-{month}/location/brickwall",
+    containerSelector: ".results > div",
+    selectors: {
+      title: ".event-info h2",
+      startDate: ".date .type--h2"
+    },
+    timeZone: "America/New_York",
+    defaultAddress: "Brickwall, 522 Cookman Ave, Asbury Park, NJ 07712",
+    cacheTtlSeconds: 900,
+    defaultDurationMinutes: 300,
+    extractEvents: extractSmithMadeEvents
+  },
+  {
+    id: "asbury-lovesick",
+    name: "Lovesick",
+    sourceType: "html",
+    url: "https://www.smithmade.org/events/date/{year}-{month}/location/lovesick",
+    containerSelector: ".results > div",
+    selectors: {
+      title: ".event-info h2",
+      startDate: ".date .type--h2"
+    },
+    timeZone: "America/New_York",
+    defaultAddress: "Lovesick, 530 Cookman Ave, Asbury Park, NJ 07712",
+    cacheTtlSeconds: 900,
+    defaultDurationMinutes: 240,
+    extractEvents: extractSmithMadeEvents
+  },
   {
     id: "asbury-book-coop",
     name: "Asbury Book Coop",

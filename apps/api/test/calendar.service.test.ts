@@ -629,6 +629,100 @@ describe("extractEventsFromHtml", () => {
     expect(events[1]?.end.toISOString()).toBe("2026-07-04T21:00:00.000Z");
   });
 
+  it("parses Smith Made event list cards with month URL context", () => {
+    const brickwallConfig = getCalendarSource("asbury-brickwall");
+    const lovesickConfig = getCalendarSource("asbury-lovesick");
+
+    if (!brickwallConfig?.extractEvents || !lovesickConfig?.extractEvents) {
+      throw new Error("Missing Smith Made calendar config");
+    }
+
+    const brickwallEvents = brickwallConfig.extractEvents(
+      `
+        <div class="results pb-lg">
+          <div class="border-b last:border-0 pt-xs pb-sm">
+            <div class="grid grid-cols-14">
+              <div class="col-span-14 md:col-span-2">
+                <div class="date">
+                  <p class="type">Thursday</p>
+                  <p class="type--h2 mt-[-4px]">9</p>
+                </div>
+              </div>
+              <div class="col-span-14 md:col-span-10">
+                <div class="event-info w-full">
+                  <h2 class="type--h2 mb-xs mt-[-10px]">Hip Hop Happy Hour</h2>
+                  <div class="event-meta flex gap-xs mb-xs type--p-2 ml-[-3px]">
+                    <a href="/locations/brickwall">Brickwall</a>
+                    <div>5:00  to 10:00 PM</div>
+                  </div>
+                  <div class="event-description mb-xs">
+                    <p class="type--p-2">with Dusty Dubs</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `,
+      brickwallConfig,
+      {
+        sourceUrl: "https://www.smithmade.org/events/date/2026-07/location/brickwall",
+        referenceDate: new Date("2026-07-03T00:00:00Z")
+      }
+    );
+
+    const lovesickEvents = lovesickConfig.extractEvents(
+      `
+        <div class="results pb-lg">
+          <div class="border-b last:border-0 pt-xs pb-sm">
+            <div class="grid grid-cols-14">
+              <div class="col-span-14 md:col-span-2">
+                <div class="date">
+                  <p class="type">Sunday</p>
+                  <p class="type--h2 mt-[-4px]">5</p>
+                </div>
+              </div>
+              <div class="col-span-14 md:col-span-10">
+                <div class="event-info w-full">
+                  <h2 class="type--h2 mb-xs mt-[-10px]">Weekend Supervision</h2>
+                  <div class="event-meta flex gap-xs mb-xs type--p-2 ml-[-3px]">
+                    <a href="/locations/lovesick">Lovesick</a>
+                    <div>9:00 to 1:00 AM</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `,
+      lovesickConfig,
+      {
+        sourceUrl: "https://www.smithmade.org/events/date/2026-07/location/lovesick",
+        referenceDate: new Date("2026-07-03T00:00:00Z")
+      }
+    );
+
+    expect(brickwallEvents).toHaveLength(1);
+    expect(brickwallEvents[0]).toMatchObject({
+      title: "Hip Hop Happy Hour",
+      description: "with Dusty Dubs",
+      address: "Brickwall, 522 Cookman Ave, Asbury Park, NJ 07712",
+      location: "Brickwall, 522 Cookman Ave, Asbury Park, NJ 07712",
+      url: "https://www.smithmade.org/events/date/2026-07/location/brickwall"
+    });
+    expect(brickwallEvents[0]?.start.toISOString()).toBe("2026-07-09T21:00:00.000Z");
+    expect(brickwallEvents[0]?.end.toISOString()).toBe("2026-07-10T02:00:00.000Z");
+    expect(lovesickEvents).toHaveLength(1);
+    expect(lovesickEvents[0]).toMatchObject({
+      title: "Weekend Supervision",
+      address: "Lovesick, 530 Cookman Ave, Asbury Park, NJ 07712",
+      location: "Lovesick, 530 Cookman Ave, Asbury Park, NJ 07712",
+      url: "https://www.smithmade.org/events/date/2026-07/location/lovesick"
+    });
+    expect(lovesickEvents[0]?.start.toISOString()).toBe("2026-07-06T01:00:00.000Z");
+    expect(lovesickEvents[0]?.end.toISOString()).toBe("2026-07-06T05:00:00.000Z");
+  });
+
   it("parses House of Independents event list cards", () => {
     const houseOfIndependentsConfig = getCalendarSource("house-of-independents");
 
