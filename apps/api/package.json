@@ -12,7 +12,9 @@
     "start": "node dist/main.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "tsc -p tsconfig.json --noEmit"
+    "lint": "pnpm lint:types && pnpm lint:cycles",
+    "lint:cycles": "eslint src test",
+    "lint:types": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@fastify/sensible": "^6.0.0",
@@ -26,6 +28,9 @@
   "devDependencies": {
     "@types/lodash": "4.17.24",
     "@types/node": "^22.0.0",
+    "@typescript-eslint/parser": "^8.62.1",
+    "eslint": "^10.6.0",
+    "eslint-plugin-import-x": "4.17.1",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^2.1.0"
