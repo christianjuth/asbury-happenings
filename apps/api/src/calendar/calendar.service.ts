@@ -6,27 +6,49 @@ import utc from "dayjs/plugin/utc.js";
 import ical from "ical-generator";
 import lodash from "lodash";
 
+import type {
+  CalendarEvent,
+  CalendarEventTransform,
+  CalendarSourceConfig,
+  EventFilterInput,
+  FetchStatus,
+  HtmlCalendarSourceConfig,
+  IcsCalendarSourceConfig,
+  JsonCalendarSourceConfig,
+  JsonDateFormat,
+  JsonFieldSpec,
+  SelectorSpec,
+  SourcePage
+} from "./calendar.types.js";
+import {
+  addDays,
+  addMinutes,
+  normalizeText,
+  parseDateAndTimeOrNull,
+  parseDateOrNull,
+  parseWithOptionalTimeZone,
+  resolveOptionalUrl
+} from "./calendar.utils.js";
+
+export type {
+  CalendarEvent,
+  CalendarEventTransform,
+  CalendarSourceConfig,
+  EventFilterInput,
+  FetchStatus,
+  HtmlCalendarSourceConfig,
+  IcsCalendarSourceConfig,
+  JsonCalendarSourceConfig,
+  JsonDateFormat,
+  JsonFieldSpec,
+  SelectorSpec,
+  SourcePage
+} from "./calendar.types.js";
+
 dayjs.extend(utc);
 dayjs.extend(timezone);
 dayjs.extend(customParseFormat);
 
-const DEFAULT_DATE_FORMATS = [
-  "ddd, M/D/YYYY",
-  "ddd, MM/DD/YYYY",
-  "MMM DD",
-  "MMM D",
-  "MMMM DD",
-  "MMMM D",
-  "MMM DD YYYY",
-  "MMM D YYYY",
-  "MMMM DD YYYY",
-  "MMMM D YYYY",
-  "M/D/YYYY",
-  "MM/DD/YYYY",
-  "YYYY-MM-DD"
-];
-
-const DEFAULT_TIME_FORMATS = ["h:mma", "h:mm a", "ha", "h a", "H:mm", "HH:mm"];
 const DEFAULT_CACHE_TTL_SECONDS = 15 * 60;
 
 interface SourceTextCacheEntry {
@@ -34,113 +56,9 @@ interface SourceTextCacheEntry {
   expiresAt: number;
 }
 
-export type FetchStatus = "hit" | "miss" | "stale" | "error" | "cached" | "warming";
-
-export interface SourcePage {
-  sourceUrl: string;
-  referenceDate: Date;
-}
-
 const SOURCE_TEXT_CACHE = new Map<string, SourceTextCacheEntry>();
 const PENDING_FETCHES = new Map<string, Promise<string>>();
 const COOKIE_JAR = new Map<string, Map<string, string>>();
-
-export type SelectorSpec =
-  | string
-  | {
-    selector: string;
-    attr?: string;
-    format?: string | string[];
-    pattern?: string | RegExp;
-    remove?: string[];
-  };
-
-export interface EventSelectorConfig {
-  title: SelectorSpec;
-  start?: SelectorSpec;
-  startDate?: SelectorSpec;
-  startTime?: SelectorSpec;
-  end?: SelectorSpec;
-  endDate?: SelectorSpec;
-  endTime?: SelectorSpec;
-  description?: SelectorSpec;
-  location?: SelectorSpec;
-  address?: SelectorSpec;
-  url?: SelectorSpec;
-}
-
-export type JsonDateFormat = "epoch-ms" | "epoch-seconds" | "iso";
-
-export type JsonFieldSpec =
-  | string
-  | {
-    path: string | string[];
-    dateFormat?: JsonDateFormat;
-  };
-
-export interface JsonEventFieldConfig {
-  title: JsonFieldSpec;
-  start: JsonFieldSpec;
-  end?: JsonFieldSpec;
-  description?: JsonFieldSpec;
-  location?: JsonFieldSpec;
-  address?: JsonFieldSpec;
-  url?: JsonFieldSpec;
-}
-
-interface BaseCalendarSourceConfig {
-  id: string;
-  name: string;
-  url: string;
-  browserAllowedOrigins?: string[];
-  timeZone?: string;
-  defaultAddress?: string;
-  defaultFilters?: string[];
-  cacheTtlSeconds?: number;
-  defaultDurationMinutes?: number;
-  transformEvent?: CalendarEventTransform;
-  extractEvents?: CalendarSourceTextExtractor;
-}
-
-export interface HtmlCalendarSourceConfig extends BaseCalendarSourceConfig {
-  sourceType: "html";
-  containerSelector: string;
-  selectors: EventSelectorConfig;
-  dateFormats?: string[];
-  timeFormats?: string[];
-}
-
-export interface JsonCalendarSourceConfig extends BaseCalendarSourceConfig {
-  sourceType: "json";
-  itemsPath?: string;
-  fields: JsonEventFieldConfig;
-  dateFormat?: JsonDateFormat;
-}
-
-export interface CalendarEvent {
-  title: string;
-  start: Date;
-  end: Date;
-  allDay?: boolean;
-  description?: string;
-  location?: string;
-  address?: string;
-  url?: string;
-}
-
-export type EventFilterInput = string | string[] | undefined;
-export type CalendarEventTransform = (event: CalendarEvent) => CalendarEvent | null;
-export type CalendarSourceTextExtractor = (
-  text: string,
-  config: CalendarSourceConfig,
-  sourcePage: SourcePage
-) => CalendarEvent[];
-
-export interface IcsCalendarSourceConfig extends BaseCalendarSourceConfig {
-  sourceType: "ics";
-}
-
-export type CalendarSourceConfig = HtmlCalendarSourceConfig | JsonCalendarSourceConfig | IcsCalendarSourceConfig;
 
 export async function buildCalendarFeed(
   config: CalendarSourceConfig,
@@ -614,26 +532,6 @@ export function extractEventsFromIcs(icsText: string, config: IcsCalendarSourceC
   );
 }
 
-export function stripHtmlFromEventLocation(event: CalendarEvent): CalendarEvent {
-  const location = event.location ? stripHtml(event.location) : event.location;
-  const address = event.address ? stripHtml(event.address) : event.address;
-
-  return {
-    ...event,
-    location,
-    address
-  };
-}
-
-export function stripHtmlFromEventDescription(event: CalendarEvent): CalendarEvent {
-  const description = event.description ? stripHtml(event.description) : event.description;
-
-  return {
-    ...event,
-    description
-  };
-}
-
 function extractEventsFromSourceText(text: string, config: CalendarSourceConfig, sourcePage: SourcePage): CalendarEvent[] {
   if (config.extractEvents) {
     return config.extractEvents(text, config, sourcePage);
@@ -649,324 +547,6 @@ function extractEventsFromSourceText(text: string, config: CalendarSourceConfig,
     default:
       return assertNever(config);
   }
-}
-
-export function extractShowroomComingSoonEvents(
-  html: string,
-  config: CalendarSourceConfig,
-  sourcePage: SourcePage
-): CalendarEvent[] {
-  // ShowRoom nests multiple dated showtimes inside one movie card, and some cards only
-  // expose an "Opens on" date. The generic HTML extractor maps one card to one event.
-  const $ = cheerio.load(html);
-  const events: CalendarEvent[] = [];
-
-  $(".show-list > .show-details, .show-details").each((_, element) => {
-    const container = $(element);
-    const title = normalizeText(container.find(".show-title .title").first().text());
-
-    if (!title) {
-      return;
-    }
-
-    const detailUrl = resolveOptionalUrl(container.find(".show-title .title").first().attr("href"), sourcePage.sourceUrl);
-    const description = normalizeText(container.find(".show-content").first().text()) || undefined;
-    const address = config.defaultAddress;
-    const dateByTimestamp = new Map<string, string>();
-
-    container.find(".datelist .show-date").each((_, dateElement) => {
-      const dateItem = $(dateElement);
-      const timestamp = normalizeText(dateItem.attr("data-date"));
-      const dateText = normalizeShowroomDateText(dateItem.find("span").first().text());
-
-      if (timestamp && dateText) {
-        dateByTimestamp.set(timestamp, dateText);
-      }
-    });
-
-    container.find("ol.showtimes li").each((_, showtimeElement) => {
-      const showtimeItem = $(showtimeElement);
-      const timestamp = normalizeText(showtimeItem.attr("data-date"));
-      const dateText = dateByTimestamp.get(timestamp);
-      const timeText = normalizeText(showtimeItem.find("a.showtime").first().text());
-      const start = dateText
-        ? parseShowroomDateTime(dateText, timeText, config, sourcePage.referenceDate)
-        : null;
-
-      if (!start) {
-        return;
-      }
-
-      events.push({
-        title,
-        start,
-        end: addMinutes(start, config.defaultDurationMinutes ?? 120),
-        description,
-        location: address,
-        address,
-        url: resolveOptionalUrl(showtimeItem.find("a.showtime").first().attr("href"), sourcePage.sourceUrl) ?? detailUrl
-      });
-    });
-
-    const opensOnText = normalizeText(container.find(".no-showtimes-date").first().text());
-    const opensOnDateText = normalizeShowroomDateText(opensOnText);
-    const opensOnDate = opensOnDateText
-      ? parseDateOrNull(
-        opensOnDateText,
-        { selector: ":self", format: ["MMM D", "MMMM D"] },
-        undefined,
-        sourcePage.referenceDate,
-        config.timeZone
-      )
-      : null;
-
-    if (opensOnDate) {
-      events.push({
-        title,
-        start: opensOnDate,
-        end: addDays(opensOnDate, 1),
-        allDay: true,
-        description: description ? `Opens on ${opensOnDateText}. ${description}` : `Opens on ${opensOnDateText}.`,
-        location: address,
-        address,
-        url: detailUrl
-      });
-    }
-  });
-
-  return events;
-}
-
-export function extractSmithMadeEvents(
-  html: string,
-  config: CalendarSourceConfig,
-  sourcePage: SourcePage
-): CalendarEvent[] {
-  // Smith Made event cards only render the day number in the listing, so the
-  // event month has to come from the rendered source page context. Their time
-  // ranges can also omit the start meridiem ("5:00 to 10:00 PM") or cross
-  // midnight ("9:00 to 1:00 AM"). Keeping those inferences here avoids making
-  // the generic HTML parser guess across all other calendar sources.
-  const $ = cheerio.load(html);
-  const events: CalendarEvent[] = [];
-
-  $(config.sourceType === "html" ? config.containerSelector : ".results > div").each((_, element) => {
-    const container = $(element);
-    const title = normalizeText(container.find(".event-info h2").first().text());
-    const dayText = normalizeText(container.find(".date .type--h2").first().text());
-    const timeText = normalizeText(
-      container
-        .find(".event-meta div")
-        .toArray()
-        .map((timeElement) => $(timeElement).text())
-        .find((value) => /\d/.test(value) && /\bto\b/i.test(value))
-    );
-    const start = parseSmithMadeDateTime(dayText, timeText, sourcePage.referenceDate, config.timeZone);
-
-    if (!title || !start) {
-      return;
-    }
-
-    const end =
-      parseSmithMadeEndDateTime(dayText, timeText, start, sourcePage.referenceDate, config.timeZone) ??
-      addMinutes(start, config.defaultDurationMinutes ?? 60);
-    const description = normalizeText(container.find(".event-description").first().text()) || undefined;
-    const locationName = normalizeText(container.find(".event-meta a").first().text());
-    const address = config.defaultAddress;
-
-    events.push({
-      title,
-      start,
-      end,
-      description,
-      location: address ?? locationName,
-      address,
-      url: sourcePage.sourceUrl
-    });
-  });
-
-  return events;
-}
-
-export function extractUncorkedWineInspiredEvents(
-  html: string,
-  config: CalendarSourceConfig,
-  sourcePage: SourcePage
-): CalendarEvent[] {
-  // EventBook emits all-caps month names and mixes price/seat text into the
-  // date line, which is easier to normalize here than in generic selectors.
-  const $ = cheerio.load(html);
-  const events: CalendarEvent[] = [];
-
-  $(config.sourceType === "html" ? config.containerSelector : ".grid-box").each((_, element) => {
-    const container = $(element);
-    const title = normalizeText(container.find("h2").first().text());
-    const description = normalizeText(container.find("p").first().text()) || undefined;
-    const dateLine = normalizeText(
-      container
-        .find("p")
-        .toArray()
-        .map((paragraph) => $(paragraph).text())
-        .find((value) => /\bAT\s+\d{1,2}:\d{2}[AP]M/i.test(value))
-    );
-    const start = parseUncorkedWineInspiredDateTime(dateLine, config.timeZone);
-
-    if (!title || !start) {
-      return;
-    }
-
-    const address = config.defaultAddress;
-
-    events.push({
-      title,
-      start,
-      end: addMinutes(start, config.defaultDurationMinutes ?? 120),
-      description,
-      location: address,
-      address,
-      url: resolveOptionalUrl(container.find("a.btn_info").first().attr("href"), sourcePage.sourceUrl)
-    });
-  });
-
-  return events;
-}
-
-function normalizeShowroomDateText(value: string | undefined): string {
-  return normalizeText(value).replace(/^(?:Opens on\s+|[A-Za-z]{3},\s*)/i, "");
-}
-
-function parseUncorkedWineInspiredDateTime(value: string, timeZone?: string): Date | null {
-  const match = value.match(/^([A-Z]+)\s+(\d{2}),\s+(\d{4})\s+AT\s+(\d{1,2}:\d{2}[AP]M)/);
-
-  if (!match) {
-    return null;
-  }
-
-  const [, rawMonth, day, year, time] = match;
-  const month = lodash.startCase(rawMonth.toLowerCase());
-  const parsed = parseWithOptionalTimeZone(`${month} ${day}, ${year} ${time}`, "MMMM DD, YYYY h:mmA", timeZone);
-
-  return parsed.isValid() ? parsed.toDate() : null;
-}
-
-function parseSmithMadeDateTime(
-  dayText: string,
-  timeText: string,
-  referenceDate: Date,
-  timeZone?: string
-): Date | null {
-  const timeRange = parseSmithMadeTimeRange(timeText);
-
-  if (!timeRange) {
-    const date = parseSmithMadeDate(dayText, referenceDate, timeZone);
-
-    return date;
-  }
-
-  return parseSmithMadeLocalDateTime(dayText, timeRange.startTime, referenceDate, timeZone);
-}
-
-function parseSmithMadeEndDateTime(
-  dayText: string,
-  timeText: string,
-  start: Date,
-  referenceDate: Date,
-  timeZone?: string
-): Date | null {
-  const timeRange = parseSmithMadeTimeRange(timeText);
-
-  if (!timeRange) {
-    return null;
-  }
-
-  const end = parseSmithMadeLocalDateTime(dayText, timeRange.endTime, referenceDate, timeZone);
-
-  if (!end) {
-    return null;
-  }
-
-  return end <= start ? addDays(end, 1) : end;
-}
-
-function parseSmithMadeTimeRange(timeText: string): { startTime: string; endTime: string } | null {
-  const match = timeText.match(/^(\d{1,2}(?::\d{2})?)\s*([AP]M)?\s+to\s+(\d{1,2}(?::\d{2})?)\s*([AP]M)$/i);
-
-  if (!match) {
-    return null;
-  }
-
-  const [, rawStartTime, rawStartPeriod, rawEndTime, rawEndPeriod] = match;
-  const endPeriod = rawEndPeriod.toUpperCase();
-  const startPeriod = rawStartPeriod?.toUpperCase() ?? inferSmithMadeStartPeriod(rawStartTime, rawEndTime, endPeriod);
-
-  return {
-    startTime: `${rawStartTime} ${startPeriod}`,
-    endTime: `${rawEndTime} ${endPeriod}`
-  };
-}
-
-function inferSmithMadeStartPeriod(startTime: string, endTime: string, endPeriod: string): string {
-  const startHour = Number(startTime.split(":")[0]);
-  const endHour = Number(endTime.split(":")[0]);
-
-  if (endPeriod === "AM" && startHour > endHour) {
-    return "PM";
-  }
-
-  if (endPeriod === "PM" && startHour > endHour) {
-    return "AM";
-  }
-
-  return endPeriod;
-}
-
-function parseSmithMadeDate(dayText: string, referenceDate: Date, timeZone?: string): Date | null {
-  const day = Number(dayText);
-
-  if (!Number.isInteger(day) || day < 1 || day > 31) {
-    return null;
-  }
-
-  const dateText = `${referenceDate.getUTCFullYear()}-${referenceDate.getUTCMonth() + 1}-${day}`;
-  const parsed = parseWithOptionalTimeZone(dateText, "YYYY-M-D", timeZone);
-
-  return parsed.isValid() ? parsed.toDate() : null;
-}
-
-function parseSmithMadeLocalDateTime(
-  dayText: string,
-  timeText: string,
-  referenceDate: Date,
-  timeZone?: string
-): Date | null {
-  const day = Number(dayText);
-
-  if (!Number.isInteger(day) || day < 1 || day > 31) {
-    return null;
-  }
-
-  const dateTimeText = `${referenceDate.getUTCFullYear()}-${referenceDate.getUTCMonth() + 1}-${day} ${timeText}`;
-  const parsed = parseWithOptionalTimeZone(dateTimeText, "YYYY-M-D h:mm A", timeZone);
-
-  return parsed.isValid() ? parsed.toDate() : null;
-}
-
-function parseShowroomDateTime(
-  dateText: string,
-  timeText: string,
-  config: CalendarSourceConfig,
-  referenceDate: Date
-): Date | null {
-  return parseDateAndTimeOrNull(
-    dateText,
-    { selector: ":self", format: ["MMM D", "MMMM D"] },
-    timeText,
-    { selector: ":self", format: ["h:mm a", "h:mma"] },
-    undefined,
-    undefined,
-    referenceDate,
-    config.timeZone
-  );
 }
 
 function applyEventTransform(
@@ -1288,33 +868,12 @@ function addMonths(date: Date, months: number): Date {
   return next;
 }
 
-function addDays(date: Date, days: number): Date {
-  const next = new Date(date);
-  next.setUTCDate(next.getUTCDate() + days);
-
-  return next;
-}
-
 export function dedupeEvents(events: CalendarEvent[]): CalendarEvent[] {
   return lodash.uniqBy(events, getEventDedupeKey);
 }
 
 function getEventDedupeKey(event: CalendarEvent): string {
   return [event.title, event.start.toISOString(), event.url ?? ""].join("|");
-}
-
-function normalizeText(value: string | undefined): string {
-  return value?.replace(/\s+/g, " ").trim() ?? "";
-}
-
-function stripHtml(value: string): string {
-  const $ = cheerio.load(value);
-
-  $("style, script, noscript").remove();
-  $("br").replaceWith(" ");
-  $("p, div, li, h1, h2, h3, h4, h5, h6").append(" ");
-
-  return normalizeText($.root().text());
 }
 
 function applyPattern(value: string, pattern: string | RegExp | undefined): string {
@@ -1391,134 +950,6 @@ function readEventDate({
     referenceDate,
     config.timeZone
   );
-}
-
-function parseDateOrNull(
-  value: string,
-  selector: SelectorSpec | undefined,
-  fallbackFormats: string[] | undefined,
-  referenceDate: Date,
-  timeZone?: string
-): Date | null {
-  for (const format of getDateFormats(selector, fallbackFormats)) {
-    const parsed = parseFormattedDate(value, format, referenceDate, timeZone);
-
-    if (parsed) {
-      return parsed;
-    }
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  return date;
-}
-
-function parseDateAndTimeOrNull(
-  dateValue: string,
-  dateSelector: SelectorSpec,
-  timeValue: string,
-  timeSelector: SelectorSpec | undefined,
-  fallbackDateFormats: string[] | undefined,
-  fallbackTimeFormats: string[] | undefined,
-  referenceDate: Date,
-  timeZone?: string
-): Date | null {
-  for (const dateFormat of getDateFormats(dateSelector, fallbackDateFormats)) {
-    for (const timeFormat of getTimeFormats(timeSelector, fallbackTimeFormats)) {
-      const parsed = parseFormattedDateTime(dateValue, dateFormat, timeValue, timeFormat, referenceDate, timeZone);
-
-      if (parsed) {
-        return parsed;
-      }
-    }
-  }
-
-  return parseDateOrNull(`${dateValue} ${timeValue}`, undefined, fallbackDateFormats, referenceDate, timeZone);
-}
-
-function getDateFormats(selector: SelectorSpec | undefined, fallbackFormats: string[] | undefined): string[] {
-  const selectorFormats =
-    typeof selector === "object" && selector.format
-      ? lodash.castArray(selector.format)
-      : [];
-
-  return lodash.uniq([...selectorFormats, ...(fallbackFormats ?? []), ...DEFAULT_DATE_FORMATS]);
-}
-
-function getTimeFormats(selector: SelectorSpec | undefined, fallbackFormats: string[] | undefined): string[] {
-  const selectorFormats =
-    typeof selector === "object" && selector.format
-      ? lodash.castArray(selector.format)
-      : [];
-
-  return lodash.uniq([...selectorFormats, ...(fallbackFormats ?? []), ...DEFAULT_TIME_FORMATS]);
-}
-
-function parseFormattedDate(value: string, format: string, referenceDate: Date, timeZone?: string): Date | null {
-  const parseValue = formatHasYear(format)
-    ? value
-    : `${value} ${referenceDate.getUTCFullYear()}`;
-  const parseFormat = formatHasYear(format) ? format : `${format} YYYY`;
-  const parsed = parseWithOptionalTimeZone(parseValue, parseFormat, timeZone);
-
-  return parsed.isValid() ? parsed.toDate() : null;
-}
-
-function parseFormattedDateTime(
-  dateValue: string,
-  dateFormat: string,
-  timeValue: string,
-  timeFormat: string,
-  referenceDate: Date,
-  timeZone?: string
-): Date | null {
-  const value = formatHasYear(dateFormat)
-    ? `${dateValue} ${timeValue}`
-    : `${dateValue} ${referenceDate.getUTCFullYear()} ${timeValue}`;
-  const format = formatHasYear(dateFormat)
-    ? `${dateFormat} ${timeFormat}`
-    : `${dateFormat} YYYY ${timeFormat}`;
-  const parsed = parseWithOptionalTimeZone(value, format, timeZone);
-
-  return parsed.isValid() ? parsed.toDate() : null;
-}
-
-function parseWithOptionalTimeZone(value: string, format: string, timeZone: string | undefined): dayjs.Dayjs {
-  if (!timeZone) {
-    return dayjs.utc(value, format, true);
-  }
-
-  const parsed = dayjs(value, format, true);
-
-  if (!parsed.isValid()) {
-    return parsed;
-  }
-
-  try {
-    return dayjs.tz(parsed.format("YYYY-MM-DD HH:mm:ss"), "YYYY-MM-DD HH:mm:ss", timeZone);
-  } catch {
-    return parsed;
-  }
-}
-
-function formatHasYear(format: string): boolean {
-  return /Y/.test(format);
-}
-
-function addMinutes(date: Date, minutes: number): Date {
-  return new Date(date.getTime() + minutes * 60_000);
-}
-
-function resolveOptionalUrl(value: string | undefined, sourceUrl: string): string | undefined {
-  if (!value) {
-    return undefined;
-  }
-
-  return new URL(value, sourceUrl).toString();
 }
 
 function assertNever(value: never): never {

@@ -3,9 +3,9 @@ import {
   extractShowroomComingSoonEvents,
   extractUncorkedWineInspiredEvents,
   stripHtmlFromEventDescription,
-  stripHtmlFromEventLocation,
-  type CalendarSourceConfig
-} from "./calendar.service.js";
+  stripHtmlFromEventLocation
+} from "./calendar.post-processing.js";
+import type { CalendarSourceConfig } from "./calendar.types.js";
 
 const SQUARESPACE_JSON_SOURCE = {
   sourceType: "json",

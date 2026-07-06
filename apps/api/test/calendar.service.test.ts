@@ -4,19 +4,21 @@ import {
   extractEventsFromHtml,
   extractEventsFromIcs,
   extractEventsFromJson,
-  extractUncorkedWineInspiredEvents,
   eventsToIcs,
   filterCalendarEvents,
   fetchCalendarEvents,
   renderSourceUrl,
   renderSourceUrls,
-  stripHtmlFromEventLocation,
   type CalendarSourceConfig,
   type HtmlCalendarSourceConfig,
   type IcsCalendarSourceConfig,
   type JsonCalendarSourceConfig
 } from "../src/calendar/calendar.service.js";
 import { getCalendarSource } from "../src/calendar/calendar.config.js";
+import {
+  extractUncorkedWineInspiredEvents,
+  stripHtmlFromEventLocation
+} from "../src/calendar/calendar.post-processing.js";
 
 afterEach(() => {
   clearCalendarFetchCache();
