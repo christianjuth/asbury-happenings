@@ -15,6 +15,7 @@ import {
   type JsonCalendarSourceConfig
 } from "../src/calendar/calendar.service.js";
 import { getCalendarSource } from "../src/calendar/calendar.config.js";
+import dayjs from "../src/calendar/calendar.dates.js";
 import {
   extractUncorkedWineInspiredEvents,
   stripHtmlFromEventLocation
@@ -76,6 +77,8 @@ describe("extractEventsFromHtml", () => {
     );
 
     expect(events).toHaveLength(2);
+    expect(dayjs.isDayjs(events[0]?.start)).toBe(true);
+    expect(dayjs.isDayjs(events[0]?.end)).toBe(true);
     expect(events[0]).toMatchObject({
       title: "First Event",
       description: "Fireworks and food.",
@@ -168,7 +171,7 @@ describe("extractEventsFromHtml", () => {
       `,
       compactDateConfig,
       "https://example.com/events/2026/07",
-      new Date("2026-07-03T00:00:00Z")
+      dayjs("2026-07-03T00:00:00Z")
     );
 
     expect(events).toHaveLength(1);
@@ -462,7 +465,7 @@ describe("extractEventsFromHtml", () => {
       `,
       timMclooneConfig,
       "https://timmcloonessupperclub.com/events.php",
-      new Date("2026-07-03T00:00:00Z")
+      dayjs("2026-07-03T00:00:00Z")
     );
 
     expect(events).toHaveLength(4);
@@ -522,7 +525,7 @@ describe("extractEventsFromHtml", () => {
       `,
       apRooftopConfig,
       "https://aprooftop.com/events.php",
-      new Date("2026-07-03T00:00:00Z")
+      dayjs("2026-07-03T00:00:00Z")
     );
 
     expect(events).toHaveLength(2);
@@ -566,7 +569,7 @@ describe("extractEventsFromHtml", () => {
       `,
       ironWhaleConfig,
       "https://www.ironwhalenj.com/events.php",
-      new Date("2026-07-03T00:00:00Z")
+      dayjs("2026-07-03T00:00:00Z")
     );
 
     expect(events).toHaveLength(1);
@@ -658,7 +661,7 @@ describe("extractEventsFromHtml", () => {
       `,
       rBarConfig,
       "https://www.itsrbar.com/events",
-      new Date("2026-07-03T00:00:00Z")
+      dayjs("2026-07-03T00:00:00Z")
     );
 
     expect(events).toHaveLength(2);
@@ -713,7 +716,7 @@ describe("extractEventsFromHtml", () => {
       brickwallConfig,
       {
         sourceUrl: "https://www.smithmade.org/events/date/2026-07/location/brickwall",
-        referenceDate: new Date("2026-07-03T00:00:00Z")
+        referenceDate: dayjs("2026-07-03T00:00:00Z")
       }
     );
 
@@ -744,7 +747,7 @@ describe("extractEventsFromHtml", () => {
       lovesickConfig,
       {
         sourceUrl: "https://www.smithmade.org/events/date/2026-07/location/lovesick",
-        referenceDate: new Date("2026-07-03T00:00:00Z")
+        referenceDate: dayjs("2026-07-03T00:00:00Z")
       }
     );
 
@@ -877,7 +880,7 @@ describe("extractEventsFromHtml", () => {
       uncorkedConfig,
       {
         sourceUrl: "https://uncorkedwineinspired.com/wp-content/plugins/eventbook/calendar-grid.php",
-        referenceDate: new Date("2026-07-03T00:00:00Z")
+        referenceDate: dayjs("2026-07-03T00:00:00Z")
       }
     );
 
@@ -945,7 +948,7 @@ describe("extractEventsFromHtml", () => {
       `,
       houseOfIndependentsConfig,
       "https://houseofindependents.com/events/",
-      new Date("2026-07-03T00:00:00Z")
+      dayjs("2026-07-03T00:00:00Z")
     );
 
     expect(events).toHaveLength(2);
@@ -1103,6 +1106,8 @@ describe("extractEventsFromJson", () => {
     });
 
     expect(events).toHaveLength(2);
+    expect(dayjs.isDayjs(events[0]?.start)).toBe(true);
+    expect(dayjs.isDayjs(events[0]?.end)).toBe(true);
     expect(events[0]).toMatchObject({
       title: "Promised Land",
       description: "Promised Land Classic Jersey Shore Music Tribute Doors 8:00pm Show 8:30pm",
@@ -1145,6 +1150,8 @@ describe("extractEventsFromIcs", () => {
     );
 
     expect(events).toHaveLength(1);
+    expect(dayjs.isDayjs(events[0]?.start)).toBe(true);
+    expect(dayjs.isDayjs(events[0]?.end)).toBe(true);
     expect(events[0]).toMatchObject({
       title: "Council Meeting",
       description: "Agenda Public comment",
@@ -1179,8 +1186,8 @@ describe("extractEventsFromIcs", () => {
   it("strips html from event locations", () => {
     const event = stripHtmlFromEventLocation({
       title: "HTML Location",
-      start: new Date("2026-07-06T19:00:00Z"),
-      end: new Date("2026-07-06T20:00:00Z"),
+      start: dayjs("2026-07-06T19:00:00Z"),
+      end: dayjs("2026-07-06T20:00:00Z"),
       location: "<p>City Hall<br>1 Municipal Plaza &amp; Offices</p>",
       address: "<p>City Hall<br>1 Municipal Plaza &amp; Offices</p>"
     });
@@ -1192,8 +1199,8 @@ describe("extractEventsFromIcs", () => {
   it("removes embedded css when stripping html from event locations", () => {
     const event = stripHtmlFromEventLocation({
       title: "CSS Location",
-      start: new Date("2026-08-28T21:00:00Z"),
-      end: new Date("2026-08-28T23:00:00Z"),
+      start: dayjs("2026-08-28T21:00:00Z"),
+      end: dayjs("2026-08-28T23:00:00Z"),
       location:
         "<style>p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica}</style><p class=\"p1\">Pine Street between Second and Third Avenues - Asbury Park NJ 07712</p>"
     });
@@ -1227,28 +1234,28 @@ describe("filterCalendarEvents", () => {
   const events = [
     {
       title: "Promised Land",
-      start: new Date("2026-07-04T00:00:00Z"),
-      end: new Date("2026-07-04T03:00:00Z"),
+      start: dayjs("2026-07-04T00:00:00Z"),
+      end: dayjs("2026-07-04T03:00:00Z"),
       description: "Classic Jersey Shore Music Tribute",
       location: "Wonder Bar"
     },
     {
       title: "Happy Mondays",
-      start: new Date("2026-07-06T23:00:00Z"),
-      end: new Date("2026-07-07T02:00:00Z"),
+      start: dayjs("2026-07-06T23:00:00Z"),
+      end: dayjs("2026-07-07T02:00:00Z"),
       description: "Free admission",
       location: "Wonder Bar"
     },
     {
       title: "Council Meeting",
-      start: new Date("2026-07-07T23:00:00Z"),
-      end: new Date("2026-07-08T00:00:00Z"),
+      start: dayjs("2026-07-07T23:00:00Z"),
+      end: dayjs("2026-07-08T00:00:00Z"),
       location: "City Hall"
     },
     {
       title: "Open Bowling",
-      start: new Date("2026-07-08T18:00:00Z"),
-      end: new Date("2026-07-08T20:00:00Z"),
+      start: dayjs("2026-07-08T18:00:00Z"),
+      end: dayjs("2026-07-08T20:00:00Z"),
       location: "Bowling Alley"
     }
   ];
@@ -1291,13 +1298,13 @@ describe("filterCalendarEvents", () => {
 
 describe("renderSourceUrl", () => {
   it("replaces year and zero-padded month tokens", () => {
-    expect(renderSourceUrl("https://example.com/{year}/{month}", new Date("2026-07-03T00:00:00Z"))).toBe(
+    expect(renderSourceUrl("https://example.com/{year}/{month}", dayjs("2026-07-03T00:00:00Z"))).toBe(
       "https://example.com/2026/07"
     );
   });
 
   it("renders this month and next month when template contains month token", () => {
-    expect(renderSourceUrls("https://example.com/{year}/{month}", new Date("2026-12-03T00:00:00Z"))).toEqual([
+    expect(renderSourceUrls("https://example.com/{year}/{month}", dayjs("2026-12-03T00:00:00Z"))).toEqual([
       "https://example.com/2026/12",
       "https://example.com/2027/01",
       "https://example.com/2027/02"
@@ -1305,7 +1312,7 @@ describe("renderSourceUrl", () => {
   });
 
   it("renders one source URL when template has no month token", () => {
-    expect(renderSourceUrls("https://example.com/events", new Date("2026-07-03T00:00:00Z"))).toEqual([
+    expect(renderSourceUrls("https://example.com/events", dayjs("2026-07-03T00:00:00Z"))).toEqual([
       "https://example.com/events"
     ]);
   });
@@ -1328,8 +1335,8 @@ describe("fetchCalendarEvents", () => {
       url: "https://example.com/events"
     };
 
-    const first = await fetchCalendarEvents(noTokenConfig, new Date("2026-07-03T00:00:00Z"));
-    const second = await fetchCalendarEvents(noTokenConfig, new Date("2026-07-03T00:00:00Z"));
+    const first = await fetchCalendarEvents(noTokenConfig, dayjs("2026-07-03T00:00:00Z"));
+    const second = await fetchCalendarEvents(noTokenConfig, dayjs("2026-07-03T00:00:00Z"));
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(first.cacheStatus).toBe("miss");
@@ -1356,7 +1363,7 @@ describe("fetchCalendarEvents", () => {
       );
     });
 
-    const result = await fetchCalendarEvents(config, new Date("2026-07-03T00:00:00Z"));
+    const result = await fetchCalendarEvents(config, dayjs("2026-07-03T00:00:00Z"));
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(result.sourceUrls).toEqual([
@@ -1388,7 +1395,7 @@ describe("fetchCalendarEvents", () => {
       ...config,
       url: "https://example.com/events"
     };
-    const result = await fetchCalendarEvents(noTokenConfig, new Date("2026-07-03T00:00:00Z"));
+    const result = await fetchCalendarEvents(noTokenConfig, dayjs("2026-07-03T00:00:00Z"));
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(result.sourceUrls).toEqual(["https://example.com/events"]);
@@ -1421,7 +1428,7 @@ describe("fetchCalendarEvents", () => {
       },
       dateFormat: "epoch-ms"
     };
-    const result = await fetchCalendarEvents(jsonConfig, new Date("2026-07-03T00:00:00Z"));
+    const result = await fetchCalendarEvents(jsonConfig, dayjs("2026-07-03T00:00:00Z"));
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(result.sourceUrls).toEqual([
@@ -1455,7 +1462,7 @@ describe("fetchCalendarEvents", () => {
       url: "https://example.com/calendar.ics",
       transformEvent: stripHtmlFromEventLocation
     };
-    const result = await fetchCalendarEvents(icsConfig, new Date("2026-07-03T00:00:00Z"));
+    const result = await fetchCalendarEvents(icsConfig, dayjs("2026-07-03T00:00:00Z"));
 
     expect(result.sourceUrls).toEqual(["https://example.com/calendar.ics"]);
     expect(result.events[0]?.title).toBe("ICS Event");
@@ -1532,7 +1539,7 @@ describe("fetchCalendarEvents", () => {
       throw new Error("Missing ShowRoom Cinemas calendar config");
     }
 
-    const result = await fetchCalendarEvents(showroomConfig, new Date("2026-07-03T00:00:00Z"));
+    const result = await fetchCalendarEvents(showroomConfig, dayjs("2026-07-03T00:00:00Z"));
 
     expect(result.sourceUrls).toEqual(["https://showroomcinemas.com/coming-soon/"]);
     expect(result.events).toHaveLength(4);
@@ -1580,8 +1587,8 @@ describe("fetchCalendarEvents", () => {
       cacheTtlSeconds: 0
     };
 
-    await fetchCalendarEvents(noCacheConfig, new Date("2026-07-03T00:00:00Z"));
-    const stale = await fetchCalendarEvents(noCacheConfig, new Date("2026-07-03T00:00:00Z"));
+    await fetchCalendarEvents(noCacheConfig, dayjs("2026-07-03T00:00:00Z"));
+    const stale = await fetchCalendarEvents(noCacheConfig, dayjs("2026-07-03T00:00:00Z"));
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(stale.cacheStatus).toBe("stale");
@@ -1610,8 +1617,8 @@ describe("fetchCalendarEvents", () => {
       cacheTtlSeconds: 0
     };
 
-    await fetchCalendarEvents(noCacheConfig, new Date("2026-07-03T00:00:00Z"));
-    await fetchCalendarEvents(noCacheConfig, new Date("2026-07-03T00:00:00Z"));
+    await fetchCalendarEvents(noCacheConfig, dayjs("2026-07-03T00:00:00Z"));
+    await fetchCalendarEvents(noCacheConfig, dayjs("2026-07-03T00:00:00Z"));
 
     const secondRequestHeaders = fetchMock.mock.calls[1]?.[1]?.headers as Record<string, string>;
 
@@ -1647,8 +1654,8 @@ describe("fetchCalendarEvents", () => {
       cacheTtlSeconds: 0
     };
 
-    await fetchCalendarEvents(exampleConfig, new Date("2026-07-03T00:00:00Z"));
-    await fetchCalendarEvents(otherConfig, new Date("2026-07-03T00:00:00Z"));
+    await fetchCalendarEvents(exampleConfig, dayjs("2026-07-03T00:00:00Z"));
+    await fetchCalendarEvents(otherConfig, dayjs("2026-07-03T00:00:00Z"));
 
     const secondRequestHeaders = fetchMock.mock.calls[1]?.[1]?.headers as Record<string, string>;
 

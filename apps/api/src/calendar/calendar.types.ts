@@ -1,8 +1,10 @@
+import type { Dayjs } from "./calendar.dates.js";
+
 export type FetchStatus = "hit" | "miss" | "stale" | "error" | "cached" | "warming";
 
 export interface SourcePage {
   sourceUrl: string;
-  referenceDate: Date;
+  referenceDate: Dayjs;
 }
 
 export type SelectorSpec =
@@ -85,8 +87,8 @@ export interface IcsCalendarSourceConfig extends BaseCalendarSourceConfig {
 
 export interface CalendarEvent {
   title: string;
-  start: Date;
-  end: Date;
+  start: Dayjs;
+  end: Dayjs;
   allDay?: boolean;
   description?: string;
   location?: string;

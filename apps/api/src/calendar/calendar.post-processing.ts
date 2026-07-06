@@ -11,6 +11,7 @@ import {
   resolveOptionalUrl
 } from "./calendar.utils.js";
 import type { CalendarEvent, HtmlCalendarSourceConfig, SourcePage } from "./calendar.types.js";
+import type { Dayjs } from "./calendar.dates.js";
 
 export function stripHtmlFromEventLocation(event: CalendarEvent): CalendarEvent {
   const location = event.location ? stripHtml(event.location) : event.location;
@@ -226,7 +227,7 @@ function normalizeShowroomDateText(value: string | undefined): string {
   return normalizeText(value).replace(/^(?:Opens on\s+|[A-Za-z]{3},\s*)/i, "");
 }
 
-function parseUncorkedWineInspiredDateTime(value: string, timeZone?: string): Date | null {
+function parseUncorkedWineInspiredDateTime(value: string, timeZone?: string): Dayjs | null {
   const match = value.match(/^([A-Z]+)\s+(\d{2}),\s+(\d{4})\s+AT\s+(\d{1,2}:\d{2}[AP]M)/);
 
   if (!match) {
@@ -237,15 +238,15 @@ function parseUncorkedWineInspiredDateTime(value: string, timeZone?: string): Da
   const month = lodash.startCase(rawMonth.toLowerCase());
   const parsed = parseWithOptionalTimeZone(`${month} ${day}, ${year} ${time}`, "MMMM DD, YYYY h:mmA", timeZone);
 
-  return parsed.isValid() ? parsed.toDate() : null;
+  return parsed.isValid() ? parsed : null;
 }
 
 function parseSmithMadeDateTime(
   dayText: string,
   timeText: string,
-  referenceDate: Date,
+  referenceDate: Dayjs,
   timeZone?: string
-): Date | null {
+): Dayjs | null {
   const timeRange = parseSmithMadeTimeRange(timeText);
 
   if (!timeRange) {
@@ -260,10 +261,10 @@ function parseSmithMadeDateTime(
 function parseSmithMadeEndDateTime(
   dayText: string,
   timeText: string,
-  start: Date,
-  referenceDate: Date,
+  start: Dayjs,
+  referenceDate: Dayjs,
   timeZone?: string
-): Date | null {
+): Dayjs | null {
   const timeRange = parseSmithMadeTimeRange(timeText);
 
   if (!timeRange) {
@@ -276,7 +277,7 @@ function parseSmithMadeEndDateTime(
     return null;
   }
 
-  return end <= start ? addDays(end, 1) : end;
+  return end.isAfter(start) ? end : addDays(end, 1);
 }
 
 function parseSmithMadeTimeRange(timeText: string): { startTime: string; endTime: string } | null {
@@ -311,43 +312,43 @@ function inferSmithMadeStartPeriod(startTime: string, endTime: string, endPeriod
   return endPeriod;
 }
 
-function parseSmithMadeDate(dayText: string, referenceDate: Date, timeZone?: string): Date | null {
+function parseSmithMadeDate(dayText: string, referenceDate: Dayjs, timeZone?: string): Dayjs | null {
   const day = Number(dayText);
 
   if (!Number.isInteger(day) || day < 1 || day > 31) {
     return null;
   }
 
-  const dateText = `${referenceDate.getUTCFullYear()}-${referenceDate.getUTCMonth() + 1}-${day}`;
+  const dateText = `${referenceDate.year()}-${referenceDate.month() + 1}-${day}`;
   const parsed = parseWithOptionalTimeZone(dateText, "YYYY-M-D", timeZone);
 
-  return parsed.isValid() ? parsed.toDate() : null;
+  return parsed.isValid() ? parsed : null;
 }
 
 function parseSmithMadeLocalDateTime(
   dayText: string,
   timeText: string,
-  referenceDate: Date,
+  referenceDate: Dayjs,
   timeZone?: string
-): Date | null {
+): Dayjs | null {
   const day = Number(dayText);
 
   if (!Number.isInteger(day) || day < 1 || day > 31) {
     return null;
   }
 
-  const dateTimeText = `${referenceDate.getUTCFullYear()}-${referenceDate.getUTCMonth() + 1}-${day} ${timeText}`;
+  const dateTimeText = `${referenceDate.year()}-${referenceDate.month() + 1}-${day} ${timeText}`;
   const parsed = parseWithOptionalTimeZone(dateTimeText, "YYYY-M-D h:mm A", timeZone);
 
-  return parsed.isValid() ? parsed.toDate() : null;
+  return parsed.isValid() ? parsed : null;
 }
 
 function parseShowroomDateTime(
   dateText: string,
   timeText: string,
   config: HtmlCalendarSourceConfig,
-  referenceDate: Date
-): Date | null {
+  referenceDate: Dayjs
+): Dayjs | null {
   return parseDateAndTimeOrNull(
     dateText,
     { selector: ":self", format: ["MMM D", "MMMM D"] },

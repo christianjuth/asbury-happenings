@@ -1,5 +1,6 @@
 import type { FastifyBaseLogger } from "fastify";
 import { CALENDAR_SOURCES } from "./calendar.config.js";
+import dayjs, { type Dayjs } from "./calendar.dates.js";
 import {
   dedupeEvents,
   eventsToDebugText,
@@ -18,7 +19,7 @@ const CACHE_TICK_MS = 15 * 60_000;
 
 interface CachedPage {
   events: CalendarEvent[];
-  fetchedAt: Date;
+  fetchedAt: Dayjs;
   sourcePage: SourcePage;
   status: FetchStatus;
   error?: string;
@@ -40,7 +41,7 @@ let warming = false;
 export function getCachedCalendarFeed(
   config: CalendarSourceConfig,
   filters?: EventFilterInput,
-  now = new Date()
+  now = dayjs()
 ): string | null {
   const snapshot = getCalendarSnapshot(config, now);
 
@@ -54,7 +55,7 @@ export function getCachedCalendarFeed(
 export function getCachedCalendarDebugText(
   config: CalendarSourceConfig,
   filters?: EventFilterInput,
-  now = new Date()
+  now = dayjs()
 ): string {
   const snapshot = getCalendarSnapshot(config, now);
 
@@ -69,7 +70,7 @@ export function getCachedCalendarDebugText(
 export async function warmCalendarPage(
   config: CalendarSourceConfig,
   pageIndex: number,
-  now = new Date(),
+  now = dayjs(),
   logger?: FastifyBaseLogger
 ): Promise<void> {
   const sourcePages = renderSourcePages(config.url, now);
@@ -84,7 +85,7 @@ export async function warmCalendarPage(
 
     PAGE_CACHE.set(cacheKey(config.id, sourcePage.sourceUrl), {
       events,
-      fetchedAt: new Date(),
+      fetchedAt: dayjs(),
       sourcePage,
       status: cacheStatus
     });
@@ -103,7 +104,7 @@ export async function warmCalendarPage(
 
     PAGE_CACHE.set(cacheKey(config.id, sourcePage.sourceUrl), {
       events: [],
-      fetchedAt: new Date(),
+      fetchedAt: dayjs(),
       sourcePage,
       status: "error",
       error: message
@@ -145,14 +146,14 @@ async function warmAllCalendarsPage(pageIndex: number, logger: FastifyBaseLogger
 
   try {
     for (const config of CALENDAR_SOURCES) {
-      await warmCalendarPage(config, pageIndex, new Date(), logger);
+      await warmCalendarPage(config, pageIndex, dayjs(), logger);
     }
   } finally {
     warming = false;
   }
 }
 
-function getCalendarSnapshot(config: CalendarSourceConfig, now: Date): CalendarSnapshot {
+function getCalendarSnapshot(config: CalendarSourceConfig, now: Dayjs): CalendarSnapshot {
   const sourcePages = renderSourcePages(config.url, now);
   const cachedPages = sourcePages.map((sourcePage) => PAGE_CACHE.get(cacheKey(config.id, sourcePage.sourceUrl)));
   const events = dedupeEvents(cachedPages.flatMap((page) => page?.events ?? []));

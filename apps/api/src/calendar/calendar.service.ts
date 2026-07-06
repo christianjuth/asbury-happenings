@@ -1,8 +1,4 @@
 import * as cheerio from "cheerio";
-import dayjs from "dayjs";
-import customParseFormat from "dayjs/plugin/customParseFormat.js";
-import timezone from "dayjs/plugin/timezone.js";
-import utc from "dayjs/plugin/utc.js";
 import ical from "ical-generator";
 import lodash from "lodash";
 
@@ -29,6 +25,7 @@ import {
   parseWithOptionalTimeZone,
   resolveOptionalUrl
 } from "./calendar.utils.js";
+import dayjs, { type Dayjs } from "./calendar.dates.js";
 
 export type {
   CalendarEvent,
@@ -45,10 +42,6 @@ export type {
   SourcePage
 } from "./calendar.types.js";
 
-dayjs.extend(utc);
-dayjs.extend(timezone);
-dayjs.extend(customParseFormat);
-
 const DEFAULT_CACHE_TTL_SECONDS = 15 * 60;
 
 interface SourceTextCacheEntry {
@@ -62,7 +55,7 @@ const COOKIE_JAR = new Map<string, Map<string, string>>();
 
 export async function buildCalendarFeed(
   config: CalendarSourceConfig,
-  now = new Date(),
+  now = dayjs(),
   filters?: EventFilterInput
 ): Promise<string> {
   const { events } = await fetchCalendarEvents(config, now);
@@ -72,7 +65,7 @@ export async function buildCalendarFeed(
 
 export async function buildCalendarDebugText(
   config: CalendarSourceConfig,
-  now = new Date(),
+  now = dayjs(),
   filters?: EventFilterInput
 ): Promise<string> {
   const { sourceUrls, events, cacheStatuses } = await fetchCalendarEvents(config, now);
@@ -87,7 +80,7 @@ export async function buildCalendarDebugText(
 
 export async function fetchCalendarEvents(
   config: CalendarSourceConfig,
-  now = new Date()
+  now = dayjs()
 ): Promise<{
   sourceUrl: string;
   sourceUrls: string[];
@@ -411,7 +404,7 @@ export function extractEventsFromHtml(
   html: string,
   config: HtmlCalendarSourceConfig,
   sourceUrl: string,
-  referenceDate = new Date()
+  referenceDate = dayjs()
 ): CalendarEvent[] {
   const $ = cheerio.load(html);
   const events: CalendarEvent[] = [];
@@ -603,7 +596,7 @@ function readJsonDate(
   item: unknown,
   field: JsonFieldSpec | undefined,
   fallbackFormat: JsonDateFormat | undefined
-): Date | null {
+): Dayjs | null {
   if (!field) {
     return null;
   }
@@ -629,16 +622,22 @@ function getJsonDateFormat(field: JsonFieldSpec, fallbackFormat: JsonDateFormat 
   return typeof field === "object" ? field.dateFormat ?? fallbackFormat : fallbackFormat;
 }
 
-function parseJsonDateOrNull(value: unknown, dateFormat: JsonDateFormat | undefined): Date | null {
+function parseJsonDateOrNull(value: unknown, dateFormat: JsonDateFormat | undefined): Dayjs | null {
+  if (dayjs.isDayjs(value)) {
+    return value.isValid() ? value : null;
+  }
+
   if (value instanceof Date) {
-    return Number.isNaN(value.getTime()) ? null : value;
+    const parsed = dayjs(value);
+
+    return parsed.isValid() ? parsed : null;
   }
 
   if (typeof value === "number") {
     const multiplier = dateFormat === "epoch-seconds" ? 1000 : 1;
-    const date = new Date(value * multiplier);
+    const parsed = dayjs(value * multiplier);
 
-    return Number.isNaN(date.getTime()) ? null : date;
+    return parsed.isValid() ? parsed : null;
   }
 
   if (typeof value !== "string") {
@@ -661,9 +660,9 @@ function parseJsonDateOrNull(value: unknown, dateFormat: JsonDateFormat | undefi
     return parseJsonDateOrNull(numericValue, dateFormat);
   }
 
-  const date = new Date(normalizedValue);
+  const parsed = dayjs(normalizedValue);
 
-  return Number.isNaN(date.getTime()) ? null : date;
+  return parsed.isValid() ? parsed : null;
 }
 
 interface IcsContentLine {
@@ -673,7 +672,7 @@ interface IcsContentLine {
 }
 
 interface IcsDateValue {
-  date: Date;
+  date: Dayjs;
   allDay: boolean;
 }
 
@@ -782,13 +781,13 @@ function parseIcsDateOrNull(
   if (params.VALUE === "DATE" || /^\d{8}$/.test(normalizedValue)) {
     const parsed = dayjs.utc(normalizedValue, "YYYYMMDD", true);
 
-    return parsed.isValid() ? { date: parsed.toDate(), allDay: true } : null;
+    return parsed.isValid() ? { date: parsed, allDay: true } : null;
   }
 
   if (/^\d{8}T\d{6}Z$/.test(normalizedValue)) {
     const parsed = dayjs.utc(normalizedValue, "YYYYMMDDTHHmmss[Z]", true);
 
-    return parsed.isValid() ? { date: parsed.toDate(), allDay: false } : null;
+    return parsed.isValid() ? { date: parsed, allDay: false } : null;
   }
 
   if (/^\d{8}T\d{6}$/.test(normalizedValue)) {
@@ -798,12 +797,12 @@ function parseIcsDateOrNull(
       normalizeIcsTimeZone(params.TZID, fallbackTimeZone)
     );
 
-    return parsed.isValid() ? { date: parsed.toDate(), allDay: false } : null;
+    return parsed.isValid() ? { date: parsed, allDay: false } : null;
   }
 
-  const date = new Date(normalizedValue);
+  const parsed = dayjs(normalizedValue);
 
-  return Number.isNaN(date.getTime()) ? null : { date, allDay: false };
+  return parsed.isValid() ? { date: parsed, allDay: false } : null;
 }
 
 function normalizeIcsTimeZone(tzid: string | undefined, fallbackTimeZone: string | undefined): string | undefined {
@@ -832,37 +831,33 @@ function unescapeIcsText(value: string): string {
     .replace(/\\\\/g, "\\");
 }
 
-export function renderSourceUrl(template: string, now = new Date()): string {
-  const month = String(now.getUTCMonth() + 1).padStart(2, "0");
-  const year = String(now.getUTCFullYear());
+export function renderSourceUrl(template: string, now = dayjs()): string {
+  const utcNow = now.utc();
+  const month = String(utcNow.month() + 1).padStart(2, "0");
+  const year = String(utcNow.year());
 
   return template.replaceAll("{month}", month).replaceAll("{year}", year);
 }
 
-export function renderSourceUrls(template: string, now = new Date()): string[] {
+export function renderSourceUrls(template: string, now = dayjs()): string[] {
   return renderSourcePages(template, now).map((page) => page.sourceUrl);
 }
 
-export function renderSourcePages(template: string, now = new Date()): SourcePage[] {
+export function renderSourcePages(template: string, now = dayjs()): SourcePage[] {
+  const utcNow = now.utc();
+
   if (!template.includes("{month}")) {
-    return [{ sourceUrl: renderSourceUrl(template, now), referenceDate: now }];
+    return [{ sourceUrl: renderSourceUrl(template, utcNow), referenceDate: utcNow }];
   }
 
   return lodash.range(3).map((monthOffset) => {
-    const referenceDate = addMonths(now, monthOffset);
+    const referenceDate = utcNow.add(monthOffset, "month");
 
     return {
       sourceUrl: renderSourceUrl(template, referenceDate),
       referenceDate
     };
   });
-}
-
-function addMonths(date: Date, months: number): Date {
-  const next = new Date(date);
-  next.setUTCMonth(next.getUTCMonth() + months);
-
-  return next;
 }
 
 export function dedupeEvents(events: CalendarEvent[]): CalendarEvent[] {
@@ -895,7 +890,7 @@ interface ReadEventDateOptions {
   readValue(selector: SelectorSpec): string;
   readOptional(selector?: SelectorSpec): string | undefined;
   config: HtmlCalendarSourceConfig;
-  referenceDate: Date;
+  referenceDate: Dayjs;
   requireTimeWhenTimeSelectorProvided?: boolean;
 }
 
@@ -908,7 +903,7 @@ function readEventDate({
   config,
   referenceDate,
   requireTimeWhenTimeSelectorProvided = false
-}: ReadEventDateOptions): Date | null {
+}: ReadEventDateOptions): Dayjs | null {
   if (fullDateTimeSelector) {
     const value = readOptional(fullDateTimeSelector);
 

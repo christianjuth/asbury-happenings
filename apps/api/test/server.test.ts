@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearCalendarPageCache, warmCalendarPage } from "../src/calendar/calendar.cache.js";
 import { getCalendarSource } from "../src/calendar/calendar.config.js";
+import dayjs from "../src/calendar/calendar.dates.js";
 import { buildServer } from "../src/server.js";
 
 afterEach(() => {
@@ -147,7 +148,7 @@ describe("server", () => {
       throw new Error("Missing test calendar config");
     }
 
-    await warmCalendarPage(config, 0, new Date("2026-07-03T00:00:00Z"));
+    await warmCalendarPage(config, 0, dayjs("2026-07-03T00:00:00Z"));
 
     const response = await server.inject({
       method: "GET",
@@ -187,7 +188,7 @@ describe("server", () => {
       throw new Error("Missing test calendar config");
     }
 
-    await warmCalendarPage(config, 0, new Date("2026-07-03T00:00:00Z"));
+    await warmCalendarPage(config, 0, dayjs("2026-07-03T00:00:00Z"));
 
     const response = await server.inject({
       method: "GET",
