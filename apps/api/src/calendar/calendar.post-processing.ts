@@ -10,7 +10,7 @@ import {
   parseWithOptionalTimeZone,
   resolveOptionalUrl
 } from "./calendar.utils.js";
-import type { CalendarEvent, CalendarSourceConfig, SourcePage } from "./calendar.types.js";
+import type { CalendarEvent, HtmlCalendarSourceConfig, SourcePage } from "./calendar.types.js";
 
 export function stripHtmlFromEventLocation(event: CalendarEvent): CalendarEvent {
   const location = event.location ? stripHtml(event.location) : event.location;
@@ -34,7 +34,7 @@ export function stripHtmlFromEventDescription(event: CalendarEvent): CalendarEve
 
 export function extractShowroomComingSoonEvents(
   html: string,
-  config: CalendarSourceConfig,
+  config: HtmlCalendarSourceConfig,
   sourcePage: SourcePage
 ): CalendarEvent[] {
   // ShowRoom nests multiple dated showtimes inside one movie card, and some cards only
@@ -120,7 +120,7 @@ export function extractShowroomComingSoonEvents(
 
 export function extractSmithMadeEvents(
   html: string,
-  config: CalendarSourceConfig,
+  config: HtmlCalendarSourceConfig,
   sourcePage: SourcePage
 ): CalendarEvent[] {
   // Smith Made event cards only render the day number in the listing, so the
@@ -131,7 +131,7 @@ export function extractSmithMadeEvents(
   const $ = cheerio.load(html);
   const events: CalendarEvent[] = [];
 
-  $(config.sourceType === "html" ? config.containerSelector : ".results > div").each((_, element) => {
+  $(config.containerSelector).each((_, element) => {
     const container = $(element);
     const title = normalizeText(container.find(".event-info h2").first().text());
     const dayText = normalizeText(container.find(".date .type--h2").first().text());
@@ -171,7 +171,7 @@ export function extractSmithMadeEvents(
 
 export function extractUncorkedWineInspiredEvents(
   html: string,
-  config: CalendarSourceConfig,
+  config: HtmlCalendarSourceConfig,
   sourcePage: SourcePage
 ): CalendarEvent[] {
   // EventBook emits all-caps month names and mixes price/seat text into the
@@ -179,7 +179,7 @@ export function extractUncorkedWineInspiredEvents(
   const $ = cheerio.load(html);
   const events: CalendarEvent[] = [];
 
-  $(config.sourceType === "html" ? config.containerSelector : ".grid-box").each((_, element) => {
+  $(config.containerSelector).each((_, element) => {
     const container = $(element);
     const title = normalizeText(container.find("h2").first().text());
     const description = normalizeText(container.find("p").first().text()) || undefined;
@@ -345,7 +345,7 @@ function parseSmithMadeLocalDateTime(
 function parseShowroomDateTime(
   dateText: string,
   timeText: string,
-  config: CalendarSourceConfig,
+  config: HtmlCalendarSourceConfig,
   referenceDate: Date
 ): Date | null {
   return parseDateAndTimeOrNull(

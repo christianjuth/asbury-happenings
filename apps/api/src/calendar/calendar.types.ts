@@ -59,7 +59,6 @@ interface BaseCalendarSourceConfig {
   cacheTtlSeconds?: number;
   defaultDurationMinutes?: number;
   transformEvent?: CalendarEventTransform;
-  extractEvents?: CalendarSourceTextExtractor;
 }
 
 export interface HtmlCalendarSourceConfig extends BaseCalendarSourceConfig {
@@ -68,6 +67,7 @@ export interface HtmlCalendarSourceConfig extends BaseCalendarSourceConfig {
   selectors: EventSelectorConfig;
   dateFormats?: string[];
   timeFormats?: string[];
+  extractEvents?: CalendarSourceTextExtractor<HtmlCalendarSourceConfig>;
 }
 
 export interface JsonCalendarSourceConfig extends BaseCalendarSourceConfig {
@@ -75,10 +75,12 @@ export interface JsonCalendarSourceConfig extends BaseCalendarSourceConfig {
   itemsPath?: string;
   fields: JsonEventFieldConfig;
   dateFormat?: JsonDateFormat;
+  extractEvents?: CalendarSourceTextExtractor<JsonCalendarSourceConfig>;
 }
 
 export interface IcsCalendarSourceConfig extends BaseCalendarSourceConfig {
   sourceType: "ics";
+  extractEvents?: CalendarSourceTextExtractor<IcsCalendarSourceConfig>;
 }
 
 export interface CalendarEvent {
@@ -93,9 +95,9 @@ export interface CalendarEvent {
 }
 
 export type CalendarEventTransform = (event: CalendarEvent) => CalendarEvent | null;
-export type CalendarSourceTextExtractor = (
+export type CalendarSourceTextExtractor<TConfig extends CalendarSourceConfig> = (
   text: string,
-  config: CalendarSourceConfig,
+  config: TConfig,
   sourcePage: SourcePage
 ) => CalendarEvent[];
 

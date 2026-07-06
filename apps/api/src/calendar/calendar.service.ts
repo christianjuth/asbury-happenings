@@ -533,17 +533,14 @@ export function extractEventsFromIcs(icsText: string, config: IcsCalendarSourceC
 }
 
 function extractEventsFromSourceText(text: string, config: CalendarSourceConfig, sourcePage: SourcePage): CalendarEvent[] {
-  if (config.extractEvents) {
-    return config.extractEvents(text, config, sourcePage);
-  }
-
   switch (config.sourceType) {
     case "html":
-      return extractEventsFromHtml(text, config, sourcePage.sourceUrl, sourcePage.referenceDate);
+      return config.extractEvents?.(text, config, sourcePage) ??
+        extractEventsFromHtml(text, config, sourcePage.sourceUrl, sourcePage.referenceDate);
     case "json":
-      return extractEventsFromJson(text, config, sourcePage.sourceUrl);
+      return config.extractEvents?.(text, config, sourcePage) ?? extractEventsFromJson(text, config, sourcePage.sourceUrl);
     case "ics":
-      return extractEventsFromIcs(text, config);
+      return config.extractEvents?.(text, config, sourcePage) ?? extractEventsFromIcs(text, config);
     default:
       return assertNever(config);
   }
