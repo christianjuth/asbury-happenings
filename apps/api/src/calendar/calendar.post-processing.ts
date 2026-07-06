@@ -2,8 +2,6 @@ import * as cheerio from "cheerio";
 import lodash from "lodash";
 
 import {
-  addDays,
-  addMinutes,
   normalizeText,
   parseDateAndTimeOrNull,
   parseDateOrNull,
@@ -82,7 +80,7 @@ export function extractShowroomComingSoonEvents(
       events.push({
         title,
         start,
-        end: addMinutes(start, config.defaultDurationMinutes ?? 120),
+        end: start.add(config.defaultDurationMinutes ?? 120, "minute"),
         description,
         location: address,
         address,
@@ -106,7 +104,7 @@ export function extractShowroomComingSoonEvents(
       events.push({
         title,
         start: opensOnDate,
-        end: addDays(opensOnDate, 1),
+        end: opensOnDate.add(1, "day"),
         allDay: true,
         description: description ? `Opens on ${opensOnDateText}. ${description}` : `Opens on ${opensOnDateText}.`,
         location: address,
@@ -151,7 +149,7 @@ export function extractSmithMadeEvents(
 
     const end =
       parseSmithMadeEndDateTime(dayText, timeText, start, sourcePage.referenceDate, config.timeZone) ??
-      addMinutes(start, config.defaultDurationMinutes ?? 60);
+      start.add(config.defaultDurationMinutes ?? 60, "minute");
     const description = normalizeText(container.find(".event-description").first().text()) || undefined;
     const locationName = normalizeText(container.find(".event-meta a").first().text());
     const address = config.defaultAddress;
@@ -202,7 +200,7 @@ export function extractUncorkedWineInspiredEvents(
     events.push({
       title,
       start,
-      end: addMinutes(start, config.defaultDurationMinutes ?? 120),
+      end: start.add(config.defaultDurationMinutes ?? 120, "minute"),
       description,
       location: address,
       address,
@@ -277,7 +275,7 @@ function parseSmithMadeEndDateTime(
     return null;
   }
 
-  return end.isAfter(start) ? end : addDays(end, 1);
+  return end.isAfter(start) ? end : end.add(1, "day");
 }
 
 function parseSmithMadeTimeRange(timeText: string): { startTime: string; endTime: string } | null {

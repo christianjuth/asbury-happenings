@@ -17,8 +17,6 @@ import type {
   SourcePage
 } from "./calendar.types.js";
 import {
-  addDays,
-  addMinutes,
   normalizeText,
   parseDateAndTimeOrNull,
   parseDateOrNull,
@@ -453,7 +451,7 @@ export function extractEventsFromHtml(
     }
 
     const end = missingStartTime
-      ? addDays(start, 1)
+      ? start.add(1, "day")
       : readEventDate({
         fullDateTimeSelector: config.selectors.end,
         dateSelector: config.selectors.endDate ?? config.selectors.startDate,
@@ -463,7 +461,7 @@ export function extractEventsFromHtml(
         config,
         referenceDate,
         requireTimeWhenTimeSelectorProvided: true
-      }) ?? addMinutes(start, config.defaultDurationMinutes ?? 60);
+      }) ?? start.add(config.defaultDurationMinutes ?? 60, "minute");
 
     const address = readOptional(config.selectors.address) ?? config.defaultAddress;
     const location = readOptional(config.selectors.location) ?? address;
@@ -506,7 +504,7 @@ export function extractEventsFromIcs(icsText: string, config: IcsCalendarSourceC
       }
 
       const end = readIcsDate(component, "DTEND", config) ?? {
-        date: addMinutes(start.date, config.defaultDurationMinutes ?? 60),
+        date: start.date.add(config.defaultDurationMinutes ?? 60, "minute"),
         allDay: start.allDay
       };
       const location = readIcsText(component, "LOCATION") ?? config.defaultAddress;
@@ -559,7 +557,7 @@ function readJsonEvent(item: unknown, config: JsonCalendarSourceConfig, sourceUr
   }
 
   const end =
-    readJsonDate(item, config.fields.end, config.dateFormat) ?? addMinutes(start, config.defaultDurationMinutes ?? 60);
+    readJsonDate(item, config.fields.end, config.dateFormat) ?? start.add(config.defaultDurationMinutes ?? 60, "minute");
   const address = readJsonText(item, config.fields.address) ?? config.defaultAddress;
   const location = readJsonText(item, config.fields.location) ?? address;
 

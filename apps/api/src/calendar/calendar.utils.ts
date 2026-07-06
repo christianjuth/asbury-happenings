@@ -25,14 +25,6 @@ export function normalizeText(value: string | undefined): string {
   return value?.replace(/\s+/g, " ").trim() ?? "";
 }
 
-export function addDays(date: Dayjs, days: number): Dayjs {
-  return date.add(days, "day");
-}
-
-export function addMinutes(date: Dayjs, minutes: number): Dayjs {
-  return date.add(minutes, "minute");
-}
-
 export function resolveOptionalUrl(value: string | undefined, sourceUrl: string): string | undefined {
   if (!value) {
     return undefined;
