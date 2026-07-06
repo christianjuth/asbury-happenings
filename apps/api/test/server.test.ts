@@ -52,6 +52,11 @@ describe("server", () => {
           path: "/calendar/stone-pony.ics"
         },
         {
+          id: "uncorked-wine-inspired",
+          name: "Uncorked Wine Inspired",
+          path: "/calendar/uncorked-wine-inspired.ics"
+        },
+        {
           id: "asbury-book-coop",
           name: "Asbury Book Coop",
           path: "/calendar/asbury-book-coop.ics"

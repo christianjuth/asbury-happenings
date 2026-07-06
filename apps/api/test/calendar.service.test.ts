@@ -4,6 +4,7 @@ import {
   extractEventsFromHtml,
   extractEventsFromIcs,
   extractEventsFromJson,
+  extractUncorkedWineInspiredEvents,
   eventsToIcs,
   filterCalendarEvents,
   fetchCalendarEvents,
@@ -788,6 +789,70 @@ describe("extractEventsFromHtml", () => {
     });
     expect(events[1]?.start.toISOString()).toBe("2026-07-12T21:00:00.000Z");
     expect(events[1]?.end.toISOString()).toBe("2026-07-13T02:00:00.000Z");
+  });
+
+  it("parses Uncorked Wine Inspired event grid cards", () => {
+    const uncorkedConfig = getCalendarSource("uncorked-wine-inspired");
+
+    if (!uncorkedConfig || uncorkedConfig.sourceType !== "html") {
+      throw new Error("Missing Uncorked Wine Inspired calendar config");
+    }
+
+    const events = extractUncorkedWineInspiredEvents(
+      `
+        <div class="grid-box">
+          <div class="block">
+            <div onclick="window.location='/eventbook-event/?eventid=6412'"></div>
+            <div>
+              <h2 onclick="window.location='/eventbook-event/?eventid=6412'">FLUTTER</h2>
+              <p>SUE  INSTRUCTING</p>
+              <p>JULY 06, 2026 AT 7:00PM<br>38.00 PER GUEST</p>
+              <div>
+                <a class="btn_info" href="https://uncorkedwineinspired.com/eventbook-event/?eventid=6412">BOOK SEATS</a>
+                <p>0 of 30 SEATS TAKEN</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="grid-box">
+          <div class="block">
+            <div onclick="window.location='/eventbook-event/?eventid=6416'"></div>
+            <div>
+              <h2 onclick="window.location='/eventbook-event/?eventid=6416'">TROPICAL SUNSET</h2>
+              <p>BRIANA INSTRUCTING</p>
+              <p>JULY 11, 2026 AT 3:30PM<br>42.00 PER GUEST</p>
+              <div>
+                <a class="btn_info" href="/eventbook-event/?eventid=6416">BOOK SEATS</a>
+                <p>0 of 30 SEATS TAKEN</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      `,
+      uncorkedConfig,
+      {
+        sourceUrl: "https://uncorkedwineinspired.com/wp-content/plugins/eventbook/calendar-grid.php",
+        referenceDate: new Date("2026-07-03T00:00:00Z")
+      }
+    );
+
+    expect(events).toHaveLength(2);
+    expect(events[0]).toMatchObject({
+      title: "FLUTTER",
+      description: "SUE INSTRUCTING",
+      location: "Uncorked Wine Inspired",
+      address: "Uncorked Wine Inspired",
+      url: "https://uncorkedwineinspired.com/eventbook-event/?eventid=6412"
+    });
+    expect(events[0]?.start.toISOString()).toBe("2026-07-06T23:00:00.000Z");
+    expect(events[0]?.end.toISOString()).toBe("2026-07-07T01:00:00.000Z");
+    expect(events[1]).toMatchObject({
+      title: "TROPICAL SUNSET",
+      description: "BRIANA INSTRUCTING",
+      url: "https://uncorkedwineinspired.com/eventbook-event/?eventid=6416"
+    });
+    expect(events[1]?.start.toISOString()).toBe("2026-07-11T19:30:00.000Z");
+    expect(events[1]?.end.toISOString()).toBe("2026-07-11T21:30:00.000Z");
   });
 
   it("parses House of Independents event list cards", () => {

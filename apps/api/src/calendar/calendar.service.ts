@@ -788,8 +788,65 @@ export function extractSmithMadeEvents(
   return events;
 }
 
+export function extractUncorkedWineInspiredEvents(
+  html: string,
+  config: CalendarSourceConfig,
+  sourcePage: SourcePage
+): CalendarEvent[] {
+  // EventBook emits all-caps month names and mixes price/seat text into the
+  // date line, which is easier to normalize here than in generic selectors.
+  const $ = cheerio.load(html);
+  const events: CalendarEvent[] = [];
+
+  $(config.sourceType === "html" ? config.containerSelector : ".grid-box").each((_, element) => {
+    const container = $(element);
+    const title = normalizeText(container.find("h2").first().text());
+    const description = normalizeText(container.find("p").first().text()) || undefined;
+    const dateLine = normalizeText(
+      container
+        .find("p")
+        .toArray()
+        .map((paragraph) => $(paragraph).text())
+        .find((value) => /\bAT\s+\d{1,2}:\d{2}[AP]M/i.test(value))
+    );
+    const start = parseUncorkedWineInspiredDateTime(dateLine, config.timeZone);
+
+    if (!title || !start) {
+      return;
+    }
+
+    const address = config.defaultAddress;
+
+    events.push({
+      title,
+      start,
+      end: addMinutes(start, config.defaultDurationMinutes ?? 120),
+      description,
+      location: address,
+      address,
+      url: resolveOptionalUrl(container.find("a.btn_info").first().attr("href"), sourcePage.sourceUrl)
+    });
+  });
+
+  return events;
+}
+
 function normalizeShowroomDateText(value: string | undefined): string {
   return normalizeText(value).replace(/^(?:Opens on\s+|[A-Za-z]{3},\s*)/i, "");
+}
+
+function parseUncorkedWineInspiredDateTime(value: string, timeZone?: string): Date | null {
+  const match = value.match(/^([A-Z]+)\s+(\d{2}),\s+(\d{4})\s+AT\s+(\d{1,2}:\d{2}[AP]M)/);
+
+  if (!match) {
+    return null;
+  }
+
+  const [, rawMonth, day, year, time] = match;
+  const month = lodash.startCase(rawMonth.toLowerCase());
+  const parsed = parseWithOptionalTimeZone(`${month} ${day}, ${year} ${time}`, "MMMM DD, YYYY h:mmA", timeZone);
+
+  return parsed.isValid() ? parsed.toDate() : null;
 }
 
 function parseSmithMadeDateTime(

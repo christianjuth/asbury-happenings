@@ -1,6 +1,7 @@
 import {
   extractSmithMadeEvents,
   extractShowroomComingSoonEvents,
+  extractUncorkedWineInspiredEvents,
   stripHtmlFromEventDescription,
   stripHtmlFromEventLocation,
   type CalendarSourceConfig
@@ -89,6 +90,31 @@ export const CALENDAR_SOURCES = [
     defaultAddress: "913 Ocean Avenue, Asbury Park, NJ 07712",
     cacheTtlSeconds: 900,
     defaultDurationMinutes: 240
+  },
+  {
+    id: "uncorked-wine-inspired",
+    name: "Uncorked Wine Inspired",
+    sourceType: "html",
+    url: "https://uncorkedwineinspired.com/wp-content/plugins/eventbook/calendar-grid.php",
+    containerSelector: ".grid-box",
+    selectors: {
+      title: "h2",
+      start: {
+        selector: ".block > div:nth-child(2) > p:nth-of-type(2)",
+        pattern: /^([A-Z]+ \d{2}, \d{4} AT \d{1,2}:\d{2}[AP]M)/,
+        format: "MMMM DD, YYYY [AT] h:mmA"
+      },
+      description: ".block > div:nth-child(2) > p:nth-of-type(1)",
+      url: {
+        selector: "a.btn_info",
+        attr: "href"
+      }
+    },
+    timeZone: "America/New_York",
+    defaultAddress: "Uncorked Wine Inspired",
+    cacheTtlSeconds: 900,
+    defaultDurationMinutes: 120,
+    extractEvents: extractUncorkedWineInspiredEvents
   },
   {
     id: "asbury-book-coop",
