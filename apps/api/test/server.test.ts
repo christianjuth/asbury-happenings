@@ -72,6 +72,11 @@ describe("server", () => {
           path: "/calendar/ap-rooftop.ics"
         },
         {
+          id: "iron-whale",
+          name: "Iron Whale",
+          path: "/calendar/iron-whale.ics"
+        },
+        {
           id: "r-bar",
           name: "R Bar",
           path: "/calendar/r-bar.ics"

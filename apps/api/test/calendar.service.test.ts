@@ -538,6 +538,49 @@ describe("extractEventsFromHtml", () => {
     expect(events[1]?.end.toISOString()).toBe("2026-07-11T02:00:00.000Z");
   });
 
+  it("parses Iron Whale event list cards", () => {
+    const ironWhaleConfig = getCalendarSource("iron-whale");
+
+    if (!ironWhaleConfig) {
+      throw new Error("Missing Iron Whale calendar config");
+    }
+
+    const events = extractEventsFromHtml(
+      `
+        <div id="main-content-sub" tabindex="-1">
+          <h1>Events</h1>
+          <div style="width: 100%; position: relative; clear: none; margin-right: 70px;">
+            <div style="width: 100%; position: relative; margin-left: auto; margin-right: auto;">
+              <div class="events_col1_image events_col1_image_reg" style="background-image: url(https://cdn.mcloones.com/images/calendar/7.7.26-Makers-Mark-IW.png);"></div>
+              <div class="events_col2">
+                <div><h3>Tuesday, July 7</h3></div>
+                <div><h3>Maker's Mark Tasting Event: Wax-Dipped Souvenir Glass</h3></div>
+                <div style="margin-top: 2px;">Location: <strong>Iron Whale</strong>, 1200 Ocean Avenue, Asbury Park, NJ</div>
+                <div style="margin-top: 0;"><a href="https://cdn.mcloones.com/pdf/iron-whale/menus/2026/7.7.26-Makers-Mark-IW.pdf" target="_blank">CLICK HERE FOR DETAILS &amp; RESERVATIONS</a></div>
+                <div style="margin-top: 0;"><p></p>Join us for an exclusive Maker's Mark Tasting experience, where you'll enjoy a guided sampling of Maker's Mark signature bourbons paired with a selection of small bites.<p></p></div>
+                <div>6:00pm - 8:00pm</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `,
+      ironWhaleConfig,
+      "https://www.ironwhalenj.com/events.php",
+      new Date("2026-07-03T00:00:00Z")
+    );
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      title: "Maker's Mark Tasting Event: Wax-Dipped Souvenir Glass",
+      description: "Location: Iron Whale, 1200 Ocean Avenue, Asbury Park, NJ Join us for an exclusive Maker's Mark Tasting experience, where you'll enjoy a guided sampling of Maker's Mark signature bourbons paired with a selection of small bites. 6:00pm - 8:00pm",
+      address: "Iron Whale, 1200 Ocean Avenue, Asbury Park, NJ 07712",
+      location: "Iron Whale, 1200 Ocean Avenue, Asbury Park, NJ 07712",
+      url: "https://cdn.mcloones.com/pdf/iron-whale/menus/2026/7.7.26-Makers-Mark-IW.pdf"
+    });
+    expect(events[0]?.start.toISOString()).toBe("2026-07-07T22:00:00.000Z");
+    expect(events[0]?.end.toISOString()).toBe("2026-07-08T00:00:00.000Z");
+  });
+
   it("parses R Bar Squarespace event list cards", () => {
     const rBarConfig: HtmlCalendarSourceConfig = {
       id: "r-bar",
