@@ -1402,6 +1402,61 @@ describe("fetchCalendarEvents", () => {
     expect(result.events[0]?.title).toBe("Single URL Event");
   });
 
+  it.each(["No events found", "Page Not Found"])(
+    "treats 404 %s HTML as an empty source page",
+    async (emptyPageText) => {
+      const fetchMock = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(new Response(`<p>${emptyPageText}</p>`, { status: 404 }));
+      const noTokenConfig: CalendarSourceConfig = {
+        ...config,
+        url: "https://example.com/events"
+      };
+
+      const result = await fetchCalendarEvents(noTokenConfig, dayjs("2026-07-03T00:00:00Z"));
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(result.cacheStatus).toBe("miss");
+      expect(result.cacheStatuses).toEqual(["miss"]);
+      expect(result.events).toEqual([]);
+    }
+  );
+
+  it("parses events before classifying non-OK empty source page text", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        `
+          <article>
+            <h2 class="event-title">No Events Found Fundraiser</h2>
+            <time class="start" datetime="2026-07-04T18:00:00Z">July 4</time>
+          </article>
+        `,
+        { status: 404 }
+      )
+    );
+    const noTokenConfig: CalendarSourceConfig = {
+      ...config,
+      url: "https://example.com/events"
+    };
+
+    const result = await fetchCalendarEvents(noTokenConfig, dayjs("2026-07-03T00:00:00Z"));
+
+    expect(result.cacheStatus).toBe("miss");
+    expect(result.events.map((event) => event.title)).toEqual(["No Events Found Fundraiser"]);
+  });
+
+  it("throws when non-OK HTML is not a known empty source page", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("<p>Server error</p>", { status: 500 }));
+    const noTokenConfig: CalendarSourceConfig = {
+      ...config,
+      url: "https://example.com/events"
+    };
+
+    await expect(fetchCalendarEvents(noTokenConfig, dayjs("2026-07-03T00:00:00Z"))).rejects.toThrow(
+      "Failed to fetch https://example.com/events: 500"
+    );
+  });
+
   it("fetches and parses JSON source calendars", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(

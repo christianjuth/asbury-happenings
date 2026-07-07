@@ -47,6 +47,17 @@ interface SourceTextCacheEntry {
   expiresAt: number;
 }
 
+class SourceFetchError extends Error {
+  constructor(
+    readonly sourceUrl: string,
+    readonly status: number,
+    readonly text: string
+  ) {
+    super(`Failed to fetch ${sourceUrl}: ${status}`);
+    this.name = "SourceFetchError";
+  }
+}
+
 const SOURCE_TEXT_CACHE = new Map<string, SourceTextCacheEntry>();
 const PENDING_FETCHES = new Map<string, Promise<string>>();
 const COOKIE_JAR = new Map<string, Map<string, string>>();
@@ -121,10 +132,23 @@ export async function fetchCalendarSourcePage(
   config: CalendarSourceConfig,
   sourcePage: SourcePage
 ): Promise<{ events: CalendarEvent[]; cacheStatus: FetchStatus }> {
-  const { text, cacheStatus } = await fetchSourceText(sourcePage.sourceUrl, config.cacheTtlSeconds);
-  const events = applyEventTransform(extractEventsFromSourceText(text, config, sourcePage), config.transformEvent);
+  try {
+    const { text, cacheStatus } = await fetchSourceText(sourcePage.sourceUrl, config.cacheTtlSeconds);
+    const events = applyEventTransform(extractEventsFromSourceText(text, config, sourcePage), config.transformEvent);
 
-  return { events, cacheStatus };
+    return { events, cacheStatus };
+  } catch (error) {
+    if (error instanceof SourceFetchError) {
+      const extractedEvents = extractEventsFromSourceText(error.text, config, sourcePage);
+      const events = applyEventTransform(extractedEvents, config.transformEvent);
+
+      if (extractedEvents.length || isEmptySourcePageText(error.text)) {
+        return { events, cacheStatus: "miss" };
+      }
+    }
+
+    throw error;
+  }
 }
 
 export function eventsToIcs(calendarName: string, events: CalendarEvent[]): string {
@@ -270,13 +294,15 @@ async function fetchFreshText(sourceUrl: string): Promise<string> {
   const pendingFetch = fetch(sourceUrl, {
     headers: requestHeaders
   }).then(async (response) => {
-    if (!response.ok) {
-      throw new Error(`Failed to fetch ${sourceUrl}: ${response.status}`);
-    }
+    const text = await response.text();
 
     storeResponseCookies(sourceUrl, response.headers);
 
-    return response.text();
+    if (!response.ok) {
+      throw new SourceFetchError(sourceUrl, response.status, text);
+    }
+
+    return text;
   });
 
   PENDING_FETCHES.set(sourceUrl, pendingFetch);
@@ -293,6 +319,12 @@ function buildRequestHeaders(): Record<string, string> {
     // "user-agent":
     //   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
   };
+}
+
+function isEmptySourcePageText(text: string): boolean {
+  const normalizedText = normalizeText(text).toLowerCase();
+
+  return normalizedText.includes("no events found") || normalizedText.includes("page not found");
 }
 
 function getCookieHeader(sourceUrl: string): string | undefined {

@@ -20,6 +20,7 @@ const CACHE_REFRESH_MS = 15 * 60_000;
 const CACHE_BACKOFF_BASE_MS = 5_000;
 const CACHE_BACKOFF_MAX_MS = 15 * 60_000;
 const CACHE_BACKOFF_JITTER = 0.3;
+const SOURCE_HOST_MIN_TIME_MS = 1_000;
 
 interface CachedPage {
   events: CalendarEvent[];
@@ -36,22 +37,10 @@ interface CalendarSnapshot {
   ready: boolean;
 }
 
-interface HardStoppableBottleneck extends Bottleneck {
-  _scheduled?: Record<
-    string,
-    {
-      timeout?: NodeJS.Timeout;
-      expiration?: NodeJS.Timeout;
-      job?: {
-        doDrop: (options?: { message?: string }) => boolean;
-      };
-    }
-  >;
-}
-
 const PAGE_CACHE = new Map<string, CachedPage>();
 
 const CACHE_WORKERS = new Map<string, CalendarCacheWorker>();
+const SOURCE_HOST_LIMITERS = new Map<string, Bottleneck>();
 
 export function getCachedCalendarFeed(
   config: CalendarSourceConfig,
@@ -95,7 +84,7 @@ export async function warmCalendarPage(
     return;
   }
 
-  await warmCalendarSourcePage(config, sourcePage, logger, false);
+  await warmCalendarSourcePage(config, sourcePage, logger);
 }
 
 export function startCalendarCacheScheduler(logger: FastifyBaseLogger): () => Promise<void> {
@@ -111,10 +100,20 @@ export function startCalendarCacheScheduler(logger: FastifyBaseLogger): () => Pr
 
 export async function stopCalendarCacheScheduler(): Promise<void> {
   const workers = [...CACHE_WORKERS.values()];
+  const hostLimiters = [...SOURCE_HOST_LIMITERS.values()];
 
   CACHE_WORKERS.clear();
+  SOURCE_HOST_LIMITERS.clear();
 
   await Promise.all(workers.map((worker) => worker.stop()));
+  await Promise.all(
+    hostLimiters.map((limiter) =>
+      limiter.stop({
+        dropWaitingJobs: true,
+        dropErrorMessage: "Calendar cache scheduler stopped"
+      })
+    )
+  );
 }
 
 export function clearCalendarPageCache(): void {
@@ -122,7 +121,9 @@ export function clearCalendarPageCache(): void {
 }
 
 class CalendarCacheWorker {
-  private readonly limiter: HardStoppableBottleneck;
+  private readonly limiter: Bottleneck;
+  private backoffAttempt = 0;
+  private pendingPages: SourcePage[] | undefined;
   private refreshTimer: NodeJS.Timeout | undefined;
   private stopped = false;
 
@@ -135,24 +136,13 @@ class CalendarCacheWorker {
       maxConcurrent: 1,
       minTime: 0
     });
+    this.limiter.chain(getSourceHostLimiter(config.url));
 
     this.limiter.on("error", (error) => {
-      this.logger.error({ calendarId: this.config.id, error }, "Calendar cache limiter error");
-    });
-
-    this.limiter.on("failed", (error, jobInfo) => {
-      if (this.stopped) {
-        return null;
-      }
-
-      const delay = getRetryDelayMs(jobInfo.retryCount);
-
-      this.logger.warn(
-        { calendarId: this.config.id, jobId: jobInfo.options.id, retryCount: jobInfo.retryCount, delay, error },
-        "Calendar cache warm retry scheduled"
+      this.logger.error(
+        { calendarId: this.config.id, ...getErrorDetails(error) },
+        "Calendar cache limiter error"
       );
-
-      return delay;
     });
   }
 
@@ -168,8 +158,6 @@ class CalendarCacheWorker {
       this.refreshTimer = undefined;
     }
 
-    forceDropScheduledJobs(this.limiter, "Calendar cache scheduler stopped");
-
     await this.limiter.stop({
       dropWaitingJobs: true,
       dropErrorMessage: "Calendar cache scheduler stopped"
@@ -181,42 +169,73 @@ class CalendarCacheWorker {
       return;
     }
 
-    void this.warmAllPages()
-      .catch((error) => {
-        if (!this.stopped) {
-          this.logger.error({ calendarId: this.config.id, error }, "Calendar cache warm cycle failed");
-        }
-      })
-      .finally(() => {
-        if (!this.stopped) {
-          this.refreshTimer = setTimeout(() => this.runCycle(), CACHE_REFRESH_MS);
-        }
-      });
+    void this.runCycleOnce().catch((error) => {
+      if (!this.stopped) {
+        this.logger.error(
+          { calendarId: this.config.id, ...getErrorDetails(error) },
+          "Calendar cache warm cycle failed"
+        );
+      }
+    });
   }
 
-  private async warmAllPages(): Promise<void> {
-    const now = dayjs();
-    const sourcePages = renderSourcePages(this.config.url, now);
+  private async runCycleOnce(): Promise<void> {
+    const pendingPages = await this.warmPages(this.pendingPages);
 
-    await Promise.all(
-      sourcePages.map((sourcePage, pageIndex) =>
-        this.limiter.schedule(
-          {
-            id: `${this.config.id}:${pageIndex}:${sourcePage.sourceUrl}`
-          },
-          async () => warmCalendarSourcePage(this.config, sourcePage, this.logger, true)
-        )
-      )
+    if (this.stopped) {
+      return;
+    }
+
+    const delay = this.getNextDelay(pendingPages);
+
+    this.refreshTimer = setTimeout(() => this.runCycle(), delay);
+  }
+
+  private async warmPages(pendingPages?: SourcePage[]): Promise<SourcePage[]> {
+    const now = dayjs();
+    const sourcePages = pendingPages ?? renderSourcePages(this.config.url, now);
+
+    for (const [pageIndex, sourcePage] of sourcePages.entries()) {
+      const success = await this.limiter.schedule(
+        {
+          id: `${this.config.id}:${pageIndex}:${sourcePage.sourceUrl}`
+        },
+        async () => warmCalendarSourcePage(this.config, sourcePage, this.logger)
+      );
+
+      if (!success) {
+        return sourcePages.slice(pageIndex);
+      }
+    }
+
+    return [];
+  }
+
+  private getNextDelay(pendingPages: SourcePage[]): number {
+    if (!pendingPages.length) {
+      this.backoffAttempt = 0;
+      this.pendingPages = undefined;
+      return CACHE_REFRESH_MS;
+    }
+
+    const delay = getRetryDelayMs(this.backoffAttempt);
+
+    this.backoffAttempt += 1;
+    this.pendingPages = pendingPages;
+    this.logger.warn(
+      { calendarId: this.config.id, pendingPages: pendingPages.length, backoffAttempt: this.backoffAttempt, delay },
+      "Calendar cache warm cycle retry scheduled"
     );
+
+    return delay;
   }
 }
 
 async function warmCalendarSourcePage(
   config: CalendarSourceConfig,
   sourcePage: SourcePage,
-  logger: FastifyBaseLogger | undefined,
-  throwOnError: boolean
-): Promise<void> {
+  logger?: FastifyBaseLogger
+): Promise<boolean> {
   try {
     const { events, cacheStatus } = await fetchCalendarSourcePage(config, sourcePage);
 
@@ -226,36 +245,36 @@ async function warmCalendarSourcePage(
       sourcePage,
       status: cacheStatus
     });
+    return true;
   } catch (error) {
     const existing = PAGE_CACHE.get(cacheKey(config.id, sourcePage.sourceUrl));
     const message = error instanceof Error ? error.message : String(error);
 
-    if (existing) {
+    if (existing && existing.status !== "error") {
       PAGE_CACHE.set(cacheKey(config.id, sourcePage.sourceUrl), {
         ...existing,
         status: "stale",
         error: message
       });
 
-      if (throwOnError) {
-        throw error;
-      }
-
-      return;
+      return false;
     }
 
     PAGE_CACHE.set(cacheKey(config.id, sourcePage.sourceUrl), {
-      events: [],
+      events: existing?.events ?? [],
       fetchedAt: dayjs(),
       sourcePage,
       status: "error",
       error: message
     });
-    logger?.warn({ calendarId: config.id, sourceUrl: sourcePage.sourceUrl, error }, "Calendar cache warm failed");
-
-    if (throwOnError) {
-      throw error;
+    if (!existing) {
+      logger?.warn(
+        { calendarId: config.id, sourceUrl: sourcePage.sourceUrl, ...getErrorDetails(error) },
+        "Calendar cache warm failed"
+      );
     }
+
+    return false;
   }
 }
 
@@ -284,24 +303,39 @@ function getRetryDelayMs(retryCount: number): number {
   return Math.round(exponentialDelay + jitter);
 }
 
-function forceDropScheduledJobs(limiter: HardStoppableBottleneck, message: string): void {
-  const scheduled = limiter._scheduled;
+function getSourceHostLimiter(sourceUrlTemplate: string): Bottleneck {
+  const hostname = new URL(sourceUrlTemplate).hostname;
+  const existing = SOURCE_HOST_LIMITERS.get(hostname);
 
-  if (!scheduled) {
-    return;
+  if (existing) {
+    return existing;
   }
 
-  // Bottleneck leaves retry-delayed jobs in EXECUTING; stop() waits for them unless we clear them first.
-  for (const [id, scheduledJob] of Object.entries(scheduled)) {
-    if (scheduledJob.timeout) {
-      clearTimeout(scheduledJob.timeout);
-    }
+  const limiter = new Bottleneck({
+    id: `calendar-cache-host:${hostname}`,
+    maxConcurrent: 1,
+    minTime: SOURCE_HOST_MIN_TIME_MS
+  });
 
-    if (scheduledJob.expiration) {
-      clearTimeout(scheduledJob.expiration);
-    }
+  SOURCE_HOST_LIMITERS.set(hostname, limiter);
+  return limiter;
+}
 
-    scheduledJob.job?.doDrop({ message });
-    delete scheduled[id];
+function getErrorDetails(error: unknown): Record<string, unknown> {
+  if (!(error instanceof Error)) {
+    return {
+      errorMessage: String(error)
+    };
   }
+
+  const cause = error.cause;
+  const causeCode = cause && typeof cause === "object" && "code" in cause ? cause.code : undefined;
+
+  return {
+    errorName: error.name,
+    errorMessage: error.message,
+    causeName: cause instanceof Error ? cause.name : undefined,
+    causeMessage: cause instanceof Error ? cause.message : undefined,
+    causeCode
+  };
 }
