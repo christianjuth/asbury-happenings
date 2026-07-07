@@ -1,12 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clearCalendarPageCache, warmCalendarPage } from "../src/calendar/calendar.cache.js";
+import { clearCalendarPageCache, getCachedCalendarDebugText, warmCalendarPage } from "../src/calendar/calendar.cache.js";
 import { getCalendarSource } from "../src/calendar/calendar.config.js";
 import dayjs from "../src/calendar/calendar.dates.js";
+import { clearCalendarFetchCache } from "../src/calendar/calendar.service.js";
 import { buildServer } from "../src/server.js";
 
 afterEach(() => {
   clearCalendarPageCache();
+  clearCalendarFetchCache();
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 describe("server", () => {
@@ -158,9 +161,44 @@ describe("server", () => {
     expect(response.statusCode).toBe(200);
     expect(response.headers["content-type"]).toContain("text/plain");
     expect(response.body).toContain("Calendar: Tim McLoone's Supper Club");
+    expect(response.body).toContain("Pages:\n1. cache miss | snapshot ");
+    expect(response.body).toContain(" | revalidate fresh until ");
     expect(response.body).toContain("#1 Query Debug Event");
 
     await server.close();
+  });
+
+  it("shows when cached calendar snapshots are past the revalidate window", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-03T00:00:00Z"));
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      new Response(
+        `
+          <div class="events_col2">
+            <div class="event_date">Saturday, July 4</div>
+            <h2><a href="events.php?id=1">Stale Debug Event</a></h2>
+            <div>6:00pm - 8:00pm</div>
+          </div>
+        `
+      )
+    );
+    const config = getCalendarSource("tim-mcloones-supper-club");
+
+    if (!config) {
+      throw new Error("Missing test calendar config");
+    }
+
+    await warmCalendarPage(config, 0, dayjs("2026-07-03T00:00:00Z"));
+
+    const freshDebugText = getCachedCalendarDebugText(config, undefined, dayjs("2026-07-03T00:14:59Z"));
+    const dueDebugText = getCachedCalendarDebugText(config, undefined, dayjs("2026-07-03T00:15:00Z"));
+
+    expect(freshDebugText).toContain(
+      "1. cache miss | snapshot 2026-07-03T00:00:00.000Z | revalidate fresh until 2026-07-03T00:15:00.000Z"
+    );
+    expect(dueDebugText).toContain(
+      "1. cache miss | snapshot 2026-07-03T00:00:00.000Z | revalidate due since 2026-07-03T00:15:00.000Z"
+    );
   });
 
   it("filters cached calendar events from repeated filter query params", async () => {

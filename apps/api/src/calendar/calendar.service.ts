@@ -40,6 +40,17 @@ export type {
   SourcePage
 } from "./calendar.types.js";
 
+export type CalendarRevalidateStatus = "fresh" | "due" | "refetching" | "error" | "warming";
+
+export interface CalendarDebugPage {
+  sourceUrl: string;
+  cacheStatus: FetchStatus;
+  fetchedAt?: Dayjs;
+  revalidateStatus: CalendarRevalidateStatus;
+  revalidateAt?: Dayjs;
+  error?: string;
+}
+
 const DEFAULT_CACHE_TTL_SECONDS = 15 * 60;
 
 interface SourceTextCacheEntry {
@@ -201,7 +212,8 @@ export function eventsToDebugText(
   calendarName: string,
   sourceUrl: string | string[],
   events: CalendarEvent[],
-  cacheStatus?: FetchStatus | FetchStatus[]
+  cacheStatus?: FetchStatus | FetchStatus[],
+  debugPages?: CalendarDebugPage[]
 ): string {
   const sourceUrls = lodash.castArray(sourceUrl);
   const cacheStatuses = cacheStatus ? lodash.castArray(cacheStatus) : [];
@@ -212,6 +224,16 @@ export function eventsToDebugText(
     `Events: ${events.length}`,
     ""
   ];
+
+  if (debugPages?.length) {
+    lines.push("Pages:");
+
+    for (const [index, page] of debugPages.entries()) {
+      lines.push(`${index + 1}. ${formatDebugPage(page)}`);
+    }
+
+    lines.push("");
+  }
 
   for (const [index, event] of events.entries()) {
     lines.push(
@@ -240,6 +262,32 @@ export function eventsToDebugText(
   }
 
   return lines.join("\n");
+}
+
+function formatDebugPage(page: CalendarDebugPage): string {
+  const fields = [
+    `cache ${page.cacheStatus}`,
+    `snapshot ${page.fetchedAt ? page.fetchedAt.toISOString() : "none"}`,
+    `revalidate ${formatRevalidateStatus(page)}`
+  ];
+
+  if (page.error) {
+    fields.push(`error ${page.error}`);
+  }
+
+  return fields.join(" | ");
+}
+
+function formatRevalidateStatus(page: CalendarDebugPage): string {
+  if (page.revalidateStatus === "fresh" && page.revalidateAt) {
+    return `fresh until ${page.revalidateAt.toISOString()}`;
+  }
+
+  if (page.revalidateStatus === "due" && page.revalidateAt) {
+    return `due since ${page.revalidateAt.toISOString()}`;
+  }
+
+  return page.revalidateStatus;
 }
 
 export function clearCalendarFetchCache(): void {

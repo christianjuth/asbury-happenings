@@ -9,6 +9,7 @@ import {
   filterCalendarEvents,
   fetchCalendarSourcePage,
   renderSourcePages,
+  type CalendarDebugPage,
   type CalendarEvent,
   type CalendarSourceConfig,
   type EventFilterInput,
@@ -34,10 +35,12 @@ interface CalendarSnapshot {
   sourceUrls: string[];
   events: CalendarEvent[];
   statuses: FetchStatus[];
+  debugPages: CalendarDebugPage[];
   ready: boolean;
 }
 
 const PAGE_CACHE = new Map<string, CachedPage>();
+const REFRESHING_PAGES = new Set<string>();
 
 const CACHE_WORKERS = new Map<string, CalendarCacheWorker>();
 const SOURCE_HOST_LIMITERS = new Map<string, Bottleneck>();
@@ -67,7 +70,8 @@ export function getCachedCalendarDebugText(
     config.name,
     snapshot.sourceUrls,
     filterCalendarEvents(snapshot.events, filters, config.defaultFilters),
-    snapshot.statuses
+    snapshot.statuses,
+    snapshot.debugPages
   );
 }
 
@@ -118,6 +122,7 @@ export async function stopCalendarCacheScheduler(): Promise<void> {
 
 export function clearCalendarPageCache(): void {
   PAGE_CACHE.clear();
+  REFRESHING_PAGES.clear();
 }
 
 class CalendarCacheWorker {
@@ -236,10 +241,14 @@ async function warmCalendarSourcePage(
   sourcePage: SourcePage,
   logger?: FastifyBaseLogger
 ): Promise<boolean> {
+  const key = cacheKey(config.id, sourcePage.sourceUrl);
+
+  REFRESHING_PAGES.add(key);
+
   try {
     const { events, cacheStatus } = await fetchCalendarSourcePage(config, sourcePage);
 
-    PAGE_CACHE.set(cacheKey(config.id, sourcePage.sourceUrl), {
+    PAGE_CACHE.set(key, {
       events,
       fetchedAt: dayjs(),
       sourcePage,
@@ -247,11 +256,11 @@ async function warmCalendarSourcePage(
     });
     return true;
   } catch (error) {
-    const existing = PAGE_CACHE.get(cacheKey(config.id, sourcePage.sourceUrl));
+    const existing = PAGE_CACHE.get(key);
     const message = error instanceof Error ? error.message : String(error);
 
     if (existing && existing.status !== "error") {
-      PAGE_CACHE.set(cacheKey(config.id, sourcePage.sourceUrl), {
+      PAGE_CACHE.set(key, {
         ...existing,
         status: "stale",
         error: message
@@ -260,7 +269,7 @@ async function warmCalendarSourcePage(
       return false;
     }
 
-    PAGE_CACHE.set(cacheKey(config.id, sourcePage.sourceUrl), {
+    PAGE_CACHE.set(key, {
       events: existing?.events ?? [],
       fetchedAt: dayjs(),
       sourcePage,
@@ -275,21 +284,71 @@ async function warmCalendarSourcePage(
     }
 
     return false;
+  } finally {
+    REFRESHING_PAGES.delete(key);
   }
 }
 
 function getCalendarSnapshot(config: CalendarSourceConfig, now: Dayjs): CalendarSnapshot {
   const sourcePages = renderSourcePages(config.url, now);
-  const cachedPages = sourcePages.map((sourcePage) => PAGE_CACHE.get(cacheKey(config.id, sourcePage.sourceUrl)));
+  const pageKeys = sourcePages.map((sourcePage) => cacheKey(config.id, sourcePage.sourceUrl));
+  const cachedPages = pageKeys.map((key) => PAGE_CACHE.get(key));
   const events = dedupeEvents(cachedPages.flatMap((page) => page?.events ?? []));
   const statuses = cachedPages.map((page) => page?.status ?? "warming");
+  const debugPages = sourcePages.map((sourcePage, index) =>
+    getDebugPage(sourcePage.sourceUrl, cachedPages[index], REFRESHING_PAGES.has(pageKeys[index] ?? ""), now)
+  );
 
   return {
     sourceUrls: sourcePages.map((page) => page.sourceUrl),
     events,
     statuses,
+    debugPages,
     ready: cachedPages.some((page) => page && page.status !== "error")
   };
+}
+
+function getDebugPage(
+  sourceUrl: string,
+  cachedPage: CachedPage | undefined,
+  refreshing: boolean,
+  now: Dayjs
+): CalendarDebugPage {
+  if (!cachedPage) {
+    return {
+      sourceUrl,
+      cacheStatus: "warming",
+      revalidateStatus: refreshing ? "refetching" : "warming"
+    };
+  }
+
+  const revalidateAt = cachedPage.fetchedAt.add(CACHE_REFRESH_MS, "millisecond");
+
+  return {
+    sourceUrl,
+    cacheStatus: cachedPage.status,
+    fetchedAt: cachedPage.fetchedAt,
+    revalidateStatus: getRevalidateStatus(cachedPage, refreshing, revalidateAt, now),
+    revalidateAt,
+    error: cachedPage.error
+  };
+}
+
+function getRevalidateStatus(
+  cachedPage: CachedPage,
+  refreshing: boolean,
+  revalidateAt: Dayjs,
+  now: Dayjs
+): CalendarDebugPage["revalidateStatus"] {
+  if (refreshing) {
+    return "refetching";
+  }
+
+  if (cachedPage.status === "error" || cachedPage.status === "stale") {
+    return "error";
+  }
+
+  return now.isBefore(revalidateAt) ? "fresh" : "due";
 }
 
 function cacheKey(calendarId: string, sourceUrl: string): string {

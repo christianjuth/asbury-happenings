@@ -40,7 +40,7 @@ Plain-text debug output:
 curl "http://localhost:3000/calendar/example-events.ics?debug=1"
 ```
 
-Debug output includes cache page status. `warming` means that page has not been fetched by the background job yet.
+Debug output includes per-page cache and revalidate status. `Fetch: cache miss` means the last background warm fetched fresh upstream text instead of reusing the short-lived source-text cache; it can still show events because that fresh response was parsed and stored in the calendar snapshot. `snapshot` is when that page was last fetched. Snapshots are `fresh` for 15 minutes, then `due` until the next warm starts. `refetching` means a warm is in progress, `warming` means no snapshot exists yet, and `error` means the last refresh failed.
 
 Happy hour debug output:
 
