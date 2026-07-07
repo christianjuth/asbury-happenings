@@ -19,7 +19,7 @@ const DEFAULT_DATE_FORMATS = [
   "YYYY-MM-DD"
 ];
 
-const DEFAULT_TIME_FORMATS = ["h:mma", "h:mm a", "ha", "h a", "H:mm", "HH:mm"];
+const DEFAULT_TIME_FORMATS = ["h:mma", "h:mm a", "h:mmA", "h:mm A", "ha", "h a", "hA", "h A", "H:mm", "HH:mm"];
 
 export function normalizeText(value: string | undefined): string {
   return value?.replace(/\s+/g, " ").trim() ?? "";
@@ -73,7 +73,24 @@ export function parseDateAndTimeOrNull(
     }
   }
 
-  return parseDateOrNull(`${dateValue} ${timeValue}`, undefined, fallbackDateFormats, referenceDate, timeZone);
+  const fallbackValue = /\b\d{4}\b/.test(dateValue)
+    ? `${dateValue} ${timeValue}`
+    : `${dateValue} ${referenceDate.year()} ${timeValue}`;
+  const parsed = dayjs(fallbackValue);
+
+  if (!parsed.isValid()) {
+    return null;
+  }
+
+  if (!timeZone) {
+    return parsed;
+  }
+
+  try {
+    return dayjs.tz(parsed.format("YYYY-MM-DD HH:mm:ss"), "YYYY-MM-DD HH:mm:ss", timeZone);
+  } catch {
+    return parsed;
+  }
 }
 
 export function parseWithOptionalTimeZone(value: string, format: string, timeZone: string | undefined): Dayjs {

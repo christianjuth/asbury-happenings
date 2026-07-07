@@ -541,6 +541,46 @@ describe("extractEventsFromHtml", () => {
     expect(events[1]?.end.toISOString()).toBe("2026-07-11T02:00:00.000Z");
   });
 
+  it("parses AP Rooftop event times with uppercase AM in descriptions", () => {
+    const apRooftopConfig = getCalendarSource("ap-rooftop");
+
+    if (!apRooftopConfig) {
+      throw new Error("Missing AP Rooftop calendar config");
+    }
+
+    const events = extractEventsFromHtml(
+      `
+        <div id="main-content-sub">
+          <div style="width: 100%; position: relative; margin-left: auto; margin-right: auto;">
+            <div class="events_col1_image events_col1_image_reg" style="background-image: url(https://cdn.mcloones.com/images/calendar/7.12.26-Jetset-APR.PNG);"></div>
+            <div class="events_col2">
+              <div class="event_date">Sunday, July 12</div>
+              <h2>JETSET ON THE MAT: BRUNCH &amp; BURN</h2>
+              <div style="margin-top: 2px;">Location: <strong>Arthur Pryor Bandshell - Outdoor Concert</strong>, 1200 Ocean Ave, Third Floor, Asbury Park, NJ</div>
+              <div style="margin-top: 0;"><a href="https://sweatpals.com/event/jetset-on-the-mat-brunch-burn-at-ap-rooftop/2026-07-12" target="_blank">CLICK HERE FOR MORE INFORMATION - SOLD OUT</a></div>
+              <div style="margin-top: 0;">
+                <p></p>AP ROOFTOP x JETSET Pilates Oakhurst:<p></p>
+                Brunch &amp; Burn
+                <p></p>10:00 AM Check-In<p></p>
+                <p></p>10:30 AM JETSET on the Mat Class overlooking the Atlantic Ocean<p></p>
+                <p></p>Check-In: 10:00 AM | Class Begins: 10:30 AM<p></p>
+              </div>
+              <div>SOLD OUT, 10:00am - 1:00pm</div>
+            </div>
+          </div>
+        </div>
+      `,
+      apRooftopConfig,
+      "https://aprooftop.com/events.php",
+      dayjs("2026-07-03T00:00:00Z")
+    );
+
+    expect(events).toHaveLength(1);
+    expect(events[0]?.title).toBe("JETSET ON THE MAT: BRUNCH & BURN");
+    expect(events[0]?.start.toISOString()).toBe("2026-07-12T14:00:00.000Z");
+    expect(events[0]?.end.toISOString()).toBe("2026-07-12T17:00:00.000Z");
+  });
+
   it("parses Iron Whale event list cards", () => {
     const ironWhaleConfig = getCalendarSource("iron-whale");
 
