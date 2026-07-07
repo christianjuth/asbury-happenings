@@ -15,7 +15,7 @@ export async function buildServer() {
     const stopCalendarCacheScheduler = startCalendarCacheScheduler(server.log);
 
     server.addHook("onClose", async () => {
-      stopCalendarCacheScheduler();
+      await stopCalendarCacheScheduler();
     });
   }
 

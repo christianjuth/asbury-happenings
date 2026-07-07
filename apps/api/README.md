@@ -153,7 +153,7 @@ Addresses can be parsed with `address`; if no separate `location` is found, the 
 
 `{year}` and `{month}` use the current UTC year and zero-padded month. If a source URL contains `{month}`, the app caches this month plus the next two months. URLs without `{month}` have one cache page. Each `containerSelector` match becomes one event. `title` plus either `start` or `startDate` are required; containers missing them are skipped. If no end date/time is found, `defaultDurationMinutes` is used.
 
-The app keeps parsed calendar pages in memory. On startup it kicks off page 0 immediately, then every 5 minutes warms one page across all calendars. Sources with `{month}` rotate across this month plus the next two months; sources without `{month}` have one page. Calendar routes return only cached data and respond with `503 Calendar cache warming` until at least one page is warm.
+The app keeps parsed calendar pages in memory. On startup it kicks off every page for every calendar immediately, then refreshes each calendar every 15 minutes. Sources with `{month}` warm this month plus the next two months; sources without `{month}` have one page. Each calendar has its own scheduler queue, so failures back off with jitter for that calendar without slowing other calendars. Calendar routes return only cached data and respond with `503 Calendar cache warming` until at least one page is warm.
 
 Fly is configured with `min_machines_running = 1` so the scheduler keeps running.
 
