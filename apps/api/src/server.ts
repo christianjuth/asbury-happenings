@@ -3,6 +3,8 @@ import sensible from "@fastify/sensible";
 import { startCalendarCacheScheduler } from "./calendar/calendar.cache.js";
 import { registerCalendarRoutes } from "./calendar/calendar.routes.js";
 import { ENV } from "./env.js";
+import { startHappyHourCacheScheduler } from "./happy-hour/happy-hour.cache.js";
+import { registerHappyHourRoutes } from "./happy-hour/happy-hour.routes.js";
 
 export async function buildServer() {
   const server = Fastify({
@@ -13,9 +15,11 @@ export async function buildServer() {
 
   if (ENV.NODE_ENV !== "test") {
     const stopCalendarCacheScheduler = startCalendarCacheScheduler(server.log);
+    const stopHappyHourCacheScheduler = startHappyHourCacheScheduler(server.log);
 
     server.addHook("onClose", async () => {
       await stopCalendarCacheScheduler();
+      await stopHappyHourCacheScheduler();
     });
   }
 
@@ -24,6 +28,7 @@ export async function buildServer() {
   }));
 
   await registerCalendarRoutes(server);
+  await registerHappyHourRoutes(server);
 
   return server;
 }

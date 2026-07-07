@@ -31,6 +31,7 @@ Calendar feed:
 ```bash
 curl http://localhost:3000/calendar/example-events.ics
 curl http://localhost:3000/calendar/tim-mcloones-supper-club.ics
+curl http://localhost:3000/happy-hours/asbury-park.ics
 ```
 
 Plain-text debug output:
@@ -40,6 +41,12 @@ curl "http://localhost:3000/calendar/example-events.ics?debug=1"
 ```
 
 Debug output includes cache page status. `warming` means that page has not been fetched by the background job yet.
+
+Happy hour debug output:
+
+```bash
+curl "http://localhost:3000/happy-hours/asbury-park.ics?debug=1"
+```
 
 ## Docker
 
@@ -156,6 +163,16 @@ Addresses can be parsed with `address`; if no separate `location` is found, the 
 The app keeps parsed calendar pages in memory. On startup it kicks off every page for every calendar immediately, then refreshes each calendar every 15 minutes. Sources with `{month}` warm this month plus the next two months; sources without `{month}` have one page. Each calendar has its own scheduler queue, so failures back off with jitter for that calendar without slowing other calendars. Calendar routes return only cached data and respond with `503 Calendar cache warming` until at least one page is warm.
 
 Fly is configured with `min_machines_running = 1` so the scheduler keeps running.
+
+## Happy Hour Endpoint
+
+`GET /happy-hours`
+
+`GET /happy-hours/asbury-park.ics`
+
+`GET /happy-hours/asbury-park.ics?debug=1`
+
+The happy-hour service crawls `https://asburypark.rectalogic.com/#restaurant-happy-hours`, parses each restaurant's `time.dayhour` rows, and emits one recurring weekly ICS event per restaurant/day/time slot. The event summary is the restaurant name. Event descriptions include specials plus phone, verified date, menu, Instagram, and map links when present.
 
 ## Add Redis Later
 
