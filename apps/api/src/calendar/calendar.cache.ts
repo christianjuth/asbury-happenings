@@ -2,14 +2,13 @@ import type { FastifyBaseLogger } from "fastify";
 import Bottleneck from "bottleneck";
 import { CALENDAR_SOURCES } from "./calendar.config.js";
 import dayjs, { type Dayjs } from "./calendar.dates.js";
+import { eventsToDebugText, type CalendarDebugPage } from "./calendar.debug.js";
 import {
   dedupeEvents,
-  eventsToDebugText,
   eventsToIcs,
   filterCalendarEvents,
   fetchCalendarSourcePage,
   renderSourcePages,
-  type CalendarDebugPage,
   type CalendarEvent,
   type CalendarSourceConfig,
   type EventFilterInput,
