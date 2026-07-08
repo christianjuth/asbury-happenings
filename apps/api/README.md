@@ -1,4 +1,4 @@
-# Chaotic Backend
+# Calendar Service
 
 TypeScript Node.js backend scaffold with Fastify, Vitest, and Docker.
 

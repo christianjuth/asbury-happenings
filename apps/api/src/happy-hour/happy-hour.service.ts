@@ -125,7 +125,7 @@ export function happyHourEventsToIcs(calendarName: string, events: CalendarEvent
   const calendar = ical({
     name: calendarName,
     prodId: {
-      company: "chaotic-backend",
+      company: "calendar-service",
       product: "happy-hour-calendar"
     },
     timezone: HAPPY_HOUR_SOURCE.timeZone

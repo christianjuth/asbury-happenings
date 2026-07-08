@@ -118,7 +118,7 @@ export function eventsToIcs(calendarName: string, events: CalendarEvent[]): stri
   const calendar = ical({
     name: calendarName,
     prodId: {
-      company: "chaotic-backend",
+      company: "calendar-service",
       product: "webpage-calendar"
     }
   });

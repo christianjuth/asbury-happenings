@@ -1,5 +1,5 @@
 {
-  "name": "chaotic-backend",
+  "name": "calendar-service",
   "version": "0.1.0",
   "private": true,
   "type": "module",
