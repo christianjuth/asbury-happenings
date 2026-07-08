@@ -180,7 +180,7 @@ async function fetchFreshText(sourceUrl: string): Promise<string> {
   const cookie = getCookieHeader(sourceUrl);
 
   if (cookie) {
-    requestHeaders.cookie = cookie;
+    requestHeaders["cookie"] = cookie;
   }
 
   const pendingFetch = fetch(sourceUrl, {
@@ -241,6 +241,11 @@ function storeResponseCookies(sourceUrl: string, headers: Headers): void {
 
   for (const setCookie of setCookieHeaders) {
     const [cookiePair] = setCookie.split(";");
+
+    if (!cookiePair) {
+      continue;
+    }
+
     const separatorIndex = cookiePair.indexOf("=");
 
     if (separatorIndex <= 0) {
@@ -666,8 +671,9 @@ function parseIcsContentLine(line: string): IcsContentLine | null {
       rawParams.map((param) => {
         const [rawKey, ...rawValueParts] = param.split("=");
 
-        return [rawKey.toUpperCase(), rawValueParts.join("=").replace(/^"|"$/g, "")];
+        return rawKey ? [rawKey.toUpperCase(), rawValueParts.join("=").replace(/^"|"$/g, "")] : undefined;
       })
+        .filter((entry): entry is [string, string] => Boolean(entry))
     ),
     value
   };
@@ -700,7 +706,7 @@ function parseIcsDateOrNull(
     return null;
   }
 
-  if (params.VALUE === "DATE" || /^\d{8}$/.test(normalizedValue)) {
+  if (params["VALUE"] === "DATE" || /^\d{8}$/.test(normalizedValue)) {
     const parsed = dayjs.utc(normalizedValue, "YYYYMMDD", true);
 
     return parsed.isValid() ? { date: parsed, allDay: true } : null;
@@ -716,7 +722,7 @@ function parseIcsDateOrNull(
     const parsed = parseWithOptionalTimeZone(
       normalizedValue,
       "YYYYMMDDTHHmmss",
-      normalizeIcsTimeZone(params.TZID, fallbackTimeZone)
+      normalizeIcsTimeZone(params["TZID"], fallbackTimeZone)
     );
 
     return parsed.isValid() ? { date: parsed, allDay: false } : null;

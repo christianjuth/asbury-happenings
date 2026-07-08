@@ -233,6 +233,11 @@ function parseUncorkedWineInspiredDateTime(value: string, timeZone?: string): Da
   }
 
   const [, rawMonth, day, year, time] = match;
+
+  if (!rawMonth || !day || !year || !time) {
+    return null;
+  }
+
   const month = lodash.startCase(rawMonth.toLowerCase());
   const parsed = parseWithOptionalTimeZone(`${month} ${day}, ${year} ${time}`, "MMMM DD, YYYY h:mmA", timeZone);
 
@@ -286,6 +291,11 @@ function parseSmithMadeTimeRange(timeText: string): { startTime: string; endTime
   }
 
   const [, rawStartTime, rawStartPeriod, rawEndTime, rawEndPeriod] = match;
+
+  if (!rawStartTime || !rawEndTime || !rawEndPeriod) {
+    return null;
+  }
+
   const endPeriod = rawEndPeriod.toUpperCase();
   const startPeriod = rawStartPeriod?.toUpperCase() ?? inferSmithMadeStartPeriod(rawStartTime, rawEndTime, endPeriod);
 
