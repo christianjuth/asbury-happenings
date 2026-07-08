@@ -16,7 +16,7 @@ import {
   type SourcePage
 } from "./calendar.service.js";
 
-const CACHE_REFRESH_MS = 15 * 60_000;
+const CACHE_REFRESH_MS = 30 * 60_000;
 const CACHE_BACKOFF_BASE_MS = 5_000;
 const CACHE_BACKOFF_MAX_MS = 15 * 60_000;
 const CACHE_BACKOFF_JITTER = 0.3;

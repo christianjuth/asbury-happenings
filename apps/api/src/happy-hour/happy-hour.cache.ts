@@ -13,7 +13,7 @@ import {
 const CACHE_BACKOFF_BASE_MS = 5_000;
 const CACHE_BACKOFF_MAX_MS = 15 * 60_000;
 const CACHE_BACKOFF_JITTER = 0.3;
-const HAPPY_HOUR_REFRESH_MS = 15 * 60_000;
+const HAPPY_HOUR_REFRESH_MS = 60 * 60_000;
 
 interface HappyHourSnapshot {
   sourceUrl: string;
