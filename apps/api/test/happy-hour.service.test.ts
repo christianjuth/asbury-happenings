@@ -132,6 +132,7 @@ describe("happy hour routes", () => {
     });
     expect(debugResponse.statusCode).toBe(200);
     expect(debugResponse.body).toContain("Calendar: Asbury Park Happy Hours");
+    expect(debugResponse.body).toContain("Fetch: upstream fetched");
     expect(debugResponse.body).toContain("Events: 4");
     expect(debugResponse.body).toContain("Talula's");
     expect(debugResponse.body).not.toContain("AP Rooftop");

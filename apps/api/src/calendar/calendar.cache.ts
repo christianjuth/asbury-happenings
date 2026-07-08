@@ -245,13 +245,13 @@ async function warmCalendarSourcePage(
   REFRESHING_PAGES.add(key);
 
   try {
-    const { events, cacheStatus } = await fetchCalendarSourcePage(config, sourcePage);
+    const { events, fetchStatus } = await fetchCalendarSourcePage(config, sourcePage);
 
     PAGE_CACHE.set(key, {
       events,
       fetchedAt: dayjs(),
       sourcePage,
-      status: cacheStatus
+      status: fetchStatus
     });
     return true;
   } catch (error) {
@@ -316,7 +316,7 @@ function getDebugPage(
   if (!cachedPage) {
     return {
       sourceUrl,
-      cacheStatus: "warming",
+      fetchStatus: "warming",
       revalidateStatus: refreshing ? "refetching" : "warming"
     };
   }
@@ -325,7 +325,7 @@ function getDebugPage(
 
   return {
     sourceUrl,
-    cacheStatus: cachedPage.status,
+    fetchStatus: cachedPage.status,
     fetchedAt: cachedPage.fetchedAt,
     revalidateStatus: getRevalidateStatus(cachedPage, refreshing, revalidateAt, now),
     revalidateAt,

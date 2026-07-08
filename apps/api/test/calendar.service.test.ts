@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  clearCalendarFetchCache,
+  clearCalendarFetchState,
   extractEventsFromHtml,
   extractEventsFromIcs,
   extractEventsFromJson,
@@ -22,7 +22,7 @@ import {
 } from "../src/calendar/calendar.post-processing.js";
 
 afterEach(() => {
-  clearCalendarFetchCache();
+  clearCalendarFetchState();
   vi.restoreAllMocks();
 });
 
@@ -1359,7 +1359,7 @@ describe("renderSourceUrl", () => {
 });
 
 describe("fetchCalendarEvents", () => {
-  it("caches upstream HTML for repeated calendar requests", async () => {
+  it("fetches upstream HTML for repeated direct calendar event fetches", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
       new Response(
         `
@@ -1378,9 +1378,9 @@ describe("fetchCalendarEvents", () => {
     const first = await fetchCalendarEvents(noTokenConfig, dayjs("2026-07-03T00:00:00Z"));
     const second = await fetchCalendarEvents(noTokenConfig, dayjs("2026-07-03T00:00:00Z"));
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(first.cacheStatus).toBe("miss");
-    expect(second.cacheStatus).toBe("hit");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(first.fetchStatus).toBe("fetched");
+    expect(second.fetchStatus).toBe("fetched");
     expect(second.events[0]?.title).toBe("Cached Event");
   });
 
@@ -1411,7 +1411,7 @@ describe("fetchCalendarEvents", () => {
       "https://example.com/events/2026/08",
       "https://example.com/events/2026/09"
     ]);
-    expect(result.cacheStatuses).toEqual(["miss", "miss", "miss"]);
+    expect(result.fetchStatuses).toEqual(["fetched", "fetched", "fetched"]);
     expect(result.events.map((event) => event.title)).toEqual([
       "This Month Event",
       "Next Month Event",
@@ -1456,8 +1456,8 @@ describe("fetchCalendarEvents", () => {
       const result = await fetchCalendarEvents(noTokenConfig, dayjs("2026-07-03T00:00:00Z"));
 
       expect(fetchMock).toHaveBeenCalledTimes(1);
-      expect(result.cacheStatus).toBe("miss");
-      expect(result.cacheStatuses).toEqual(["miss"]);
+      expect(result.fetchStatus).toBe("fetched");
+      expect(result.fetchStatuses).toEqual(["fetched"]);
       expect(result.events).toEqual([]);
     }
   );
@@ -1481,7 +1481,7 @@ describe("fetchCalendarEvents", () => {
 
     const result = await fetchCalendarEvents(noTokenConfig, dayjs("2026-07-03T00:00:00Z"));
 
-    expect(result.cacheStatus).toBe("miss");
+    expect(result.fetchStatus).toBe("fetched");
     expect(result.events.map((event) => event.title)).toEqual(["No Events Found Fundraiser"]);
   });
 
@@ -1661,35 +1661,6 @@ describe("fetchCalendarEvents", () => {
     expect(result.events[3]?.end.toISOString()).toBe("2026-08-08T04:00:00.000Z");
   });
 
-  it("serves stale cached HTML when upstream starts failing", async () => {
-    const fetchMock = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(
-        new Response(
-          `
-            <article>
-              <h2 class="event-title">Stale Event</h2>
-              <time class="start" datetime="2026-07-04T18:00:00Z">July 4</time>
-            </article>
-          `
-        )
-      )
-      .mockResolvedValueOnce(new Response("Too many requests", { status: 429 }));
-
-    const noCacheConfig: CalendarSourceConfig = {
-      ...config,
-      url: "https://example.com/events",
-      cacheTtlSeconds: 0
-    };
-
-    await fetchCalendarEvents(noCacheConfig, dayjs("2026-07-03T00:00:00Z"));
-    const stale = await fetchCalendarEvents(noCacheConfig, dayjs("2026-07-03T00:00:00Z"));
-
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(stale.cacheStatus).toBe("stale");
-    expect(stale.events[0]?.title).toBe("Stale Event");
-  });
-
   it("stores set-cookie values by host and sends cookie pairs back", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
       const response = new Response(
@@ -1708,8 +1679,7 @@ describe("fetchCalendarEvents", () => {
     });
     const noCacheConfig: CalendarSourceConfig = {
       ...config,
-      url: "https://example.com/events",
-      cacheTtlSeconds: 0
+      url: "https://example.com/events"
     };
 
     await fetchCalendarEvents(noCacheConfig, dayjs("2026-07-03T00:00:00Z"));
@@ -1740,13 +1710,11 @@ describe("fetchCalendarEvents", () => {
     });
     const exampleConfig: CalendarSourceConfig = {
       ...config,
-      url: "https://example.com/events",
-      cacheTtlSeconds: 0
+      url: "https://example.com/events"
     };
     const otherConfig: CalendarSourceConfig = {
       ...config,
-      url: "https://events.example.net/events",
-      cacheTtlSeconds: 0
+      url: "https://events.example.net/events"
     };
 
     await fetchCalendarEvents(exampleConfig, dayjs("2026-07-03T00:00:00Z"));

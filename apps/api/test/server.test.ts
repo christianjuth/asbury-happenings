@@ -2,12 +2,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearCalendarPageCache, getCachedCalendarDebugText, warmCalendarPage } from "../src/calendar/calendar.cache.js";
 import { getCalendarSource } from "../src/calendar/calendar.config.js";
 import dayjs from "../src/calendar/calendar.dates.js";
-import { clearCalendarFetchCache } from "../src/calendar/calendar.service.js";
+import { clearCalendarFetchState } from "../src/calendar/calendar.service.js";
 import { buildServer } from "../src/server.js";
 
 afterEach(() => {
   clearCalendarPageCache();
-  clearCalendarFetchCache();
+  clearCalendarFetchState();
   vi.restoreAllMocks();
   vi.useRealTimers();
 });
@@ -161,7 +161,8 @@ describe("server", () => {
     expect(response.statusCode).toBe(200);
     expect(response.headers["content-type"]).toContain("text/plain");
     expect(response.body).toContain("Calendar: Tim McLoone's Supper Club");
-    expect(response.body).toContain("Pages:\n1. cache miss | snapshot ");
+    expect(response.body).toContain("Fetch: upstream fetched");
+    expect(response.body).toContain("Pages:\n1. fetch fetched | snapshot ");
     expect(response.body).toContain(" | revalidate fresh until ");
     expect(response.body).toContain("#1 Query Debug Event");
 
@@ -194,11 +195,41 @@ describe("server", () => {
     const dueDebugText = getCachedCalendarDebugText(config, undefined, dayjs("2026-07-03T00:15:00Z"));
 
     expect(freshDebugText).toContain(
-      "1. cache miss | snapshot 2026-07-03T00:00:00.000Z | revalidate fresh until 2026-07-03T00:15:00.000Z"
+      "1. fetch fetched | snapshot 2026-07-03T00:00:00.000Z | revalidate fresh until 2026-07-03T00:15:00.000Z"
     );
     expect(dueDebugText).toContain(
-      "1. cache miss | snapshot 2026-07-03T00:00:00.000Z | revalidate due since 2026-07-03T00:15:00.000Z"
+      "1. fetch fetched | snapshot 2026-07-03T00:00:00.000Z | revalidate due since 2026-07-03T00:15:00.000Z"
     );
+  });
+
+  it("keeps the last parsed calendar snapshot when a refresh fails", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(
+          `
+            <div class="events_col2">
+              <div class="event_date">Saturday, July 4</div>
+              <h2><a href="events.php?id=1">Last Good Event</a></h2>
+              <div>6:00pm - 8:00pm</div>
+            </div>
+          `
+        )
+      )
+      .mockResolvedValueOnce(new Response("Too many requests", { status: 429 }));
+    const config = getCalendarSource("tim-mcloones-supper-club");
+
+    if (!config) {
+      throw new Error("Missing test calendar config");
+    }
+
+    await warmCalendarPage(config, 0, dayjs("2026-07-03T00:00:00Z"));
+    await warmCalendarPage(config, 0, dayjs("2026-07-03T00:00:00Z"));
+
+    const debugText = getCachedCalendarDebugText(config, undefined, dayjs("2026-07-03T00:00:00Z"));
+
+    expect(debugText).toContain("1. fetch stale | snapshot ");
+    expect(debugText).toContain("revalidate error");
+    expect(debugText).toContain("Last Good Event");
   });
 
   it("filters cached calendar events from repeated filter query params", async () => {

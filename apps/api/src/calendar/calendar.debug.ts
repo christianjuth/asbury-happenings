@@ -1,47 +1,31 @@
 import lodash from "lodash";
-import dayjs, { type Dayjs } from "./calendar.dates.js";
-import { fetchCalendarEvents, filterCalendarEvents } from "./calendar.service.js";
-import type { CalendarEvent, CalendarSourceConfig, EventFilterInput, FetchStatus } from "./calendar.types.js";
+import type { Dayjs } from "./calendar.dates.js";
+import type { CalendarEvent, FetchStatus } from "./calendar.types.js";
 
 export type CalendarRevalidateStatus = "fresh" | "due" | "refetching" | "error" | "warming";
 
 export interface CalendarDebugPage {
   sourceUrl: string;
-  cacheStatus: FetchStatus;
+  fetchStatus: FetchStatus;
   fetchedAt?: Dayjs;
   revalidateStatus: CalendarRevalidateStatus;
   revalidateAt?: Dayjs;
   error?: string;
 }
 
-export async function buildCalendarDebugText(
-  config: CalendarSourceConfig,
-  now = dayjs(),
-  filters?: EventFilterInput
-): Promise<string> {
-  const { sourceUrls, events, cacheStatuses } = await fetchCalendarEvents(config, now);
-
-  return eventsToDebugText(
-    config.name,
-    sourceUrls,
-    filterCalendarEvents(events, filters, config.defaultFilters),
-    cacheStatuses
-  );
-}
-
 export function eventsToDebugText(
   calendarName: string,
   sourceUrl: string | string[],
   events: CalendarEvent[],
-  cacheStatus?: FetchStatus | FetchStatus[],
+  fetchStatus?: FetchStatus | FetchStatus[],
   debugPages?: CalendarDebugPage[]
 ): string {
   const sourceUrls = lodash.castArray(sourceUrl);
-  const cacheStatuses = cacheStatus ? lodash.castArray(cacheStatus) : [];
+  const fetchStatuses = fetchStatus ? lodash.castArray(fetchStatus) : [];
   const lines = [
     `Calendar: ${calendarName}`,
     `Source: ${sourceUrls.join(", ")}`,
-    `Fetch: cache ${cacheStatuses.length ? cacheStatuses.join(", ") : "unknown"}`,
+    `Fetch: upstream ${fetchStatuses.length ? fetchStatuses.join(", ") : "unknown"}`,
     `Events: ${events.length}`,
     ""
   ];
@@ -87,7 +71,7 @@ export function eventsToDebugText(
 
 function formatDebugPage(page: CalendarDebugPage): string {
   const fields = [
-    `cache ${page.cacheStatus}`,
+    `fetch ${page.fetchStatus}`,
     `snapshot ${page.fetchedAt ? page.fetchedAt.toISOString() : "none"}`,
     `revalidate ${formatRevalidateStatus(page)}`
   ];

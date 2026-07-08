@@ -13,6 +13,7 @@ import {
 const CACHE_BACKOFF_BASE_MS = 5_000;
 const CACHE_BACKOFF_MAX_MS = 15 * 60_000;
 const CACHE_BACKOFF_JITTER = 0.3;
+const HAPPY_HOUR_REFRESH_MS = 15 * 60_000;
 
 interface HappyHourSnapshot {
   sourceUrl: string;
@@ -60,13 +61,13 @@ export async function warmHappyHourCache(
   logger?: FastifyBaseLogger
 ): Promise<boolean> {
   try {
-    const { sourceUrl, events, cacheStatus } = await fetchHappyHourEvents(config, now);
+    const { sourceUrl, events, fetchStatus } = await fetchHappyHourEvents(config, now);
 
     SNAPSHOT = {
       sourceUrl,
       events,
       fetchedAt: dayjs(),
-      status: cacheStatus
+      status: fetchStatus
     };
     BACKOFF_ATTEMPT = 0;
     return true;
@@ -117,7 +118,7 @@ async function runHappyHourCacheCycle(config: HappyHourSourceConfig, logger: Fas
     () => {
       void runHappyHourCacheCycle(config, logger);
     },
-    success ? config.cacheTtlSeconds * 1000 : getRetryDelayMs()
+    success ? HAPPY_HOUR_REFRESH_MS : getRetryDelayMs()
   );
 }
 

@@ -40,13 +40,6 @@ export type {
   SourcePage
 } from "./calendar.types.js";
 
-const DEFAULT_CACHE_TTL_SECONDS = 15 * 60;
-
-interface SourceTextCacheEntry {
-  text: string;
-  expiresAt: number;
-}
-
 class SourceFetchError extends Error {
   constructor(
     readonly sourceUrl: string,
@@ -58,19 +51,8 @@ class SourceFetchError extends Error {
   }
 }
 
-const SOURCE_TEXT_CACHE = new Map<string, SourceTextCacheEntry>();
 const PENDING_FETCHES = new Map<string, Promise<string>>();
 const COOKIE_JAR = new Map<string, Map<string, string>>();
-
-export async function buildCalendarFeed(
-  config: CalendarSourceConfig,
-  now = dayjs(),
-  filters?: EventFilterInput
-): Promise<string> {
-  const { events } = await fetchCalendarEvents(config, now);
-
-  return eventsToIcs(config.name, filterCalendarEvents(events, filters, config.defaultFilters));
-}
 
 export async function fetchCalendarEvents(
   config: CalendarSourceConfig,
@@ -79,26 +61,26 @@ export async function fetchCalendarEvents(
   sourceUrl: string;
   sourceUrls: string[];
   events: CalendarEvent[];
-  cacheStatus: FetchStatus;
-  cacheStatuses: FetchStatus[];
+  fetchStatus: FetchStatus;
+  fetchStatuses: FetchStatus[];
 }> {
   const sourcePages = renderSourcePages(config.url, now);
   const sourceUrls = sourcePages.map((page) => page.sourceUrl);
   const allEvents: CalendarEvent[] = [];
-  const cacheStatuses: FetchStatus[] = [];
+  const fetchStatuses: FetchStatus[] = [];
 
   for (const sourcePage of sourcePages) {
     try {
-      const { events, cacheStatus } = await fetchCalendarSourcePage(config, sourcePage);
+      const { events, fetchStatus } = await fetchCalendarSourcePage(config, sourcePage);
 
       allEvents.push(...events);
-      cacheStatuses.push(cacheStatus);
+      fetchStatuses.push(fetchStatus);
     } catch (error) {
       if (sourceUrls.length === 1) {
         throw error;
       }
 
-      cacheStatuses.push("error");
+      fetchStatuses.push("error");
     }
   }
 
@@ -108,27 +90,27 @@ export async function fetchCalendarEvents(
     sourceUrl: sourceUrls[0] ?? config.url,
     sourceUrls,
     events,
-    cacheStatus: cacheStatuses[0] ?? "miss",
-    cacheStatuses
+    fetchStatus: fetchStatuses[0] ?? "fetched",
+    fetchStatuses
   };
 }
 
 export async function fetchCalendarSourcePage(
   config: CalendarSourceConfig,
   sourcePage: SourcePage
-): Promise<{ events: CalendarEvent[]; cacheStatus: FetchStatus }> {
+): Promise<{ events: CalendarEvent[]; fetchStatus: FetchStatus }> {
   try {
-    const { text, cacheStatus } = await fetchSourceText(sourcePage.sourceUrl, config.cacheTtlSeconds);
+    const text = await fetchSourceText(sourcePage.sourceUrl);
     const events = applyEventTransform(extractEventsFromSourceText(text, config, sourcePage), config.transformEvent);
 
-    return { events, cacheStatus };
+    return { events, fetchStatus: "fetched" };
   } catch (error) {
     if (error instanceof SourceFetchError) {
       const extractedEvents = extractEventsFromSourceText(error.text, config, sourcePage);
       const events = applyEventTransform(extractedEvents, config.transformEvent);
 
       if (extractedEvents.length || isEmptySourcePageText(error.text)) {
-        return { events, cacheStatus: "miss" };
+        return { events, fetchStatus: "fetched" };
       }
     }
 
@@ -182,39 +164,13 @@ export function filterCalendarEvents(
   });
 }
 
-export function clearCalendarFetchCache(): void {
-  SOURCE_TEXT_CACHE.clear();
+export function clearCalendarFetchState(): void {
   PENDING_FETCHES.clear();
   COOKIE_JAR.clear();
 }
 
-async function fetchSourceText(
-  sourceUrl: string,
-  cacheTtlSeconds = DEFAULT_CACHE_TTL_SECONDS
-): Promise<{ text: string; cacheStatus: FetchStatus }> {
-  const now = Date.now();
-  const cached = SOURCE_TEXT_CACHE.get(sourceUrl);
-
-  if (cached && cached.expiresAt > now) {
-    return { text: cached.text, cacheStatus: "hit" };
-  }
-
-  try {
-    const text = await fetchFreshText(sourceUrl);
-
-    SOURCE_TEXT_CACHE.set(sourceUrl, {
-      text,
-      expiresAt: now + cacheTtlSeconds * 1000
-    });
-
-    return { text, cacheStatus: "miss" };
-  } catch (error) {
-    if (cached) {
-      return { text: cached.text, cacheStatus: "stale" };
-    }
-
-    throw error;
-  }
+async function fetchSourceText(sourceUrl: string): Promise<string> {
+  return fetchFreshText(sourceUrl);
 }
 
 async function fetchFreshText(sourceUrl: string): Promise<string> {

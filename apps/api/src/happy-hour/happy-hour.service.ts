@@ -3,7 +3,7 @@ import ical, { ICalEventRepeatingFreq, ICalWeekday } from "ical-generator";
 import lodash from "lodash";
 
 import dayjs, { type Dayjs } from "../calendar/calendar.dates.js";
-import { filterCalendarEvents, type CalendarEvent, type FetchStatus } from "../calendar/calendar.service.js";
+import { type CalendarEvent, type FetchStatus } from "../calendar/calendar.service.js";
 import { normalizeText, resolveOptionalUrl } from "../calendar/calendar.utils.js";
 import { HAPPY_HOUR_SOURCE, type HappyHourSourceConfig } from "./happy-hour.config.js";
 
@@ -57,36 +57,16 @@ class HappyHourFetchError extends Error {
   }
 }
 
-export async function buildHappyHourFeed(
-  config: HappyHourSourceConfig = HAPPY_HOUR_SOURCE,
-  now = dayjs(),
-  filters?: string | string[]
-): Promise<string> {
-  const { events } = await fetchHappyHourEvents(config, now);
-
-  return happyHourEventsToIcs(config.name, filterCalendarEvents(events, filters));
-}
-
-export async function buildHappyHourDebugText(
-  config: HappyHourSourceConfig = HAPPY_HOUR_SOURCE,
-  now = dayjs(),
-  filters?: string | string[]
-): Promise<string> {
-  const { sourceUrl, events, cacheStatus } = await fetchHappyHourEvents(config, now);
-
-  return happyHourEventsToDebugText(config.name, sourceUrl, filterCalendarEvents(events, filters), cacheStatus);
-}
-
 export async function fetchHappyHourEvents(
   config: HappyHourSourceConfig = HAPPY_HOUR_SOURCE,
   now = dayjs()
-): Promise<{ sourceUrl: string; events: HappyHourEvent[]; cacheStatus: FetchStatus }> {
-  const { text, cacheStatus } = await fetchHappyHourSourceText(config);
+): Promise<{ sourceUrl: string; events: HappyHourEvent[]; fetchStatus: FetchStatus }> {
+  const { text, fetchStatus } = await fetchHappyHourSourceText(config);
 
   return {
     sourceUrl: config.url,
     events: extractHappyHourEvents(text, config, now),
-    cacheStatus
+    fetchStatus
   };
 }
 
@@ -176,12 +156,12 @@ export function happyHourEventsToDebugText(
   calendarName: string,
   sourceUrl: string,
   events: CalendarEvent[],
-  cacheStatus?: FetchStatus
+  fetchStatus?: FetchStatus
 ): string {
   const lines = [
     `Calendar: ${calendarName}`,
     `Source: ${sourceUrl}`,
-    `Fetch: cache ${cacheStatus ?? "unknown"}`,
+    `Fetch: upstream ${fetchStatus ?? "unknown"}`,
     `Events: ${events.length}`,
     ""
   ];
@@ -212,7 +192,7 @@ export function happyHourEventsToDebugText(
 
 async function fetchHappyHourSourceText(
   config: HappyHourSourceConfig
-): Promise<{ text: string; cacheStatus: FetchStatus }> {
+): Promise<{ text: string; fetchStatus: FetchStatus }> {
   const response = await fetch(config.url);
   const text = await response.text();
 
@@ -220,7 +200,7 @@ async function fetchHappyHourSourceText(
     throw new HappyHourFetchError(config.url, response.status, text);
   }
 
-  return { text, cacheStatus: "miss" };
+  return { text, fetchStatus: "fetched" };
 }
 
 function readRestaurantDetails(

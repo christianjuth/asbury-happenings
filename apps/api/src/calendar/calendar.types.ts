@@ -1,6 +1,6 @@
 import type { Dayjs } from "./calendar.dates.js";
 
-export type FetchStatus = "hit" | "miss" | "stale" | "error" | "cached" | "warming";
+export type FetchStatus = "fetched" | "stale" | "error" | "warming";
 
 export interface SourcePage {
   sourceUrl: string;
@@ -58,7 +58,6 @@ interface BaseCalendarSourceConfig {
   timeZone?: string;
   defaultAddress?: string;
   defaultFilters?: string[];
-  cacheTtlSeconds?: number;
   defaultDurationMinutes?: number;
   transformEvent?: CalendarEventTransform;
 }

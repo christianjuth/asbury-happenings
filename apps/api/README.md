@@ -40,7 +40,7 @@ Plain-text debug output:
 curl "http://localhost:3000/calendar/example-events.ics?debug=1"
 ```
 
-Debug output includes per-page cache and revalidate status. `Fetch: cache miss` means the last background warm fetched fresh upstream text instead of reusing the short-lived source-text cache; it can still show events because that fresh response was parsed and stored in the calendar snapshot. `snapshot` is when that page was last fetched. Snapshots are `fresh` for 15 minutes, then `due` until the next warm starts. `refetching` means a warm is in progress, `warming` means no snapshot exists yet, and `error` means the last refresh failed.
+Debug output includes per-page fetch and revalidate status. `Fetch: upstream fetched` means the last background warm fetched that page from the upstream site and stored a parsed snapshot. `snapshot` is when that page was last fetched. Snapshots are `fresh` for 15 minutes, then `due` until the next warm starts. `refetching` means a warm is in progress, `warming` means no snapshot exists yet, and `error` means the last refresh failed.
 
 Happy hour debug output:
 
@@ -160,7 +160,7 @@ Addresses can be parsed with `address`; if no separate `location` is found, the 
 
 `{year}` and `{month}` use the current UTC year and zero-padded month. If a source URL contains `{month}`, the app caches this month plus the next two months. URLs without `{month}` have one cache page. Each `containerSelector` match becomes one event. `title` plus either `start` or `startDate` are required; containers missing them are skipped. If no end date/time is found, `defaultDurationMinutes` is used.
 
-The app keeps parsed calendar pages in memory. On startup it kicks off every page for every calendar immediately, then refreshes each calendar every 15 minutes. Sources with `{month}` warm this month plus the next two months; sources without `{month}` have one page. Each calendar has its own scheduler queue, so failures back off with jitter for that calendar without slowing other calendars. Calendar routes return only cached data and respond with `503 Calendar cache warming` until at least one page is warm.
+The app keeps parsed calendar pages in memory. On startup it kicks off every page for every calendar immediately, then refreshes each calendar every 15 minutes. That 15-minute scheduler cadence is the only normal upstream crawl cadence for calendar sources. Sources with `{month}` warm this month plus the next two months; sources without `{month}` have one page. Each calendar has its own scheduler queue, so failures back off with jitter for that calendar without slowing other calendars. Calendar routes return only cached data and respond with `503 Calendar cache warming` until at least one page is warm.
 
 Fly is configured with `min_machines_running = 1` so the scheduler keeps running.
 
@@ -173,6 +173,8 @@ Fly is configured with `min_machines_running = 1` so the scheduler keeps running
 `GET /happy-hours/asbury-park.ics?debug=1`
 
 The happy-hour service crawls `https://asburypark.rectalogic.com/#restaurant-happy-hours`, parses each restaurant's `time.dayhour` rows, and emits one recurring weekly ICS event per restaurant/day/time slot. The event summary is the restaurant name. Event descriptions include specials plus phone, verified date, menu, Instagram, and map links when present.
+
+Happy-hour data is also warmed in memory on startup and refreshed every 15 minutes. Happy-hour routes return only cached data and do not crawl upstream during request handling.
 
 ## Add Redis Later
 
