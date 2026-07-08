@@ -12,10 +12,8 @@
     "start": "node dist/main.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "pnpm lint:types && pnpm lint:eslint",
-    "lint:eslint": "eslint src test",
-    "lint:cycles": "pnpm lint:eslint",
-    "lint:types": "tsc -p tsconfig.json --noEmit"
+    "lint": "eslint src test",
+    "test:ts": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@fastify/sensible": "^6.0.0",
