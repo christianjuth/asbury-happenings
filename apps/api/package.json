@@ -10,9 +10,13 @@
     "dev": "tsx watch src/main.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js",
+    "prepare": "husky",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src test",
+    "lint-staged": "lint-staged",
     "test:ts": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -31,6 +35,9 @@
     "@typescript-eslint/parser": "^8.62.1",
     "eslint": "^10.6.0",
     "eslint-plugin-import-x": "4.17.1",
+    "husky": "9.1.7",
+    "lint-staged": "17.0.8",
+    "prettier": "3.9.4",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^2.1.0"
