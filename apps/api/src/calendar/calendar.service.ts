@@ -27,16 +27,12 @@ import dayjs, { type Dayjs } from "./calendar.dates.js";
 
 export type {
   CalendarEvent,
-  CalendarEventTransform,
   CalendarSourceConfig,
   EventFilterInput,
   FetchStatus,
   HtmlCalendarSourceConfig,
   IcsCalendarSourceConfig,
   JsonCalendarSourceConfig,
-  JsonDateFormat,
-  JsonFieldSpec,
-  SelectorSpec,
   SourcePage
 } from "./calendar.types.js";
 

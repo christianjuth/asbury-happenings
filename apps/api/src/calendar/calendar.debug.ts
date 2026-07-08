@@ -2,7 +2,7 @@ import lodash from "lodash";
 import type { Dayjs } from "./calendar.dates.js";
 import type { CalendarEvent, FetchStatus } from "./calendar.types.js";
 
-export type CalendarRevalidateStatus = "fresh" | "due" | "refetching" | "error" | "warming";
+type CalendarRevalidateStatus = "fresh" | "due" | "refetching" | "error" | "warming";
 
 export interface CalendarDebugPage {
   sourceUrl: string;

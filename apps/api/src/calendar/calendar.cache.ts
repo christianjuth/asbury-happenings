@@ -101,7 +101,7 @@ export function startCalendarCacheScheduler(logger: FastifyBaseLogger): () => Pr
   return stopCalendarCacheScheduler;
 }
 
-export async function stopCalendarCacheScheduler(): Promise<void> {
+async function stopCalendarCacheScheduler(): Promise<void> {
   const workers = [...CACHE_WORKERS.values()];
   const hostLimiters = [...SOURCE_HOST_LIMITERS.values()];
 

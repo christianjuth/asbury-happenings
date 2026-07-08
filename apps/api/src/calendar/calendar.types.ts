@@ -17,7 +17,7 @@ export type SelectorSpec =
     remove?: string[];
   };
 
-export interface EventSelectorConfig {
+interface EventSelectorConfig {
   title: SelectorSpec;
   start?: SelectorSpec;
   startDate?: SelectorSpec;
@@ -40,7 +40,7 @@ export type JsonFieldSpec =
     dateFormat?: JsonDateFormat;
   };
 
-export interface JsonEventFieldConfig {
+interface JsonEventFieldConfig {
   title: JsonFieldSpec;
   start: JsonFieldSpec;
   end?: JsonFieldSpec;
@@ -96,7 +96,7 @@ export interface CalendarEvent {
 }
 
 export type CalendarEventTransform = (event: CalendarEvent) => CalendarEvent | null;
-export type CalendarSourceTextExtractor<TConfig extends CalendarSourceConfig> = (
+type CalendarSourceTextExtractor<TConfig extends CalendarSourceConfig> = (
   text: string,
   config: TConfig,
   sourcePage: SourcePage

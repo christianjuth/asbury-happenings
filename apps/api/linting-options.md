@@ -75,3 +75,12 @@ For this repo:
 - Add TypeScript or ESLint local unused checks as baseline.
 - Use `import-x/no-unused-modules` or `knip` if we specifically want “unused exported functions.”
 - Start with `import-x/no-unused-modules` since dependency already exists, then move to `knip` if false positives get annoying.
+
+## Implementation Note
+
+`import-x/no-unused-modules` is currently a no-op under ESLint 10 in the installed plugin version because ESLint removed the FileEnumerator API that rule depends on.
+
+The implemented approach is:
+- TypeScript checks local unused code with `noUnusedLocals` and `noUnusedParameters`.
+- ESLint runs a local `local/no-unused-exports` rule from `eslint.config.js`.
+- That rule scans `src` exports and `src`/`test` imports with the TypeScript parser API, then reports exported `src` symbols that are not imported anywhere in the codebase.

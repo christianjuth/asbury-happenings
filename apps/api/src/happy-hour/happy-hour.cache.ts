@@ -93,7 +93,7 @@ export function startHappyHourCacheScheduler(logger: FastifyBaseLogger): () => P
   return stopHappyHourCacheScheduler;
 }
 
-export async function stopHappyHourCacheScheduler(): Promise<void> {
+async function stopHappyHourCacheScheduler(): Promise<void> {
   STOPPED = true;
 
   if (REFRESH_TIMER) {

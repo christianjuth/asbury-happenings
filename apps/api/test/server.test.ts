@@ -191,14 +191,14 @@ describe("server", () => {
 
     await warmCalendarPage(config, 0, dayjs("2026-07-03T00:00:00Z"));
 
-    const freshDebugText = getCachedCalendarDebugText(config, undefined, dayjs("2026-07-03T00:14:59Z"));
-    const dueDebugText = getCachedCalendarDebugText(config, undefined, dayjs("2026-07-03T00:15:00Z"));
+    const freshDebugText = getCachedCalendarDebugText(config, undefined, dayjs("2026-07-03T00:29:59Z"));
+    const dueDebugText = getCachedCalendarDebugText(config, undefined, dayjs("2026-07-03T00:30:00Z"));
 
     expect(freshDebugText).toContain(
-      "1. fetch fetched | snapshot 2026-07-03T00:00:00.000Z | revalidate fresh until 2026-07-03T00:15:00.000Z"
+      "1. fetch fetched | snapshot 2026-07-03T00:00:00.000Z | revalidate fresh until 2026-07-03T00:30:00.000Z"
     );
     expect(dueDebugText).toContain(
-      "1. fetch fetched | snapshot 2026-07-03T00:00:00.000Z | revalidate due since 2026-07-03T00:15:00.000Z"
+      "1. fetch fetched | snapshot 2026-07-03T00:00:00.000Z | revalidate due since 2026-07-03T00:30:00.000Z"
     );
   });
 
