@@ -8,14 +8,16 @@ import { registerHappyHourRoutes } from "./happy-hour/happy-hour.routes.js";
 
 export async function buildServer() {
   const server = Fastify({
-    logger: true
+    logger: true,
   });
 
   await server.register(sensible);
 
   if (ENV.NODE_ENV !== "test") {
     const stopCalendarCacheScheduler = startCalendarCacheScheduler(server.log);
-    const stopHappyHourCacheScheduler = startHappyHourCacheScheduler(server.log);
+    const stopHappyHourCacheScheduler = startHappyHourCacheScheduler(
+      server.log,
+    );
 
     server.addHook("onClose", async () => {
       await stopCalendarCacheScheduler();
@@ -24,7 +26,7 @@ export async function buildServer() {
   }
 
   server.get("/health", async () => ({
-    ok: true
+    ok: true,
   }));
 
   await registerCalendarRoutes(server);

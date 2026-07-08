@@ -6,35 +6,45 @@ import {
   parseDateAndTimeOrNull,
   parseDateOrNull,
   parseWithOptionalTimeZone,
-  resolveOptionalUrl
+  resolveOptionalUrl,
 } from "./calendar.utils.js";
-import type { CalendarEvent, HtmlCalendarSourceConfig, SourcePage } from "./calendar.types.js";
+import type {
+  CalendarEvent,
+  HtmlCalendarSourceConfig,
+  SourcePage,
+} from "./calendar.types.js";
 import type { Dayjs } from "./calendar.dates.js";
 
-export function stripHtmlFromEventLocation(event: CalendarEvent): CalendarEvent {
+export function stripHtmlFromEventLocation(
+  event: CalendarEvent,
+): CalendarEvent {
   const location = event.location ? stripHtml(event.location) : event.location;
   const address = event.address ? stripHtml(event.address) : event.address;
 
   return {
     ...event,
     location,
-    address
+    address,
   };
 }
 
-export function stripHtmlFromEventDescription(event: CalendarEvent): CalendarEvent {
-  const description = event.description ? stripHtml(event.description) : event.description;
+export function stripHtmlFromEventDescription(
+  event: CalendarEvent,
+): CalendarEvent {
+  const description = event.description
+    ? stripHtml(event.description)
+    : event.description;
 
   return {
     ...event,
-    description
+    description,
   };
 }
 
 export function extractShowroomComingSoonEvents(
   html: string,
   config: HtmlCalendarSourceConfig,
-  sourcePage: SourcePage
+  sourcePage: SourcePage,
 ): CalendarEvent[] {
   // ShowRoom nests multiple dated showtimes inside one movie card, and some cards only
   // expose an "Opens on" date. The generic HTML extractor maps one card to one event.
@@ -43,21 +53,30 @@ export function extractShowroomComingSoonEvents(
 
   $(".show-list > .show-details, .show-details").each((_, element) => {
     const container = $(element);
-    const title = normalizeText(container.find(".show-title .title").first().text());
+    const title = normalizeText(
+      container.find(".show-title .title").first().text(),
+    );
 
     if (!title) {
       return;
     }
 
-    const detailUrl = resolveOptionalUrl(container.find(".show-title .title").first().attr("href"), sourcePage.sourceUrl);
-    const description = normalizeText(container.find(".show-content").first().text()) || undefined;
+    const detailUrl = resolveOptionalUrl(
+      container.find(".show-title .title").first().attr("href"),
+      sourcePage.sourceUrl,
+    );
+    const description =
+      normalizeText(container.find(".show-content").first().text()) ||
+      undefined;
     const address = config.defaultAddress;
     const dateByTimestamp = new Map<string, string>();
 
     container.find(".datelist .show-date").each((_, dateElement) => {
       const dateItem = $(dateElement);
       const timestamp = normalizeText(dateItem.attr("data-date"));
-      const dateText = normalizeShowroomDateText(dateItem.find("span").first().text());
+      const dateText = normalizeShowroomDateText(
+        dateItem.find("span").first().text(),
+      );
 
       if (timestamp && dateText) {
         dateByTimestamp.set(timestamp, dateText);
@@ -68,9 +87,16 @@ export function extractShowroomComingSoonEvents(
       const showtimeItem = $(showtimeElement);
       const timestamp = normalizeText(showtimeItem.attr("data-date"));
       const dateText = dateByTimestamp.get(timestamp);
-      const timeText = normalizeText(showtimeItem.find("a.showtime").first().text());
+      const timeText = normalizeText(
+        showtimeItem.find("a.showtime").first().text(),
+      );
       const start = dateText
-        ? parseShowroomDateTime(dateText, timeText, config, sourcePage.referenceDate)
+        ? parseShowroomDateTime(
+            dateText,
+            timeText,
+            config,
+            sourcePage.referenceDate,
+          )
         : null;
 
       if (!start) {
@@ -84,20 +110,26 @@ export function extractShowroomComingSoonEvents(
         description,
         location: address,
         address,
-        url: resolveOptionalUrl(showtimeItem.find("a.showtime").first().attr("href"), sourcePage.sourceUrl) ?? detailUrl
+        url:
+          resolveOptionalUrl(
+            showtimeItem.find("a.showtime").first().attr("href"),
+            sourcePage.sourceUrl,
+          ) ?? detailUrl,
       });
     });
 
-    const opensOnText = normalizeText(container.find(".no-showtimes-date").first().text());
+    const opensOnText = normalizeText(
+      container.find(".no-showtimes-date").first().text(),
+    );
     const opensOnDateText = normalizeShowroomDateText(opensOnText);
     const opensOnDate = opensOnDateText
       ? parseDateOrNull(
-        opensOnDateText,
-        { selector: ":self", format: ["MMM D", "MMMM D"] },
-        undefined,
-        sourcePage.referenceDate,
-        config.timeZone
-      )
+          opensOnDateText,
+          { selector: ":self", format: ["MMM D", "MMMM D"] },
+          undefined,
+          sourcePage.referenceDate,
+          config.timeZone,
+        )
       : null;
 
     if (opensOnDate) {
@@ -106,10 +138,12 @@ export function extractShowroomComingSoonEvents(
         start: opensOnDate,
         end: opensOnDate.add(1, "day"),
         allDay: true,
-        description: description ? `Opens on ${opensOnDateText}. ${description}` : `Opens on ${opensOnDateText}.`,
+        description: description
+          ? `Opens on ${opensOnDateText}. ${description}`
+          : `Opens on ${opensOnDateText}.`,
         location: address,
         address,
-        url: detailUrl
+        url: detailUrl,
       });
     }
   });
@@ -120,7 +154,7 @@ export function extractShowroomComingSoonEvents(
 export function extractSmithMadeEvents(
   html: string,
   config: HtmlCalendarSourceConfig,
-  sourcePage: SourcePage
+  sourcePage: SourcePage,
 ): CalendarEvent[] {
   // Smith Made event cards only render the day number in the listing, so the
   // event month has to come from the rendered source page context. Their time
@@ -132,26 +166,44 @@ export function extractSmithMadeEvents(
 
   $(config.containerSelector).each((_, element) => {
     const container = $(element);
-    const title = normalizeText(container.find(".event-info h2").first().text());
-    const dayText = normalizeText(container.find(".date .type--h2").first().text());
+    const title = normalizeText(
+      container.find(".event-info h2").first().text(),
+    );
+    const dayText = normalizeText(
+      container.find(".date .type--h2").first().text(),
+    );
     const timeText = normalizeText(
       container
         .find(".event-meta div")
         .toArray()
         .map((timeElement) => $(timeElement).text())
-        .find((value) => /\d/.test(value) && /\bto\b/i.test(value))
+        .find((value) => /\d/.test(value) && /\bto\b/i.test(value)),
     );
-    const start = parseSmithMadeDateTime(dayText, timeText, sourcePage.referenceDate, config.timeZone);
+    const start = parseSmithMadeDateTime(
+      dayText,
+      timeText,
+      sourcePage.referenceDate,
+      config.timeZone,
+    );
 
     if (!title || !start) {
       return;
     }
 
     const end =
-      parseSmithMadeEndDateTime(dayText, timeText, start, sourcePage.referenceDate, config.timeZone) ??
-      start.add(config.defaultDurationMinutes ?? 60, "minute");
-    const description = normalizeText(container.find(".event-description").first().text()) || undefined;
-    const locationName = normalizeText(container.find(".event-meta a").first().text());
+      parseSmithMadeEndDateTime(
+        dayText,
+        timeText,
+        start,
+        sourcePage.referenceDate,
+        config.timeZone,
+      ) ?? start.add(config.defaultDurationMinutes ?? 60, "minute");
+    const description =
+      normalizeText(container.find(".event-description").first().text()) ||
+      undefined;
+    const locationName = normalizeText(
+      container.find(".event-meta a").first().text(),
+    );
     const address = config.defaultAddress;
 
     events.push({
@@ -161,7 +213,7 @@ export function extractSmithMadeEvents(
       description,
       location: address ?? locationName,
       address,
-      url: sourcePage.sourceUrl
+      url: sourcePage.sourceUrl,
     });
   });
 
@@ -171,7 +223,7 @@ export function extractSmithMadeEvents(
 export function extractUncorkedWineInspiredEvents(
   html: string,
   config: HtmlCalendarSourceConfig,
-  sourcePage: SourcePage
+  sourcePage: SourcePage,
 ): CalendarEvent[] {
   // EventBook emits all-caps month names and mixes price/seat text into the
   // date line, which is easier to normalize here than in generic selectors.
@@ -181,13 +233,14 @@ export function extractUncorkedWineInspiredEvents(
   $(config.containerSelector).each((_, element) => {
     const container = $(element);
     const title = normalizeText(container.find("h2").first().text());
-    const description = normalizeText(container.find("p").first().text()) || undefined;
+    const description =
+      normalizeText(container.find("p").first().text()) || undefined;
     const dateLine = normalizeText(
       container
         .find("p")
         .toArray()
         .map((paragraph) => $(paragraph).text())
-        .find((value) => /\bAT\s+\d{1,2}:\d{2}[AP]M/i.test(value))
+        .find((value) => /\bAT\s+\d{1,2}:\d{2}[AP]M/i.test(value)),
     );
     const start = parseUncorkedWineInspiredDateTime(dateLine, config.timeZone);
 
@@ -204,7 +257,10 @@ export function extractUncorkedWineInspiredEvents(
       description,
       location: address,
       address,
-      url: resolveOptionalUrl(container.find("a.btn_info").first().attr("href"), sourcePage.sourceUrl)
+      url: resolveOptionalUrl(
+        container.find("a.btn_info").first().attr("href"),
+        sourcePage.sourceUrl,
+      ),
     });
   });
 
@@ -225,8 +281,13 @@ function normalizeShowroomDateText(value: string | undefined): string {
   return normalizeText(value).replace(/^(?:Opens on\s+|[A-Za-z]{3},\s*)/i, "");
 }
 
-function parseUncorkedWineInspiredDateTime(value: string, timeZone?: string): Dayjs | null {
-  const match = value.match(/^([A-Z]+)\s+(\d{2}),\s+(\d{4})\s+AT\s+(\d{1,2}:\d{2}[AP]M)/);
+function parseUncorkedWineInspiredDateTime(
+  value: string,
+  timeZone?: string,
+): Dayjs | null {
+  const match = value.match(
+    /^([A-Z]+)\s+(\d{2}),\s+(\d{4})\s+AT\s+(\d{1,2}:\d{2}[AP]M)/,
+  );
 
   if (!match) {
     return null;
@@ -239,7 +300,11 @@ function parseUncorkedWineInspiredDateTime(value: string, timeZone?: string): Da
   }
 
   const month = lodash.startCase(rawMonth.toLowerCase());
-  const parsed = parseWithOptionalTimeZone(`${month} ${day}, ${year} ${time}`, "MMMM DD, YYYY h:mmA", timeZone);
+  const parsed = parseWithOptionalTimeZone(
+    `${month} ${day}, ${year} ${time}`,
+    "MMMM DD, YYYY h:mmA",
+    timeZone,
+  );
 
   return parsed.isValid() ? parsed : null;
 }
@@ -248,7 +313,7 @@ function parseSmithMadeDateTime(
   dayText: string,
   timeText: string,
   referenceDate: Dayjs,
-  timeZone?: string
+  timeZone?: string,
 ): Dayjs | null {
   const timeRange = parseSmithMadeTimeRange(timeText);
 
@@ -258,7 +323,12 @@ function parseSmithMadeDateTime(
     return date;
   }
 
-  return parseSmithMadeLocalDateTime(dayText, timeRange.startTime, referenceDate, timeZone);
+  return parseSmithMadeLocalDateTime(
+    dayText,
+    timeRange.startTime,
+    referenceDate,
+    timeZone,
+  );
 }
 
 function parseSmithMadeEndDateTime(
@@ -266,7 +336,7 @@ function parseSmithMadeEndDateTime(
   timeText: string,
   start: Dayjs,
   referenceDate: Dayjs,
-  timeZone?: string
+  timeZone?: string,
 ): Dayjs | null {
   const timeRange = parseSmithMadeTimeRange(timeText);
 
@@ -274,7 +344,12 @@ function parseSmithMadeEndDateTime(
     return null;
   }
 
-  const end = parseSmithMadeLocalDateTime(dayText, timeRange.endTime, referenceDate, timeZone);
+  const end = parseSmithMadeLocalDateTime(
+    dayText,
+    timeRange.endTime,
+    referenceDate,
+    timeZone,
+  );
 
   if (!end) {
     return null;
@@ -283,8 +358,12 @@ function parseSmithMadeEndDateTime(
   return end.isAfter(start) ? end : end.add(1, "day");
 }
 
-function parseSmithMadeTimeRange(timeText: string): { startTime: string; endTime: string } | null {
-  const match = timeText.match(/^(\d{1,2}(?::\d{2})?)\s*([AP]M)?\s+to\s+(\d{1,2}(?::\d{2})?)\s*([AP]M)$/i);
+function parseSmithMadeTimeRange(
+  timeText: string,
+): { startTime: string; endTime: string } | null {
+  const match = timeText.match(
+    /^(\d{1,2}(?::\d{2})?)\s*([AP]M)?\s+to\s+(\d{1,2}(?::\d{2})?)\s*([AP]M)$/i,
+  );
 
   if (!match) {
     return null;
@@ -297,15 +376,21 @@ function parseSmithMadeTimeRange(timeText: string): { startTime: string; endTime
   }
 
   const endPeriod = rawEndPeriod.toUpperCase();
-  const startPeriod = rawStartPeriod?.toUpperCase() ?? inferSmithMadeStartPeriod(rawStartTime, rawEndTime, endPeriod);
+  const startPeriod =
+    rawStartPeriod?.toUpperCase() ??
+    inferSmithMadeStartPeriod(rawStartTime, rawEndTime, endPeriod);
 
   return {
     startTime: `${rawStartTime} ${startPeriod}`,
-    endTime: `${rawEndTime} ${endPeriod}`
+    endTime: `${rawEndTime} ${endPeriod}`,
   };
 }
 
-function inferSmithMadeStartPeriod(startTime: string, endTime: string, endPeriod: string): string {
+function inferSmithMadeStartPeriod(
+  startTime: string,
+  endTime: string,
+  endPeriod: string,
+): string {
   const startHour = Number(startTime.split(":")[0]);
   const endHour = Number(endTime.split(":")[0]);
 
@@ -320,7 +405,11 @@ function inferSmithMadeStartPeriod(startTime: string, endTime: string, endPeriod
   return endPeriod;
 }
 
-function parseSmithMadeDate(dayText: string, referenceDate: Dayjs, timeZone?: string): Dayjs | null {
+function parseSmithMadeDate(
+  dayText: string,
+  referenceDate: Dayjs,
+  timeZone?: string,
+): Dayjs | null {
   const day = Number(dayText);
 
   if (!Number.isInteger(day) || day < 1 || day > 31) {
@@ -337,7 +426,7 @@ function parseSmithMadeLocalDateTime(
   dayText: string,
   timeText: string,
   referenceDate: Dayjs,
-  timeZone?: string
+  timeZone?: string,
 ): Dayjs | null {
   const day = Number(dayText);
 
@@ -346,7 +435,11 @@ function parseSmithMadeLocalDateTime(
   }
 
   const dateTimeText = `${referenceDate.year()}-${referenceDate.month() + 1}-${day} ${timeText}`;
-  const parsed = parseWithOptionalTimeZone(dateTimeText, "YYYY-M-D h:mm A", timeZone);
+  const parsed = parseWithOptionalTimeZone(
+    dateTimeText,
+    "YYYY-M-D h:mm A",
+    timeZone,
+  );
 
   return parsed.isValid() ? parsed : null;
 }
@@ -355,7 +448,7 @@ function parseShowroomDateTime(
   dateText: string,
   timeText: string,
   config: HtmlCalendarSourceConfig,
-  referenceDate: Dayjs
+  referenceDate: Dayjs,
 ): Dayjs | null {
   return parseDateAndTimeOrNull(
     dateText,
@@ -365,6 +458,6 @@ function parseShowroomDateTime(
     undefined,
     undefined,
     referenceDate,
-    config.timeZone
+    config.timeZone,
   );
 }

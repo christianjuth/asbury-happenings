@@ -3,7 +3,7 @@ import {
   extractShowroomComingSoonEvents,
   extractUncorkedWineInspiredEvents,
   stripHtmlFromEventDescription,
-  stripHtmlFromEventLocation
+  stripHtmlFromEventLocation,
 } from "./calendar.post-processing.js";
 import type { CalendarSourceConfig } from "./calendar.types.js";
 
@@ -13,9 +13,9 @@ const SQUARESPACE_JSON_SOURCE = {
     title: "title",
     start: "startDate",
     end: "endDate",
-    url: "fullUrl"
+    url: "fullUrl",
   },
-  dateFormat: "epoch-ms"
+  dateFormat: "epoch-ms",
 } satisfies Partial<CalendarSourceConfig>;
 
 export const CALENDAR_SOURCES = [
@@ -27,12 +27,12 @@ export const CALENDAR_SOURCES = [
     containerSelector: ".results > div",
     selectors: {
       title: ".event-info h2",
-      startDate: ".date .type--h2"
+      startDate: ".date .type--h2",
     },
     timeZone: "America/New_York",
     defaultAddress: "Brickwall, 522 Cookman Ave, Asbury Park, NJ 07712",
     defaultDurationMinutes: 300,
-    extractEvents: extractSmithMadeEvents
+    extractEvents: extractSmithMadeEvents,
   },
   {
     id: "asbury-lovesick",
@@ -42,12 +42,12 @@ export const CALENDAR_SOURCES = [
     containerSelector: ".results > div",
     selectors: {
       title: ".event-info h2",
-      startDate: ".date .type--h2"
+      startDate: ".date .type--h2",
     },
     timeZone: "America/New_York",
     defaultAddress: "Lovesick, 530 Cookman Ave, Asbury Park, NJ 07712",
     defaultDurationMinutes: 240,
-    extractEvents: extractSmithMadeEvents
+    extractEvents: extractSmithMadeEvents,
   },
   {
     id: "stone-pony",
@@ -60,33 +60,33 @@ export const CALENDAR_SOURCES = [
       start: {
         selector: ".evo_event_schema meta[itemprop='startDate']",
         attr: "content",
-        format: "YYYY-M-DTHH:mm"
+        format: "YYYY-M-DTHH:mm",
       },
       end: {
         selector: ".evo_event_schema meta[itemprop='endDate']",
         attr: "content",
-        format: "YYYY-M-DTHH:mm"
+        format: "YYYY-M-DTHH:mm",
       },
       description: {
         selector: ".eventon_desc_in",
-        remove: ["iframe"]
+        remove: ["iframe"],
       },
       location: {
         selector: ".evcal_desc",
-        attr: "data-location_name"
+        attr: "data-location_name",
       },
       address: {
         selector: ".evcal_desc",
-        attr: "data-location_address"
+        attr: "data-location_address",
       },
       url: {
         selector: ".evo_event_schema a[itemprop='url']",
-        attr: "href"
-      }
+        attr: "href",
+      },
     },
     timeZone: "America/New_York",
     defaultAddress: "913 Ocean Avenue, Asbury Park, NJ 07712",
-    defaultDurationMinutes: 240
+    defaultDurationMinutes: 240,
   },
   {
     id: "uncorked-wine-inspired",
@@ -99,18 +99,18 @@ export const CALENDAR_SOURCES = [
       start: {
         selector: ".block > div:nth-child(2) > p:nth-of-type(2)",
         pattern: /^([A-Z]+ \d{2}, \d{4} AT \d{1,2}:\d{2}[AP]M)/,
-        format: "MMMM DD, YYYY [AT] h:mmA"
+        format: "MMMM DD, YYYY [AT] h:mmA",
       },
       description: ".block > div:nth-child(2) > p:nth-of-type(1)",
       url: {
         selector: "a.btn_info",
-        attr: "href"
-      }
+        attr: "href",
+      },
     },
     timeZone: "America/New_York",
     defaultAddress: "Uncorked Wine Inspired",
     defaultDurationMinutes: 120,
-    extractEvents: extractUncorkedWineInspiredEvents
+    extractEvents: extractUncorkedWineInspiredEvents,
   },
   {
     id: "asbury-book-coop",
@@ -123,22 +123,22 @@ export const CALENDAR_SOURCES = [
       startDate: {
         selector: ".event-list__details",
         pattern: /[A-Za-z]{3},\s*([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4})/,
-        format: "M/D/YYYY"
+        format: "M/D/YYYY",
       },
       startTime: {
         selector: ".event-list__details",
         pattern: /([0-9]{1,2}:[0-9]{2}\s*[ap]m)\s*-/i,
-        format: ["h:mma", "h:mm a"]
+        format: ["h:mma", "h:mm a"],
       },
       endTime: {
         selector: ".event-list__details",
         pattern: /-\s*([0-9]{1,2}:[0-9]{2}\s*[ap]m)/i,
-        format: ["h:mma", "h:mm a"]
+        format: ["h:mma", "h:mm a"],
       },
       location: ".location",
       address: {
         selector: "address",
-        pattern: /.*$/i
+        pattern: /.*$/i,
       },
       description: {
         selector: ".event-list__body",
@@ -146,18 +146,19 @@ export const CALENDAR_SOURCES = [
           ".event-list__title",
           ".event-list__details",
           ".event-list__links",
-          ".event-list__links--event"
-        ]
+          ".event-list__links--event",
+        ],
       },
       url: {
         selector: "a.event-list__links--event",
-        attr: "href"
-      }
+        attr: "href",
+      },
     },
     dateFormats: ["MMM DD", "MMM D", "MMMM DD", "MMMM D"],
     timeZone: "America/New_York",
-    defaultAddress: "Asbury Book Cooperative, 644A Cookman Ave, Asbury Park, NJ 07712",
-    defaultDurationMinutes: 60
+    defaultAddress:
+      "Asbury Book Cooperative, 644A Cookman Ave, Asbury Park, NJ 07712",
+    defaultDurationMinutes: 60,
   },
   {
     id: "tim-mcloones-supper-club",
@@ -170,31 +171,32 @@ export const CALENDAR_SOURCES = [
       startDate: {
         selector: ".event_date",
         pattern: /^[A-Za-z]+,\s*(.+)$/,
-        format: "MMMM D"
+        format: "MMMM D",
       },
       startTime: {
         selector: ":self",
         pattern: /([0-9]{1,2}:[0-9]{2}\s*[ap]m)/i,
-        format: ["h:mma", "h:mm a"]
+        format: ["h:mma", "h:mm a"],
       },
       endTime: {
         selector: ":self",
         pattern: /-\s*([0-9]{1,2}:[0-9]{2}\s*[ap]m)/i,
-        format: ["h:mma", "h:mm a"]
+        format: ["h:mma", "h:mm a"],
       },
       description: {
         selector: ":self",
-        remove: ["h2", ".event_date", "a", ".btn_events"]
+        remove: ["h2", ".event_date", "a", ".btn_events"],
       },
       url: {
         selector: "h2 a",
-        attr: "href"
-      }
+        attr: "href",
+      },
     },
     dateFormats: ["MMMM D"],
     timeZone: "America/New_York",
-    defaultAddress: "Tim McLoone's Supper Club, 1200 Ocean Avenue, Asbury Park, NJ 07712",
-    defaultDurationMinutes: 120
+    defaultAddress:
+      "Tim McLoone's Supper Club, 1200 Ocean Avenue, Asbury Park, NJ 07712",
+    defaultDurationMinutes: 120,
   },
   {
     id: "ap-rooftop",
@@ -206,28 +208,30 @@ export const CALENDAR_SOURCES = [
       title: ".events_col2 h2",
       startDate: {
         selector: ".event_date, .events_col1",
-        pattern: /^(?:[A-Za-z]+,?\s+)?((?:[A-Za-z]+\s+\d{1,2})|(?:\d{1,2}\s+[A-Za-z]+))$/,
-        format: ["MMMM D", "D MMMM"]
+        pattern:
+          /^(?:[A-Za-z]+,?\s+)?((?:[A-Za-z]+\s+\d{1,2})|(?:\d{1,2}\s+[A-Za-z]+))$/,
+        format: ["MMMM D", "D MMMM"],
       },
       startTime: {
         selector: ".events_col2",
         pattern: /([0-9]{1,2}:[0-9]{2}\s*[ap]m)/i,
-        format: ["h:mma", "h:mm a"]
+        format: ["h:mma", "h:mm a"],
       },
       endTime: {
         selector: ".events_col2",
         pattern: /-\s*([0-9]{1,2}:[0-9]{2}\s*[ap]m)/i,
-        format: ["h:mma", "h:mm a"]
+        format: ["h:mma", "h:mm a"],
       },
       description: {
         selector: ".events_col2",
-        remove: ["h2", ".event_date", "a"]
-      }
+        remove: ["h2", ".event_date", "a"],
+      },
     },
     dateFormats: ["MMMM D", "D MMMM"],
     timeZone: "America/New_York",
-    defaultAddress: "Arthur Pryor Bandshell, 1200 Ocean Ave, Asbury Park, NJ 07712",
-    defaultDurationMinutes: 180
+    defaultAddress:
+      "Arthur Pryor Bandshell, 1200 Ocean Ave, Asbury Park, NJ 07712",
+    defaultDurationMinutes: 180,
   },
   {
     id: "iron-whale",
@@ -240,31 +244,31 @@ export const CALENDAR_SOURCES = [
       startDate: {
         selector: ".events_col2 > div:first-child h3",
         pattern: /^[A-Za-z]+,\s*(.+)$/,
-        format: "MMMM D"
+        format: "MMMM D",
       },
       startTime: {
         selector: ".events_col2",
         pattern: /([0-9]{1,2}:[0-9]{2}\s*[ap]m)/i,
-        format: ["h:mma", "h:mm a"]
+        format: ["h:mma", "h:mm a"],
       },
       endTime: {
         selector: ".events_col2",
         pattern: /-\s*([0-9]{1,2}:[0-9]{2}\s*[ap]m)/i,
-        format: ["h:mma", "h:mm a"]
+        format: ["h:mma", "h:mm a"],
       },
       description: {
         selector: ".events_col2",
-        remove: ["h3", "a"]
+        remove: ["h3", "a"],
       },
       url: {
         selector: ".events_col2 a",
-        attr: "href"
-      }
+        attr: "href",
+      },
     },
     dateFormats: ["MMMM D"],
     timeZone: "America/New_York",
     defaultAddress: "Iron Whale, 1200 Ocean Avenue, Asbury Park, NJ 07712",
-    defaultDurationMinutes: 120
+    defaultDurationMinutes: 120,
   },
   {
     id: "r-bar",
@@ -277,25 +281,25 @@ export const CALENDAR_SOURCES = [
       startDate: {
         selector: "time.event-date",
         attr: "datetime",
-        format: "YYYY-MM-DD"
+        format: "YYYY-MM-DD",
       },
       startTime: {
         selector: ".event-time-localized-start",
-        format: ["h:mm A", "h:mm a"]
+        format: ["h:mm A", "h:mm a"],
       },
       endTime: {
         selector: ".event-time-localized-end",
-        format: ["h:mm A", "h:mm a"]
+        format: ["h:mm A", "h:mm a"],
       },
       description: ".eventlist-excerpt, .eventlist-description",
       url: {
         selector: ".eventlist-title-link",
-        attr: "href"
-      }
+        attr: "href",
+      },
     },
     timeZone: "America/New_York",
     defaultAddress: "R Bar & Restaurant, 1114 Main St, Asbury Park, NJ 07712",
-    defaultDurationMinutes: 180
+    defaultDurationMinutes: 180,
   },
   {
     id: "wonder-bar",
@@ -306,19 +310,19 @@ export const CALENDAR_SOURCES = [
       title: "title",
       start: {
         path: "date.start",
-        dateFormat: "epoch-seconds"
+        dateFormat: "epoch-seconds",
       },
       description: "details",
       address: "venue.addr",
       url: {
-        path: ["ticket", "more"]
+        path: ["ticket", "more"],
       },
-      location: "venue.addr"
+      location: "venue.addr",
     },
     timeZone: "America/New_York",
     defaultAddress: "Wonder Bar, 1213 Ocean Ave, Asbury Park, NJ 07712",
     defaultDurationMinutes: 180,
-    transformEvent: stripHtmlFromEventDescription
+    transformEvent: stripHtmlFromEventDescription,
   },
   {
     id: "house-of-independents",
@@ -331,17 +335,17 @@ export const CALENDAR_SOURCES = [
       startDate: {
         selector: ".eventDateListTop #eventDate",
         pattern: /^[A-Za-z]{3},\s*(.+)$/,
-        format: "MMM DD"
+        format: "MMM DD",
       },
       startTime: {
         selector: ".rhp-event__time-text--list",
         pattern: /Show:\s*([0-9]{1,2}(?::[0-9]{2})?\s*[ap]m)/i,
-        format: ["h:mm a", "h a"]
+        format: ["h:mm a", "h a"],
       },
       endTime: {
         selector: ".rhp-event__time-text--list",
         pattern: /End:\s*([0-9]{1,2}(?::[0-9]{2})?\s*[ap]m)/i,
-        format: ["h:mm a", "h a"]
+        format: ["h:mm a", "h a"],
       },
       description: {
         selector: ".belowLowTicketSection",
@@ -349,18 +353,19 @@ export const CALENDAR_SOURCES = [
           ".justAnnouncedIndicate",
           ".eventTitleDiv",
           ".eventAgeRestriction",
-          ".rhpEventDetails"
-        ]
+          ".rhpEventDetails",
+        ],
       },
       url: {
         selector: "#eventTitle",
-        attr: "href"
-      }
+        attr: "href",
+      },
     },
     dateFormats: ["MMM DD"],
     timeZone: "America/New_York",
-    defaultAddress: "House of Independents, 572 Cookman Ave, Asbury Park, NJ 07712",
-    defaultDurationMinutes: 180
+    defaultAddress:
+      "House of Independents, 572 Cookman Ave, Asbury Park, NJ 07712",
+    defaultDurationMinutes: 180,
   },
   {
     id: "showroom-cinemas",
@@ -373,23 +378,24 @@ export const CALENDAR_SOURCES = [
       startDate: {
         selector: ".selected-date span, .no-showtimes-date",
         pattern: /(?:[A-Za-z]{3},\s*)?((?:[A-Za-z]{3}|[A-Za-z]+)\s+\d{1,2})/i,
-        format: ["MMM D", "MMMM D"]
+        format: ["MMM D", "MMMM D"],
       },
       startTime: {
         selector: ".showtime",
         pattern: /([0-9]{1,2}:[0-9]{2}\s*[ap]m)/i,
-        format: ["h:mm a", "h:mma"]
+        format: ["h:mm a", "h:mma"],
       },
       description: ".show-content",
       url: {
         selector: ".show-title .title",
-        attr: "href"
-      }
+        attr: "href",
+      },
     },
     timeZone: "America/New_York",
-    defaultAddress: "ShowRoom Cinemas, 707 Cookman Avenue, Asbury Park, NJ 07712",
+    defaultAddress:
+      "ShowRoom Cinemas, 707 Cookman Avenue, Asbury Park, NJ 07712",
     defaultDurationMinutes: 120,
-    extractEvents: extractShowroomComingSoonEvents
+    extractEvents: extractShowroomComingSoonEvents,
   },
   {
     id: "asbury-park-brewery",
@@ -397,8 +403,9 @@ export const CALENDAR_SOURCES = [
     ...SQUARESPACE_JSON_SOURCE,
     url: "https://www.asburyparkbrewery.com/api/open/GetItemsByMonth?month={month}-{year}&collectionId=58d9e4bd2e69cf858dea5613",
     timeZone: "America/New_York",
-    defaultAddress: "Asbury Park Brewery, 614 Cookman Ave, Asbury Park, NJ 07712",
-    defaultDurationMinutes: 180
+    defaultAddress:
+      "Asbury Park Brewery, 614 Cookman Ave, Asbury Park, NJ 07712",
+    defaultDurationMinutes: 180,
   },
   {
     id: "black-swan",
@@ -406,8 +413,9 @@ export const CALENDAR_SOURCES = [
     ...SQUARESPACE_JSON_SOURCE,
     url: "https://www.theblackswanap.com/api/open/GetItemsByMonth?month={month}-{year}&collectionId=651eeb68bc08695a75179d3b",
     timeZone: "America/New_York",
-    defaultAddress: "The Black Swan Public House, 601 Mattison Avenue, Asbury Park, NJ 07712",
-    defaultDurationMinutes: 180
+    defaultAddress:
+      "The Black Swan Public House, 601 Mattison Avenue, Asbury Park, NJ 07712",
+    defaultDurationMinutes: 180,
   },
   {
     id: "asbury-lanes",
@@ -416,7 +424,7 @@ export const CALENDAR_SOURCES = [
     url: "https://api.eventcalendarapp.com/widget-subscription/17551/aac3a1a7-2128-4dcb-99b7-31479127235c",
     timeZone: "America/New_York",
     defaultDurationMinutes: 60,
-    defaultFilters: ["!open bowling", "!bowling open"]
+    defaultFilters: ["!open bowling", "!bowling open"],
   },
   {
     id: "asbury-park-city",
@@ -425,7 +433,7 @@ export const CALENDAR_SOURCES = [
     url: "https://www.cityofasburypark.com/common/modules/iCalendar/iCalendar.aspx?catID=14&feed=calendar",
     timeZone: "America/New_York",
     defaultDurationMinutes: 60,
-    transformEvent: stripHtmlFromEventLocation
+    transformEvent: stripHtmlFromEventLocation,
   },
   {
     id: "samantha-dress",
@@ -434,10 +442,12 @@ export const CALENDAR_SOURCES = [
     url: "https://calendar.google.com/calendar/ical/65138dbc87c80e90f51e1ad6850a279be725a04b3a71786550afa5e1c38d63fe%40group.calendar.google.com/public/basic.ics",
     browserAllowedOrigins: ["https://samanthadress.com"],
     timeZone: "America/New_York",
-    defaultDurationMinutes: 60
-  }
+    defaultDurationMinutes: 60,
+  },
 ] satisfies CalendarSourceConfig[];
 
-export function getCalendarSource(id: string): CalendarSourceConfig | undefined {
+export function getCalendarSource(
+  id: string,
+): CalendarSourceConfig | undefined {
   return CALENDAR_SOURCES.find((source) => source.id === id);
 }

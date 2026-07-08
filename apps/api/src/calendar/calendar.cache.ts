@@ -13,7 +13,7 @@ import {
   type CalendarSourceConfig,
   type EventFilterInput,
   type FetchStatus,
-  type SourcePage
+  type SourcePage,
 } from "./calendar.service.js";
 
 const CACHE_REFRESH_MS = 30 * 60_000;
@@ -47,7 +47,7 @@ const SOURCE_HOST_LIMITERS = new Map<string, Bottleneck>();
 export function getCachedCalendarFeed(
   config: CalendarSourceConfig,
   filters?: EventFilterInput,
-  now = dayjs()
+  now = dayjs(),
 ): string | null {
   const snapshot = getCalendarSnapshot(config, now);
 
@@ -55,13 +55,16 @@ export function getCachedCalendarFeed(
     return null;
   }
 
-  return eventsToIcs(config.name, filterCalendarEvents(snapshot.events, filters, config.defaultFilters));
+  return eventsToIcs(
+    config.name,
+    filterCalendarEvents(snapshot.events, filters, config.defaultFilters),
+  );
 }
 
 export function getCachedCalendarDebugText(
   config: CalendarSourceConfig,
   filters?: EventFilterInput,
-  now = dayjs()
+  now = dayjs(),
 ): string {
   const snapshot = getCalendarSnapshot(config, now);
 
@@ -70,7 +73,7 @@ export function getCachedCalendarDebugText(
     snapshot.sourceUrls,
     filterCalendarEvents(snapshot.events, filters, config.defaultFilters),
     snapshot.statuses,
-    snapshot.debugPages
+    snapshot.debugPages,
   );
 }
 
@@ -78,7 +81,7 @@ export async function warmCalendarPage(
   config: CalendarSourceConfig,
   pageIndex: number,
   now = dayjs(),
-  logger?: FastifyBaseLogger
+  logger?: FastifyBaseLogger,
 ): Promise<void> {
   const sourcePages = renderSourcePages(config.url, now);
   const sourcePage = sourcePages[pageIndex % sourcePages.length];
@@ -90,7 +93,9 @@ export async function warmCalendarPage(
   await warmCalendarSourcePage(config, sourcePage, logger);
 }
 
-export function startCalendarCacheScheduler(logger: FastifyBaseLogger): () => Promise<void> {
+export function startCalendarCacheScheduler(
+  logger: FastifyBaseLogger,
+): () => Promise<void> {
   for (const config of CALENDAR_SOURCES) {
     const worker = new CalendarCacheWorker(config, logger);
 
@@ -113,9 +118,9 @@ async function stopCalendarCacheScheduler(): Promise<void> {
     hostLimiters.map((limiter) =>
       limiter.stop({
         dropWaitingJobs: true,
-        dropErrorMessage: "Calendar cache scheduler stopped"
-      })
-    )
+        dropErrorMessage: "Calendar cache scheduler stopped",
+      }),
+    ),
   );
 }
 
@@ -133,19 +138,19 @@ class CalendarCacheWorker {
 
   constructor(
     private readonly config: CalendarSourceConfig,
-    private readonly logger: FastifyBaseLogger
+    private readonly logger: FastifyBaseLogger,
   ) {
     this.limiter = new Bottleneck({
       id: `calendar-cache:${config.id}`,
       maxConcurrent: 1,
-      minTime: 0
+      minTime: 0,
     });
     this.limiter.chain(getSourceHostLimiter(config.url));
 
     this.limiter.on("error", (error) => {
       this.logger.error(
         { calendarId: this.config.id, ...getErrorDetails(error) },
-        "Calendar cache limiter error"
+        "Calendar cache limiter error",
       );
     });
   }
@@ -164,7 +169,7 @@ class CalendarCacheWorker {
 
     await this.limiter.stop({
       dropWaitingJobs: true,
-      dropErrorMessage: "Calendar cache scheduler stopped"
+      dropErrorMessage: "Calendar cache scheduler stopped",
     });
   }
 
@@ -177,7 +182,7 @@ class CalendarCacheWorker {
       if (!this.stopped) {
         this.logger.error(
           { calendarId: this.config.id, ...getErrorDetails(error) },
-          "Calendar cache warm cycle failed"
+          "Calendar cache warm cycle failed",
         );
       }
     });
@@ -202,9 +207,10 @@ class CalendarCacheWorker {
     for (const [pageIndex, sourcePage] of sourcePages.entries()) {
       const success = await this.limiter.schedule(
         {
-          id: `${this.config.id}:${pageIndex}:${sourcePage.sourceUrl}`
+          id: `${this.config.id}:${pageIndex}:${sourcePage.sourceUrl}`,
         },
-        async () => warmCalendarSourcePage(this.config, sourcePage, this.logger)
+        async () =>
+          warmCalendarSourcePage(this.config, sourcePage, this.logger),
       );
 
       if (!success) {
@@ -227,8 +233,13 @@ class CalendarCacheWorker {
     this.backoffAttempt += 1;
     this.pendingPages = pendingPages;
     this.logger.warn(
-      { calendarId: this.config.id, pendingPages: pendingPages.length, backoffAttempt: this.backoffAttempt, delay },
-      "Calendar cache warm cycle retry scheduled"
+      {
+        calendarId: this.config.id,
+        pendingPages: pendingPages.length,
+        backoffAttempt: this.backoffAttempt,
+        delay,
+      },
+      "Calendar cache warm cycle retry scheduled",
     );
 
     return delay;
@@ -238,20 +249,23 @@ class CalendarCacheWorker {
 async function warmCalendarSourcePage(
   config: CalendarSourceConfig,
   sourcePage: SourcePage,
-  logger?: FastifyBaseLogger
+  logger?: FastifyBaseLogger,
 ): Promise<boolean> {
   const key = cacheKey(config.id, sourcePage.sourceUrl);
 
   REFRESHING_PAGES.add(key);
 
   try {
-    const { events, fetchStatus } = await fetchCalendarSourcePage(config, sourcePage);
+    const { events, fetchStatus } = await fetchCalendarSourcePage(
+      config,
+      sourcePage,
+    );
 
     PAGE_CACHE.set(key, {
       events,
       fetchedAt: dayjs(),
       sourcePage,
-      status: fetchStatus
+      status: fetchStatus,
     });
     return true;
   } catch (error) {
@@ -262,7 +276,7 @@ async function warmCalendarSourcePage(
       PAGE_CACHE.set(key, {
         ...existing,
         status: "stale",
-        error: message
+        error: message,
       });
 
       return false;
@@ -273,12 +287,16 @@ async function warmCalendarSourcePage(
       fetchedAt: dayjs(),
       sourcePage,
       status: "error",
-      error: message
+      error: message,
     });
     if (!existing) {
       logger?.warn(
-        { calendarId: config.id, sourceUrl: sourcePage.sourceUrl, ...getErrorDetails(error) },
-        "Calendar cache warm failed"
+        {
+          calendarId: config.id,
+          sourceUrl: sourcePage.sourceUrl,
+          ...getErrorDetails(error),
+        },
+        "Calendar cache warm failed",
       );
     }
 
@@ -288,14 +306,26 @@ async function warmCalendarSourcePage(
   }
 }
 
-function getCalendarSnapshot(config: CalendarSourceConfig, now: Dayjs): CalendarSnapshot {
+function getCalendarSnapshot(
+  config: CalendarSourceConfig,
+  now: Dayjs,
+): CalendarSnapshot {
   const sourcePages = renderSourcePages(config.url, now);
-  const pageKeys = sourcePages.map((sourcePage) => cacheKey(config.id, sourcePage.sourceUrl));
+  const pageKeys = sourcePages.map((sourcePage) =>
+    cacheKey(config.id, sourcePage.sourceUrl),
+  );
   const cachedPages = pageKeys.map((key) => PAGE_CACHE.get(key));
-  const events = dedupeEvents(cachedPages.flatMap((page) => page?.events ?? []));
+  const events = dedupeEvents(
+    cachedPages.flatMap((page) => page?.events ?? []),
+  );
   const statuses = cachedPages.map((page) => page?.status ?? "warming");
   const debugPages = sourcePages.map((sourcePage, index) =>
-    getDebugPage(sourcePage.sourceUrl, cachedPages[index], REFRESHING_PAGES.has(pageKeys[index] ?? ""), now)
+    getDebugPage(
+      sourcePage.sourceUrl,
+      cachedPages[index],
+      REFRESHING_PAGES.has(pageKeys[index] ?? ""),
+      now,
+    ),
   );
 
   return {
@@ -303,7 +333,7 @@ function getCalendarSnapshot(config: CalendarSourceConfig, now: Dayjs): Calendar
     events,
     statuses,
     debugPages,
-    ready: cachedPages.some((page) => page && page.status !== "error")
+    ready: cachedPages.some((page) => page && page.status !== "error"),
   };
 }
 
@@ -311,25 +341,33 @@ function getDebugPage(
   sourceUrl: string,
   cachedPage: CachedPage | undefined,
   refreshing: boolean,
-  now: Dayjs
+  now: Dayjs,
 ): CalendarDebugPage {
   if (!cachedPage) {
     return {
       sourceUrl,
       fetchStatus: "warming",
-      revalidateStatus: refreshing ? "refetching" : "warming"
+      revalidateStatus: refreshing ? "refetching" : "warming",
     };
   }
 
-  const revalidateAt = cachedPage.fetchedAt.add(CACHE_REFRESH_MS, "millisecond");
+  const revalidateAt = cachedPage.fetchedAt.add(
+    CACHE_REFRESH_MS,
+    "millisecond",
+  );
 
   return {
     sourceUrl,
     fetchStatus: cachedPage.status,
     fetchedAt: cachedPage.fetchedAt,
-    revalidateStatus: getRevalidateStatus(cachedPage, refreshing, revalidateAt, now),
+    revalidateStatus: getRevalidateStatus(
+      cachedPage,
+      refreshing,
+      revalidateAt,
+      now,
+    ),
     revalidateAt,
-    error: cachedPage.error
+    error: cachedPage.error,
   };
 }
 
@@ -337,7 +375,7 @@ function getRevalidateStatus(
   cachedPage: CachedPage,
   refreshing: boolean,
   revalidateAt: Dayjs,
-  now: Dayjs
+  now: Dayjs,
 ): CalendarDebugPage["revalidateStatus"] {
   if (refreshing) {
     return "refetching";
@@ -355,7 +393,10 @@ function cacheKey(calendarId: string, sourceUrl: string): string {
 }
 
 function getRetryDelayMs(retryCount: number): number {
-  const exponentialDelay = Math.min(CACHE_BACKOFF_BASE_MS * 2 ** retryCount, CACHE_BACKOFF_MAX_MS);
+  const exponentialDelay = Math.min(
+    CACHE_BACKOFF_BASE_MS * 2 ** retryCount,
+    CACHE_BACKOFF_MAX_MS,
+  );
   const jitter = exponentialDelay * CACHE_BACKOFF_JITTER * Math.random();
 
   return Math.round(exponentialDelay + jitter);
@@ -372,7 +413,7 @@ function getSourceHostLimiter(sourceUrlTemplate: string): Bottleneck {
   const limiter = new Bottleneck({
     id: `calendar-cache-host:${hostname}`,
     maxConcurrent: 1,
-    minTime: SOURCE_HOST_MIN_TIME_MS
+    minTime: SOURCE_HOST_MIN_TIME_MS,
   });
 
   SOURCE_HOST_LIMITERS.set(hostname, limiter);
@@ -382,18 +423,21 @@ function getSourceHostLimiter(sourceUrlTemplate: string): Bottleneck {
 function getErrorDetails(error: unknown): Record<string, unknown> {
   if (!(error instanceof Error)) {
     return {
-      errorMessage: String(error)
+      errorMessage: String(error),
     };
   }
 
   const cause = error.cause;
-  const causeCode = cause && typeof cause === "object" && "code" in cause ? cause.code : undefined;
+  const causeCode =
+    cause && typeof cause === "object" && "code" in cause
+      ? cause.code
+      : undefined;
 
   return {
     errorName: error.name,
     errorMessage: error.message,
     causeName: cause instanceof Error ? cause.name : undefined,
     causeMessage: cause instanceof Error ? cause.message : undefined,
-    causeCode
+    causeCode,
   };
 }

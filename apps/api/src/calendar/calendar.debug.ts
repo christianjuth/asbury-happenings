@@ -2,7 +2,8 @@ import lodash from "lodash";
 import type { Dayjs } from "./calendar.dates.js";
 import type { CalendarEvent, FetchStatus } from "./calendar.types.js";
 
-type CalendarRevalidateStatus = "fresh" | "due" | "refetching" | "error" | "warming";
+type CalendarRevalidateStatus =
+  "fresh" | "due" | "refetching" | "error" | "warming";
 
 export interface CalendarDebugPage {
   sourceUrl: string;
@@ -18,7 +19,7 @@ export function eventsToDebugText(
   sourceUrl: string | string[],
   events: CalendarEvent[],
   fetchStatus?: FetchStatus | FetchStatus[],
-  debugPages?: CalendarDebugPage[]
+  debugPages?: CalendarDebugPage[],
 ): string {
   const sourceUrls = lodash.castArray(sourceUrl);
   const fetchStatuses = fetchStatus ? lodash.castArray(fetchStatus) : [];
@@ -27,7 +28,7 @@ export function eventsToDebugText(
     `Source: ${sourceUrls.join(", ")}`,
     `Fetch: upstream ${fetchStatuses.length ? fetchStatuses.join(", ") : "unknown"}`,
     `Events: ${events.length}`,
-    ""
+    "",
   ];
 
   if (debugPages?.length) {
@@ -44,7 +45,7 @@ export function eventsToDebugText(
     lines.push(
       `#${index + 1} ${event.title}`,
       `Start: ${event.start.toISOString()}`,
-      `End: ${event.end.toISOString()}`
+      `End: ${event.end.toISOString()}`,
     );
 
     if (event.location) {
@@ -73,7 +74,7 @@ function formatDebugPage(page: CalendarDebugPage): string {
   const fields = [
     `fetch ${page.fetchStatus}`,
     `snapshot ${page.fetchedAt ? page.fetchedAt.toISOString() : "none"}`,
-    `revalidate ${formatRevalidateStatus(page)}`
+    `revalidate ${formatRevalidateStatus(page)}`,
   ];
 
   if (page.error) {

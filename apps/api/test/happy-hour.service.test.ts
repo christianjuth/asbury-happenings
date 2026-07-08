@@ -1,10 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { clearHappyHourCache, warmHappyHourCache } from "../src/happy-hour/happy-hour.cache.js";
+import {
+  clearHappyHourCache,
+  warmHappyHourCache,
+} from "../src/happy-hour/happy-hour.cache.js";
 import { HAPPY_HOUR_SOURCE } from "../src/happy-hour/happy-hour.config.js";
 import {
   extractHappyHourEvents,
-  happyHourEventsToIcs
+  happyHourEventsToIcs,
 } from "../src/happy-hour/happy-hour.service.js";
 import dayjs from "../src/calendar/calendar.dates.js";
 import { buildServer } from "../src/server.js";
@@ -63,7 +66,7 @@ describe("extractHappyHourEvents", () => {
     const events = extractHappyHourEvents(
       HAPPY_HOUR_HTML,
       HAPPY_HOUR_SOURCE,
-      dayjs("2026-07-07T12:00:00Z")
+      dayjs("2026-07-07T12:00:00Z"),
     );
 
     expect(events).toHaveLength(9);
@@ -72,15 +75,19 @@ describe("extractHappyHourEvents", () => {
       location: "AP Rooftop",
       scheduleText: "Mon-Fri 2pm-5pm",
       day: 1,
-      url: "https://www.aprooftop.com/"
+      url: "https://www.aprooftop.com/",
     });
     expect(events[0]?.start.toISOString()).toBe("2026-07-06T18:00:00.000Z");
     expect(events[0]?.end.toISOString()).toBe("2026-07-06T21:00:00.000Z");
     expect(events[0]?.description).toContain("$5 drafts, $9 wine");
     expect(events[0]?.description).toContain("Verified: 2026-06-06");
-    expect(events[0]?.description).toContain("Menu: https://asburypark.rectalogic.com/menus/happy-hour.pdf");
+    expect(events[0]?.description).toContain(
+      "Menu: https://asburypark.rectalogic.com/menus/happy-hour.pdf",
+    );
 
-    const talulasMonday = events.find((event) => event.title === "Talula's" && event.day === 1);
+    const talulasMonday = events.find(
+      (event) => event.title === "Talula's" && event.day === 1,
+    );
 
     expect(talulasMonday?.start.toISOString()).toBe("2026-07-06T20:30:00.000Z");
     expect(talulasMonday?.end.toISOString()).toBe("2026-07-06T22:30:00.000Z");
@@ -90,7 +97,7 @@ describe("extractHappyHourEvents", () => {
     const events = extractHappyHourEvents(
       HAPPY_HOUR_HTML,
       HAPPY_HOUR_SOURCE,
-      dayjs("2026-07-07T12:00:00Z")
+      dayjs("2026-07-07T12:00:00Z"),
     );
     const feed = happyHourEventsToIcs("Test Happy Hours", events.slice(0, 1));
 
@@ -102,22 +109,24 @@ describe("extractHappyHourEvents", () => {
 
 describe("happy hour routes", () => {
   it("lists and serves the cached happy hour calendar", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(HAPPY_HOUR_HTML));
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () => new Response(HAPPY_HOUR_HTML),
+    );
 
     await warmHappyHourCache(HAPPY_HOUR_SOURCE, dayjs("2026-07-07T12:00:00Z"));
 
     const server = await buildServer();
     const listResponse = await server.inject({
       method: "GET",
-      url: "/happy-hours"
+      url: "/happy-hours",
     });
     const debugResponse = await server.inject({
       method: "GET",
-      url: "/happy-hours/asbury-park.ics?debug=1&filter=talula"
+      url: "/happy-hours/asbury-park.ics?debug=1&filter=talula",
     });
     const feedResponse = await server.inject({
       method: "GET",
-      url: "/happy-hours/asbury-park.ics?filter=talula"
+      url: "/happy-hours/asbury-park.ics?filter=talula",
     });
 
     expect(listResponse.statusCode).toBe(200);
@@ -126,9 +135,9 @@ describe("happy hour routes", () => {
         {
           id: "asbury-park",
           name: "Asbury Park Happy Hours",
-          path: "/happy-hours/asbury-park.ics"
-        }
-      ]
+          path: "/happy-hours/asbury-park.ics",
+        },
+      ],
     });
     expect(debugResponse.statusCode).toBe(200);
     expect(debugResponse.body).toContain("Calendar: Asbury Park Happy Hours");

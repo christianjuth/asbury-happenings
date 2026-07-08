@@ -12,13 +12,13 @@ import {
   type CalendarSourceConfig,
   type HtmlCalendarSourceConfig,
   type IcsCalendarSourceConfig,
-  type JsonCalendarSourceConfig
+  type JsonCalendarSourceConfig,
 } from "../src/calendar/calendar.service.js";
 import { getCalendarSource } from "../src/calendar/calendar.config.js";
 import dayjs from "../src/calendar/calendar.dates.js";
 import {
   extractUncorkedWineInspiredEvents,
-  stripHtmlFromEventLocation
+  stripHtmlFromEventLocation,
 } from "../src/calendar/calendar.post-processing.js";
 
 afterEach(() => {
@@ -37,20 +37,20 @@ const config: HtmlCalendarSourceConfig = {
     start: {
       selector: "time.start",
       attr: "datetime",
-      format: "YYYY-MM-DDTHH:mm:ss[Z]"
+      format: "YYYY-MM-DDTHH:mm:ss[Z]",
     },
     end: {
       selector: "time.end",
       attr: "datetime",
-      format: "YYYY-MM-DDTHH:mm:ss[Z]"
+      format: "YYYY-MM-DDTHH:mm:ss[Z]",
     },
     description: ".description",
     location: ".location",
     url: {
       selector: "a.details",
-      attr: "href"
-    }
-  }
+      attr: "href",
+    },
+  },
 };
 
 describe("extractEventsFromHtml", () => {
@@ -73,7 +73,7 @@ describe("extractEventsFromHtml", () => {
         </article>
       `,
       config,
-      "https://example.com/events/2026/07"
+      "https://example.com/events/2026/07",
     );
 
     expect(events).toHaveLength(2);
@@ -83,7 +83,7 @@ describe("extractEventsFromHtml", () => {
       title: "First Event",
       description: "Fireworks and food.",
       location: "Town Green",
-      url: "https://example.com/events/first"
+      url: "https://example.com/events/first",
     });
     expect(events[0]?.start.toISOString()).toBe("2026-07-04T18:00:00.000Z");
     expect(events[0]?.end.toISOString()).toBe("2026-07-04T19:30:00.000Z");
@@ -101,7 +101,7 @@ describe("extractEventsFromHtml", () => {
         </article>
       `,
       config,
-      "https://example.com/events/2026/07"
+      "https://example.com/events/2026/07",
     );
 
     expect(events).toEqual([]);
@@ -116,7 +116,7 @@ describe("extractEventsFromHtml", () => {
         </article>
       `,
       config,
-      "https://example.com/events/2026/07"
+      "https://example.com/events/2026/07",
     );
 
     expect(events).toEqual([]);
@@ -129,10 +129,10 @@ describe("extractEventsFromHtml", () => {
         title: ".event-title",
         start: {
           selector: "time.start",
-          attr: "datetime"
-        }
+          attr: "datetime",
+        },
       },
-      defaultDurationMinutes: 45
+      defaultDurationMinutes: 45,
     };
 
     const events = extractEventsFromHtml(
@@ -143,7 +143,7 @@ describe("extractEventsFromHtml", () => {
         </article>
       `,
       noEndConfig,
-      "https://example.com/events/2026/07"
+      "https://example.com/events/2026/07",
     );
 
     expect(events[0]?.end.toISOString()).toBe("2026-07-04T18:45:00.000Z");
@@ -154,9 +154,9 @@ describe("extractEventsFromHtml", () => {
       ...config,
       selectors: {
         title: ".event-title",
-        start: ".event-date"
+        start: ".event-date",
       },
-      defaultDurationMinutes: 60
+      defaultDurationMinutes: 60,
     };
 
     const events = extractEventsFromHtml(
@@ -171,7 +171,7 @@ describe("extractEventsFromHtml", () => {
       `,
       compactDateConfig,
       "https://example.com/events/2026/07",
-      dayjs("2026-07-03T00:00:00Z")
+      dayjs("2026-07-03T00:00:00Z"),
     );
 
     expect(events).toHaveLength(1);
@@ -187,19 +187,19 @@ describe("extractEventsFromHtml", () => {
         startDate: {
           selector: ".event-list__details",
           pattern: /[A-Za-z]{3},\s*([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4})/,
-          format: "M/D/YYYY"
+          format: "M/D/YYYY",
         },
         startTime: {
           selector: ".event-list__details",
           pattern: /([0-9]{1,2}:[0-9]{2}\s*[ap]m)\s*-/i,
-          format: ["h:mma", "h:mm a"]
+          format: ["h:mma", "h:mm a"],
         },
         endTime: {
           selector: ".event-list__details",
           pattern: /-\s*([0-9]{1,2}:[0-9]{2}\s*[ap]m)/i,
-          format: ["h:mma", "h:mm a"]
-        }
-      }
+          format: ["h:mma", "h:mm a"],
+        },
+      },
     };
 
     const events = extractEventsFromHtml(
@@ -213,7 +213,7 @@ describe("extractEventsFromHtml", () => {
         </article>
       `,
       detailsConfig,
-      "https://example.com/events"
+      "https://example.com/events",
     );
 
     expect(events).toHaveLength(1);
@@ -230,19 +230,19 @@ describe("extractEventsFromHtml", () => {
         startDate: {
           selector: ".event-list__details",
           pattern: /[A-Za-z]{3},\s*([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4})/,
-          format: "M/D/YYYY"
+          format: "M/D/YYYY",
         },
         startTime: {
           selector: ".event-list__details",
           pattern: /([0-9]{1,2}:[0-9]{2}\s*[ap]m)\s*-/i,
-          format: ["h:mma", "h:mm a"]
+          format: ["h:mma", "h:mm a"],
         },
         endTime: {
           selector: ".event-list__details",
           pattern: /-\s*([0-9]{1,2}:[0-9]{2}\s*[ap]m)/i,
-          format: ["h:mma", "h:mm a"]
-        }
-      }
+          format: ["h:mma", "h:mm a"],
+        },
+      },
     };
 
     const events = extractEventsFromHtml(
@@ -256,7 +256,7 @@ describe("extractEventsFromHtml", () => {
         </article>
       `,
       easternConfig,
-      "https://example.com/events"
+      "https://example.com/events",
     );
 
     expect(events).toHaveLength(1);
@@ -272,22 +272,26 @@ describe("extractEventsFromHtml", () => {
         startDate: {
           selector: ".event-list__details",
           pattern: /[A-Za-z]{3},\s*([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4})/,
-          format: "M/D/YYYY"
+          format: "M/D/YYYY",
         },
         startTime: {
           selector: ".event-list__details",
           pattern: /([0-9]{1,2}:[0-9]{2}\s*[ap]m)\s*-/i,
-          format: ["h:mma", "h:mm a"]
+          format: ["h:mma", "h:mm a"],
         },
         description: {
           selector: ":self",
-          remove: [".event-list__title", ".event-list__details", ".event-list__links"]
+          remove: [
+            ".event-list__title",
+            ".event-list__details",
+            ".event-list__links",
+          ],
         },
         url: {
           selector: "a.event-list__links--event",
-          attr: "href"
-        }
-      }
+          attr: "href",
+        },
+      },
     };
 
     const events = extractEventsFromHtml(
@@ -305,10 +309,12 @@ describe("extractEventsFromHtml", () => {
         </article>
       `,
       descriptionConfig,
-      "https://example.com/events"
+      "https://example.com/events",
     );
 
-    expect(events[0]?.description).toBe("Meet the author for a reading and conversation.");
+    expect(events[0]?.description).toBe(
+      "Meet the author for a reading and conversation.",
+    );
     expect(events[0]?.description).not.toContain("Author Talk");
     expect(events[0]?.description).not.toContain("7:00pm");
     expect(events[0]?.description).not.toContain("View Event");
@@ -322,18 +328,18 @@ describe("extractEventsFromHtml", () => {
         startDate: {
           selector: ".event-list__details",
           pattern: /[A-Za-z]{3},\s*([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4})/,
-          format: "M/D/YYYY"
+          format: "M/D/YYYY",
         },
         startTime: {
           selector: ".event-list__details",
           pattern: /([0-9]{1,2}:[0-9]{2}\s*[ap]m)\s*-/i,
-          format: ["h:mma", "h:mm a"]
+          format: ["h:mma", "h:mm a"],
         },
         address: {
           selector: ".event-list__details",
-          pattern: /Place:\s*(.+)$/i
-        }
-      }
+          pattern: /Place:\s*(.+)$/i,
+        },
+      },
     };
 
     const events = extractEventsFromHtml(
@@ -348,34 +354,39 @@ describe("extractEventsFromHtml", () => {
         </article>
       `,
       addressConfig,
-      "https://example.com/events"
+      "https://example.com/events",
     );
 
-    expect(events[0]?.address).toBe("Asbury Book Cooperative 644A Cookman Ave Asbury Park, NJ 07712");
-    expect(events[0]?.location).toBe("Asbury Book Cooperative 644A Cookman Ave Asbury Park, NJ 07712");
+    expect(events[0]?.address).toBe(
+      "Asbury Book Cooperative 644A Cookman Ave Asbury Park, NJ 07712",
+    );
+    expect(events[0]?.location).toBe(
+      "Asbury Book Cooperative 644A Cookman Ave Asbury Park, NJ 07712",
+    );
   });
 
   it("uses default address when no address is found", () => {
     const addressConfig: CalendarSourceConfig = {
       ...config,
-      defaultAddress: "Asbury Book Cooperative, 644A Cookman Ave, Asbury Park, NJ 07712",
+      defaultAddress:
+        "Asbury Book Cooperative, 644A Cookman Ave, Asbury Park, NJ 07712",
       selectors: {
         title: ".event-list__title",
         startDate: {
           selector: ".event-list__details",
           pattern: /[A-Za-z]{3},\s*([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4})/,
-          format: "M/D/YYYY"
+          format: "M/D/YYYY",
         },
         startTime: {
           selector: ".event-list__details",
           pattern: /([0-9]{1,2}:[0-9]{2}\s*[ap]m)\s*-/i,
-          format: ["h:mma", "h:mm a"]
+          format: ["h:mma", "h:mm a"],
         },
         address: {
           selector: ".event-list__details",
-          pattern: /Place:\s*(.+)$/i
-        }
-      }
+          pattern: /Place:\s*(.+)$/i,
+        },
+      },
     };
 
     const events = extractEventsFromHtml(
@@ -389,11 +400,15 @@ describe("extractEventsFromHtml", () => {
         </article>
       `,
       addressConfig,
-      "https://example.com/events"
+      "https://example.com/events",
     );
 
-    expect(events[0]?.address).toBe("Asbury Book Cooperative, 644A Cookman Ave, Asbury Park, NJ 07712");
-    expect(events[0]?.location).toBe("Asbury Book Cooperative, 644A Cookman Ave, Asbury Park, NJ 07712");
+    expect(events[0]?.address).toBe(
+      "Asbury Book Cooperative, 644A Cookman Ave, Asbury Park, NJ 07712",
+    );
+    expect(events[0]?.location).toBe(
+      "Asbury Book Cooperative, 644A Cookman Ave, Asbury Park, NJ 07712",
+    );
   });
 
   it("parses Tim McLoone event list cards", () => {
@@ -408,31 +423,32 @@ describe("extractEventsFromHtml", () => {
         startDate: {
           selector: ".event_date",
           pattern: /^[A-Za-z]+,\s*(.+)$/,
-          format: "MMMM D"
+          format: "MMMM D",
         },
         startTime: {
           selector: ":self",
           pattern: /([0-9]{1,2}:[0-9]{2}\s*[ap]m)/i,
-          format: ["h:mma", "h:mm a"]
+          format: ["h:mma", "h:mm a"],
         },
         endTime: {
           selector: ":self",
           pattern: /-\s*([0-9]{1,2}:[0-9]{2}\s*[ap]m)/i,
-          format: ["h:mma", "h:mm a"]
+          format: ["h:mma", "h:mm a"],
         },
         description: {
           selector: ":self",
-          remove: ["h2", ".event_date", "a", ".btn_events"]
+          remove: ["h2", ".event_date", "a", ".btn_events"],
         },
         url: {
           selector: "h2 a",
-          attr: "href"
-        }
+          attr: "href",
+        },
       },
       dateFormats: ["MMMM D"],
       timeZone: "America/New_York",
-      defaultAddress: "Tim McLoone's Supper Club, 1200 Ocean Avenue, Asbury Park, NJ 07712",
-      defaultDurationMinutes: 120
+      defaultAddress:
+        "Tim McLoone's Supper Club, 1200 Ocean Avenue, Asbury Park, NJ 07712",
+      defaultDurationMinutes: 120,
     };
 
     const events = extractEventsFromHtml(
@@ -465,16 +481,18 @@ describe("extractEventsFromHtml", () => {
       `,
       timMclooneConfig,
       "https://timmcloonessupperclub.com/events.php",
-      dayjs("2026-07-03T00:00:00Z")
+      dayjs("2026-07-03T00:00:00Z"),
     );
 
     expect(events).toHaveLength(4);
     expect(events[0]).toMatchObject({
       title: "Gonzo's Band of Brothers & Sisters SUMMER JAM!",
       description: "featuring Layonne Holmes & Reagan Richards 7:00pm",
-      address: "Tim McLoone's Supper Club, 1200 Ocean Avenue, Asbury Park, NJ 07712",
-      location: "Tim McLoone's Supper Club, 1200 Ocean Avenue, Asbury Park, NJ 07712",
-      url: "https://timmcloonessupperclub.com/events.php?id=7329"
+      address:
+        "Tim McLoone's Supper Club, 1200 Ocean Avenue, Asbury Park, NJ 07712",
+      location:
+        "Tim McLoone's Supper Club, 1200 Ocean Avenue, Asbury Park, NJ 07712",
+      url: "https://timmcloonessupperclub.com/events.php?id=7329",
     });
     expect(events[0]?.start.toISOString()).toBe("2026-07-02T23:00:00.000Z");
     expect(events[0]?.end.toISOString()).toBe("2026-07-03T01:00:00.000Z");
@@ -484,7 +502,9 @@ describe("extractEventsFromHtml", () => {
     expect(events[2]?.title).toBe("Bob Egan's 'Piano Party'");
     expect(events[2]?.start.toISOString()).toBe("2026-07-07T22:30:00.000Z");
     expect(events[2]?.end.toISOString()).toBe("2026-07-08T00:30:00.000Z");
-    expect(events[3]?.title).toBe("A Medium Gallery with Linda Shields (MISSING TIME)");
+    expect(events[3]?.title).toBe(
+      "A Medium Gallery with Linda Shields (MISSING TIME)",
+    );
     expect(events[3]?.allDay).toBe(true);
     expect(events[3]?.start.toISOString()).toBe("2026-07-09T04:00:00.000Z");
     expect(events[3]?.end.toISOString()).toBe("2026-07-10T04:00:00.000Z");
@@ -525,14 +545,14 @@ describe("extractEventsFromHtml", () => {
       `,
       apRooftopConfig,
       "https://aprooftop.com/events.php",
-      dayjs("2026-07-03T00:00:00Z")
+      dayjs("2026-07-03T00:00:00Z"),
     );
 
     expect(events).toHaveLength(2);
     expect(events[0]).toMatchObject({
       title: "DJ MoTalent from Mo Talent Live",
       address: "Arthur Pryor Bandshell, 1200 Ocean Ave, Asbury Park, NJ 07712",
-      location: "Arthur Pryor Bandshell, 1200 Ocean Ave, Asbury Park, NJ 07712"
+      location: "Arthur Pryor Bandshell, 1200 Ocean Ave, Asbury Park, NJ 07712",
     });
     expect(events[0]?.start.toISOString()).toBe("2026-07-03T23:00:00.000Z");
     expect(events[0]?.end.toISOString()).toBe("2026-07-04T02:00:00.000Z");
@@ -572,7 +592,7 @@ describe("extractEventsFromHtml", () => {
       `,
       apRooftopConfig,
       "https://aprooftop.com/events.php",
-      dayjs("2026-07-03T00:00:00Z")
+      dayjs("2026-07-03T00:00:00Z"),
     );
 
     expect(events).toHaveLength(1);
@@ -609,16 +629,17 @@ describe("extractEventsFromHtml", () => {
       `,
       ironWhaleConfig,
       "https://www.ironwhalenj.com/events.php",
-      dayjs("2026-07-03T00:00:00Z")
+      dayjs("2026-07-03T00:00:00Z"),
     );
 
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
       title: "Maker's Mark Tasting Event: Wax-Dipped Souvenir Glass",
-      description: "Location: Iron Whale, 1200 Ocean Avenue, Asbury Park, NJ Join us for an exclusive Maker's Mark Tasting experience, where you'll enjoy a guided sampling of Maker's Mark signature bourbons paired with a selection of small bites. 6:00pm - 8:00pm",
+      description:
+        "Location: Iron Whale, 1200 Ocean Avenue, Asbury Park, NJ Join us for an exclusive Maker's Mark Tasting experience, where you'll enjoy a guided sampling of Maker's Mark signature bourbons paired with a selection of small bites. 6:00pm - 8:00pm",
       address: "Iron Whale, 1200 Ocean Avenue, Asbury Park, NJ 07712",
       location: "Iron Whale, 1200 Ocean Avenue, Asbury Park, NJ 07712",
-      url: "https://cdn.mcloones.com/pdf/iron-whale/menus/2026/7.7.26-Makers-Mark-IW.pdf"
+      url: "https://cdn.mcloones.com/pdf/iron-whale/menus/2026/7.7.26-Makers-Mark-IW.pdf",
     });
     expect(events[0]?.start.toISOString()).toBe("2026-07-07T22:00:00.000Z");
     expect(events[0]?.end.toISOString()).toBe("2026-07-08T00:00:00.000Z");
@@ -636,25 +657,25 @@ describe("extractEventsFromHtml", () => {
         startDate: {
           selector: "time.event-date",
           attr: "datetime",
-          format: "YYYY-MM-DD"
+          format: "YYYY-MM-DD",
         },
         startTime: {
           selector: ".event-time-localized-start",
-          format: ["h:mm A", "h:mm a"]
+          format: ["h:mm A", "h:mm a"],
         },
         endTime: {
           selector: ".event-time-localized-end",
-          format: ["h:mm A", "h:mm a"]
+          format: ["h:mm A", "h:mm a"],
         },
         description: ".eventlist-excerpt, .eventlist-description",
         url: {
           selector: ".eventlist-title-link",
-          attr: "href"
-        }
+          attr: "href",
+        },
       },
       timeZone: "America/New_York",
       defaultAddress: "R Bar & Restaurant, 1114 Main St, Asbury Park, NJ 07712",
-      defaultDurationMinutes: 180
+      defaultDurationMinutes: 180,
     };
 
     const events = extractEventsFromHtml(
@@ -701,7 +722,7 @@ describe("extractEventsFromHtml", () => {
       `,
       rBarConfig,
       "https://www.itsrbar.com/events",
-      dayjs("2026-07-03T00:00:00Z")
+      dayjs("2026-07-03T00:00:00Z"),
     );
 
     expect(events).toHaveLength(2);
@@ -709,11 +730,13 @@ describe("extractEventsFromHtml", () => {
       title: "High Standards Trio",
       address: "R Bar & Restaurant, 1114 Main St, Asbury Park, NJ 07712",
       location: "R Bar & Restaurant, 1114 Main St, Asbury Park, NJ 07712",
-      url: "https://www.itsrbar.com/events/high-standards-trio"
+      url: "https://www.itsrbar.com/events/high-standards-trio",
     });
     expect(events[0]?.start.toISOString()).toBe("2026-07-02T22:00:00.000Z");
     expect(events[0]?.end.toISOString()).toBe("2026-07-03T01:00:00.000Z");
-    expect(events[1]?.description).toBe("R Bar Presents R Yard Saturdays A High Standard Stomp Off No cover");
+    expect(events[1]?.description).toBe(
+      "R Bar Presents R Yard Saturdays A High Standard Stomp Off No cover",
+    );
     expect(events[1]?.start.toISOString()).toBe("2026-07-04T18:00:00.000Z");
     expect(events[1]?.end.toISOString()).toBe("2026-07-04T21:00:00.000Z");
   });
@@ -755,9 +778,10 @@ describe("extractEventsFromHtml", () => {
       `,
       brickwallConfig,
       {
-        sourceUrl: "https://www.smithmade.org/events/date/2026-07/location/brickwall",
-        referenceDate: dayjs("2026-07-03T00:00:00Z")
-      }
+        sourceUrl:
+          "https://www.smithmade.org/events/date/2026-07/location/brickwall",
+        referenceDate: dayjs("2026-07-03T00:00:00Z"),
+      },
     );
 
     const lovesickEvents = lovesickConfig.extractEvents(
@@ -786,9 +810,10 @@ describe("extractEventsFromHtml", () => {
       `,
       lovesickConfig,
       {
-        sourceUrl: "https://www.smithmade.org/events/date/2026-07/location/lovesick",
-        referenceDate: dayjs("2026-07-03T00:00:00Z")
-      }
+        sourceUrl:
+          "https://www.smithmade.org/events/date/2026-07/location/lovesick",
+        referenceDate: dayjs("2026-07-03T00:00:00Z"),
+      },
     );
 
     expect(brickwallEvents).toHaveLength(1);
@@ -797,19 +822,27 @@ describe("extractEventsFromHtml", () => {
       description: "with Dusty Dubs",
       address: "Brickwall, 522 Cookman Ave, Asbury Park, NJ 07712",
       location: "Brickwall, 522 Cookman Ave, Asbury Park, NJ 07712",
-      url: "https://www.smithmade.org/events/date/2026-07/location/brickwall"
+      url: "https://www.smithmade.org/events/date/2026-07/location/brickwall",
     });
-    expect(brickwallEvents[0]?.start.toISOString()).toBe("2026-07-09T21:00:00.000Z");
-    expect(brickwallEvents[0]?.end.toISOString()).toBe("2026-07-10T02:00:00.000Z");
+    expect(brickwallEvents[0]?.start.toISOString()).toBe(
+      "2026-07-09T21:00:00.000Z",
+    );
+    expect(brickwallEvents[0]?.end.toISOString()).toBe(
+      "2026-07-10T02:00:00.000Z",
+    );
     expect(lovesickEvents).toHaveLength(1);
     expect(lovesickEvents[0]).toMatchObject({
       title: "Weekend Supervision",
       address: "Lovesick, 530 Cookman Ave, Asbury Park, NJ 07712",
       location: "Lovesick, 530 Cookman Ave, Asbury Park, NJ 07712",
-      url: "https://www.smithmade.org/events/date/2026-07/location/lovesick"
+      url: "https://www.smithmade.org/events/date/2026-07/location/lovesick",
     });
-    expect(lovesickEvents[0]?.start.toISOString()).toBe("2026-07-06T01:00:00.000Z");
-    expect(lovesickEvents[0]?.end.toISOString()).toBe("2026-07-06T05:00:00.000Z");
+    expect(lovesickEvents[0]?.start.toISOString()).toBe(
+      "2026-07-06T01:00:00.000Z",
+    );
+    expect(lovesickEvents[0]?.end.toISOString()).toBe(
+      "2026-07-06T05:00:00.000Z",
+    );
   });
 
   it("parses Stone Pony EventON calendar cards", () => {
@@ -855,7 +888,7 @@ describe("extractEventsFromHtml", () => {
         </div>
       `,
       stonePonyConfig,
-      "https://www.stoneponyonline.com/calendar/"
+      "https://www.stoneponyonline.com/calendar/",
     );
 
     expect(events).toHaveLength(2);
@@ -865,7 +898,7 @@ describe("extractEventsFromHtml", () => {
         "Black Country, New Road Horsegirl There are few contemporary bands who can do musical reinvention quite as consistently.",
       location: "The Stone Pony",
       address: "913 Ocean Avenue",
-      url: "https://www.stoneponyonline.com/events/black-country-new-road/"
+      url: "https://www.stoneponyonline.com/events/black-country-new-road/",
     });
     expect(events[0]?.start.toISOString()).toBe("2026-07-05T23:00:00.000Z");
     expect(events[0]?.end.toISOString()).toBe("2026-07-06T03:50:00.000Z");
@@ -873,7 +906,7 @@ describe("extractEventsFromHtml", () => {
       title: "Silverstein & Story of the Year",
       location: "The Stone Pony Summer Stage",
       address: "913 Ocean Avenue",
-      url: "https://www.stoneponyonline.com/events/silverstein-story-of-the-year/"
+      url: "https://www.stoneponyonline.com/events/silverstein-story-of-the-year/",
     });
     expect(events[1]?.start.toISOString()).toBe("2026-07-12T21:00:00.000Z");
     expect(events[1]?.end.toISOString()).toBe("2026-07-13T02:00:00.000Z");
@@ -919,9 +952,10 @@ describe("extractEventsFromHtml", () => {
       `,
       uncorkedConfig,
       {
-        sourceUrl: "https://uncorkedwineinspired.com/wp-content/plugins/eventbook/calendar-grid.php",
-        referenceDate: dayjs("2026-07-03T00:00:00Z")
-      }
+        sourceUrl:
+          "https://uncorkedwineinspired.com/wp-content/plugins/eventbook/calendar-grid.php",
+        referenceDate: dayjs("2026-07-03T00:00:00Z"),
+      },
     );
 
     expect(events).toHaveLength(2);
@@ -930,23 +964,28 @@ describe("extractEventsFromHtml", () => {
       description: "SUE INSTRUCTING",
       location: "Uncorked Wine Inspired",
       address: "Uncorked Wine Inspired",
-      url: "https://uncorkedwineinspired.com/eventbook-event/?eventid=6412"
+      url: "https://uncorkedwineinspired.com/eventbook-event/?eventid=6412",
     });
     expect(events[0]?.start.toISOString()).toBe("2026-07-06T23:00:00.000Z");
     expect(events[0]?.end.toISOString()).toBe("2026-07-07T01:00:00.000Z");
     expect(events[1]).toMatchObject({
       title: "TROPICAL SUNSET",
       description: "BRIANA INSTRUCTING",
-      url: "https://uncorkedwineinspired.com/eventbook-event/?eventid=6416"
+      url: "https://uncorkedwineinspired.com/eventbook-event/?eventid=6416",
     });
     expect(events[1]?.start.toISOString()).toBe("2026-07-11T19:30:00.000Z");
     expect(events[1]?.end.toISOString()).toBe("2026-07-11T21:30:00.000Z");
   });
 
   it("parses House of Independents event list cards", () => {
-    const houseOfIndependentsConfig = getCalendarSource("house-of-independents");
+    const houseOfIndependentsConfig = getCalendarSource(
+      "house-of-independents",
+    );
 
-    if (!houseOfIndependentsConfig || houseOfIndependentsConfig.sourceType !== "html") {
+    if (
+      !houseOfIndependentsConfig ||
+      houseOfIndependentsConfig.sourceType !== "html"
+    ) {
       throw new Error("Missing House of Independents calendar config");
     }
 
@@ -988,7 +1027,7 @@ describe("extractEventsFromHtml", () => {
       `,
       houseOfIndependentsConfig,
       "https://houseofindependents.com/events/",
-      dayjs("2026-07-03T00:00:00Z")
+      dayjs("2026-07-03T00:00:00Z"),
     );
 
     expect(events).toHaveLength(2);
@@ -997,13 +1036,15 @@ describe("extractEventsFromHtml", () => {
       description: "House of Independents presents",
       address: "House of Independents, 572 Cookman Ave, Asbury Park, NJ 07712",
       location: "House of Independents, 572 Cookman Ave, Asbury Park, NJ 07712",
-      url: "https://houseofindependents.com/event/90s-night-dance-party-2/house-of-independents/asbury-park-new-jersey/"
+      url: "https://houseofindependents.com/event/90s-night-dance-party-2/house-of-independents/asbury-park-new-jersey/",
     });
     expect(events[0]?.start.toISOString()).toBe("2026-07-04T01:00:00.000Z");
     expect(events[0]?.end.toISOString()).toBe("2026-07-04T04:00:00.000Z");
     expect(events[1]?.title).toBe("Elysia");
     expect(events[1]?.description).toBe("Hellfest Presents..");
-    expect(events[1]?.url).toBe("https://houseofindependents.com/event/elysia/house-of-independents/asbury-park-new-jersey/");
+    expect(events[1]?.url).toBe(
+      "https://houseofindependents.com/event/elysia/house-of-independents/asbury-park-new-jersey/",
+    );
     expect(events[1]?.start.toISOString()).toBe("2026-07-06T22:30:00.000Z");
   });
 });
@@ -1018,10 +1059,11 @@ describe("extractEventsFromJson", () => {
       title: "title",
       start: "startDate",
       end: "endDate",
-      url: "fullUrl"
+      url: "fullUrl",
     },
     dateFormat: "epoch-ms",
-    defaultAddress: "Asbury Park Brewery, 614 Cookman Ave, Asbury Park, NJ 07712"
+    defaultAddress:
+      "Asbury Park Brewery, 614 Cookman Ave, Asbury Park, NJ 07712",
   };
 
   it("maps configured JSON fields to normalized calendar events", () => {
@@ -1031,16 +1073,16 @@ describe("extractEventsFromJson", () => {
           title: "Newborn Kings",
           fullUrl: "/events/2026/7/3/newborn-kings",
           startDate: 1783119600236,
-          endDate: 1783130400236
+          endDate: 1783130400236,
         },
         {
           title: "",
           startDate: 1783184400414,
-          endDate: 1783195200414
-        }
+          endDate: 1783195200414,
+        },
       ]),
       jsonConfig,
-      "https://www.asburyparkbrewery.com/api/open/GetItemsByMonth?month=07-2026&collectionId=abc"
+      "https://www.asburyparkbrewery.com/api/open/GetItemsByMonth?month=07-2026&collectionId=abc",
     );
 
     expect(events).toHaveLength(1);
@@ -1048,7 +1090,7 @@ describe("extractEventsFromJson", () => {
       title: "Newborn Kings",
       location: "Asbury Park Brewery, 614 Cookman Ave, Asbury Park, NJ 07712",
       address: "Asbury Park Brewery, 614 Cookman Ave, Asbury Park, NJ 07712",
-      url: "https://www.asburyparkbrewery.com/events/2026/7/3/newborn-kings"
+      url: "https://www.asburyparkbrewery.com/events/2026/7/3/newborn-kings",
     });
     expect(events[0]?.start.toISOString()).toBe("2026-07-03T23:00:00.236Z");
     expect(events[0]?.end.toISOString()).toBe("2026-07-04T02:00:00.236Z");
@@ -1060,10 +1102,10 @@ describe("extractEventsFromJson", () => {
       itemsPath: "data.events",
       fields: {
         title: "name",
-        start: "dates.start"
+        start: "dates.start",
       },
       dateFormat: "iso",
-      defaultDurationMinutes: 45
+      defaultDurationMinutes: 45,
     };
     const events = extractEventsFromJson(
       JSON.stringify({
@@ -1072,14 +1114,14 @@ describe("extractEventsFromJson", () => {
             {
               name: "Nested Event",
               dates: {
-                start: "2026-07-04T18:00:00Z"
-              }
-            }
-          ]
-        }
+                start: "2026-07-04T18:00:00Z",
+              },
+            },
+          ],
+        },
       }),
       nestedConfig,
-      "https://example.com/events.json"
+      "https://example.com/events.json",
     );
 
     expect(events).toHaveLength(1);
@@ -1102,7 +1144,7 @@ describe("extractEventsFromJson", () => {
           date: {
             start: 1783123200,
             end: 1783123200,
-            timezone: "America/New_York"
+            timezone: "America/New_York",
           },
           details:
             "<p><strong>Promised Land</strong><br />Classic Jersey Shore Music Tribute</p><p>Doors 8:00pm<br />Show 8:30pm</p>",
@@ -1111,8 +1153,8 @@ describe("extractEventsFromJson", () => {
           info: "American Hit Parade Show",
           venue: {
             name: "Wonder Bar",
-            addr: "1213 Ocean Avenue Asbury Park, NJ 07712"
-          }
+            addr: "1213 Ocean Avenue Asbury Park, NJ 07712",
+          },
         },
         {
           id: 24871,
@@ -1120,20 +1162,21 @@ describe("extractEventsFromJson", () => {
           date: {
             start: 1783378800,
             end: 1783378800,
-            timezone: "America/New_York"
+            timezone: "America/New_York",
           },
-          details: "<p>SEIKO Presents<br /><strong>HAPPY MONDAYS</strong><br />Free admission</p>",
+          details:
+            "<p>SEIKO Presents<br /><strong>HAPPY MONDAYS</strong><br />Free admission</p>",
           ticket: false,
           more: false,
           info: "Honey Bree, James Barrett",
           venue: {
             name: "Wonder Bar",
-            addr: "1213 Ocean Avenue Asbury Park, NJ 07712"
-          }
-        }
+            addr: "1213 Ocean Avenue Asbury Park, NJ 07712",
+          },
+        },
       ]),
       wonderBarConfig,
-      "https://apboardwalk.com/wp-json/apb/v1/shows/64"
+      "https://apboardwalk.com/wp-json/apb/v1/shows/64",
     );
     const events = rawEvents.map((event) => {
       const transformed = wonderBarConfig.transformEvent?.(event) ?? event;
@@ -1150,10 +1193,11 @@ describe("extractEventsFromJson", () => {
     expect(dayjs.isDayjs(events[0]?.end)).toBe(true);
     expect(events[0]).toMatchObject({
       title: "Promised Land",
-      description: "Promised Land Classic Jersey Shore Music Tribute Doors 8:00pm Show 8:30pm",
+      description:
+        "Promised Land Classic Jersey Shore Music Tribute Doors 8:00pm Show 8:30pm",
       address: "1213 Ocean Avenue Asbury Park, NJ 07712",
       location: "1213 Ocean Avenue Asbury Park, NJ 07712",
-      url: "https://www.ticketmaster.com/event/0000648DC1A6E988"
+      url: "https://www.ticketmaster.com/event/0000648DC1A6E988",
     });
     expect(events[0]?.start.toISOString()).toBe("2026-07-04T00:00:00.000Z");
     expect(events[0]?.end.toISOString()).toBe("2026-07-04T03:00:00.000Z");
@@ -1169,7 +1213,7 @@ describe("extractEventsFromIcs", () => {
     sourceType: "ics",
     url: "https://example.com/calendar.ics",
     timeZone: "America/New_York",
-    defaultDurationMinutes: 60
+    defaultDurationMinutes: 60,
   };
 
   it("parses VEVENT fields into normalized calendar events", () => {
@@ -1184,9 +1228,9 @@ describe("extractEventsFromIcs", () => {
         "LOCATION:<p>City Hall<br>1 Municipal Plaza</p>",
         "URL:https://example.com/events/1",
         "END:VEVENT",
-        "END:VCALENDAR"
+        "END:VCALENDAR",
       ].join("\r\n"),
-      icsConfig
+      icsConfig,
     );
 
     expect(events).toHaveLength(1);
@@ -1197,7 +1241,7 @@ describe("extractEventsFromIcs", () => {
       description: "Agenda Public comment",
       location: "<p>City Hall<br>1 Municipal Plaza</p>",
       address: "<p>City Hall<br>1 Municipal Plaza</p>",
-      url: "https://example.com/events/1"
+      url: "https://example.com/events/1",
     });
     expect(events[0]?.start.toISOString()).toBe("2026-07-06T23:00:00.000Z");
     expect(events[0]?.end.toISOString()).toBe("2026-07-07T00:30:00.000Z");
@@ -1212,9 +1256,9 @@ describe("extractEventsFromIcs", () => {
         " continuation",
         "DTSTART:20260706T190000Z",
         "END:VEVENT",
-        "END:VCALENDAR"
+        "END:VCALENDAR",
       ].join("\n"),
-      icsConfig
+      icsConfig,
     );
 
     expect(events).toHaveLength(1);
@@ -1229,7 +1273,7 @@ describe("extractEventsFromIcs", () => {
       start: dayjs("2026-07-06T19:00:00Z"),
       end: dayjs("2026-07-06T20:00:00Z"),
       location: "<p>City Hall<br>1 Municipal Plaza &amp; Offices</p>",
-      address: "<p>City Hall<br>1 Municipal Plaza &amp; Offices</p>"
+      address: "<p>City Hall<br>1 Municipal Plaza &amp; Offices</p>",
     });
 
     expect(event.location).toBe("City Hall 1 Municipal Plaza & Offices");
@@ -1242,10 +1286,12 @@ describe("extractEventsFromIcs", () => {
       start: dayjs("2026-08-28T21:00:00Z"),
       end: dayjs("2026-08-28T23:00:00Z"),
       location:
-        "<style>p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica}</style><p class=\"p1\">Pine Street between Second and Third Avenues - Asbury Park NJ 07712</p>"
+        '<style>p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica}</style><p class="p1">Pine Street between Second and Third Avenues - Asbury Park NJ 07712</p>',
     });
 
-    expect(event.location).toBe("Pine Street between Second and Third Avenues - Asbury Park NJ 07712");
+    expect(event.location).toBe(
+      "Pine Street between Second and Third Avenues - Asbury Park NJ 07712",
+    );
   });
 
   it("preserves date-only ICS entries as all-day events", () => {
@@ -1257,9 +1303,9 @@ describe("extractEventsFromIcs", () => {
         "DTSTART;VALUE=DATE:20260828",
         "DTEND;VALUE=DATE:20260829",
         "END:VEVENT",
-        "END:VCALENDAR"
+        "END:VCALENDAR",
       ].join("\r\n"),
-      icsConfig
+      icsConfig,
     );
     const feed = eventsToIcs("City", events);
 
@@ -1277,106 +1323,137 @@ describe("filterCalendarEvents", () => {
       start: dayjs("2026-07-04T00:00:00Z"),
       end: dayjs("2026-07-04T03:00:00Z"),
       description: "Classic Jersey Shore Music Tribute",
-      location: "Wonder Bar"
+      location: "Wonder Bar",
     },
     {
       title: "Happy Mondays",
       start: dayjs("2026-07-06T23:00:00Z"),
       end: dayjs("2026-07-07T02:00:00Z"),
       description: "Free admission",
-      location: "Wonder Bar"
+      location: "Wonder Bar",
     },
     {
       title: "Council Meeting",
       start: dayjs("2026-07-07T23:00:00Z"),
       end: dayjs("2026-07-08T00:00:00Z"),
-      location: "City Hall"
+      location: "City Hall",
     },
     {
       title: "Open Bowling",
       start: dayjs("2026-07-08T18:00:00Z"),
       end: dayjs("2026-07-08T20:00:00Z"),
-      location: "Bowling Alley"
-    }
+      location: "Bowling Alley",
+    },
   ];
 
   it("includes events matching any positive filter", () => {
-    expect(filterCalendarEvents(events, ["promised", "council"]).map((event) => event.title)).toEqual([
-      "Promised Land",
-      "Council Meeting"
-    ]);
+    expect(
+      filterCalendarEvents(events, ["promised", "council"]).map(
+        (event) => event.title,
+      ),
+    ).toEqual(["Promised Land", "Council Meeting"]);
   });
 
   it("excludes events matching any negated filter", () => {
-    expect(filterCalendarEvents(events, ["!wonder", "!council"]).map((event) => event.title)).toEqual([
-      "Open Bowling"
-    ]);
+    expect(
+      filterCalendarEvents(events, ["!wonder", "!council"]).map(
+        (event) => event.title,
+      ),
+    ).toEqual(["Open Bowling"]);
   });
 
   it("combines include and exclude filters", () => {
-    expect(filterCalendarEvents(events, ["wonder", "!promised"]).map((event) => event.title)).toEqual([
-      "Happy Mondays"
-    ]);
+    expect(
+      filterCalendarEvents(events, ["wonder", "!promised"]).map(
+        (event) => event.title,
+      ),
+    ).toEqual(["Happy Mondays"]);
   });
 
   it("ignores empty filters and matches case-insensitively", () => {
-    expect(filterCalendarEvents(events, ["", "  MONDAYS  "]).map((event) => event.title)).toEqual(["Happy Mondays"]);
+    expect(
+      filterCalendarEvents(events, ["", "  MONDAYS  "]).map(
+        (event) => event.title,
+      ),
+    ).toEqual(["Happy Mondays"]);
   });
 
   it("does not filter against event descriptions", () => {
-    expect(filterCalendarEvents(events, ["classic", "!free"]).map((event) => event.title)).toEqual([]);
+    expect(
+      filterCalendarEvents(events, ["classic", "!free"]).map(
+        (event) => event.title,
+      ),
+    ).toEqual([]);
   });
 
   it("applies default filters before request filters", () => {
-    expect(filterCalendarEvents(events, undefined, ["!open bowling"]).map((event) => event.title)).toEqual([
-      "Promised Land",
-      "Happy Mondays",
-      "Council Meeting"
-    ]);
+    expect(
+      filterCalendarEvents(events, undefined, ["!open bowling"]).map(
+        (event) => event.title,
+      ),
+    ).toEqual(["Promised Land", "Happy Mondays", "Council Meeting"]);
   });
 });
 
 describe("renderSourceUrl", () => {
   it("replaces year and zero-padded month tokens", () => {
-    expect(renderSourceUrl("https://example.com/{year}/{month}", dayjs("2026-07-03T00:00:00Z"))).toBe(
-      "https://example.com/2026/07"
-    );
+    expect(
+      renderSourceUrl(
+        "https://example.com/{year}/{month}",
+        dayjs("2026-07-03T00:00:00Z"),
+      ),
+    ).toBe("https://example.com/2026/07");
   });
 
   it("renders this month and next month when template contains month token", () => {
-    expect(renderSourceUrls("https://example.com/{year}/{month}", dayjs("2026-12-03T00:00:00Z"))).toEqual([
+    expect(
+      renderSourceUrls(
+        "https://example.com/{year}/{month}",
+        dayjs("2026-12-03T00:00:00Z"),
+      ),
+    ).toEqual([
       "https://example.com/2026/12",
       "https://example.com/2027/01",
-      "https://example.com/2027/02"
+      "https://example.com/2027/02",
     ]);
   });
 
   it("renders one source URL when template has no month token", () => {
-    expect(renderSourceUrls("https://example.com/events", dayjs("2026-07-03T00:00:00Z"))).toEqual([
-      "https://example.com/events"
-    ]);
+    expect(
+      renderSourceUrls(
+        "https://example.com/events",
+        dayjs("2026-07-03T00:00:00Z"),
+      ),
+    ).toEqual(["https://example.com/events"]);
   });
 });
 
 describe("fetchCalendarEvents", () => {
   it("fetches upstream HTML for repeated direct calendar event fetches", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
-      new Response(
-        `
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(
+          `
           <article>
             <h2 class="event-title">Cached Event</h2>
             <time class="start" datetime="2026-07-04T18:00:00Z">July 4</time>
           </article>
-        `
-      )
+        `,
+        ),
     );
     const noTokenConfig: CalendarSourceConfig = {
       ...config,
-      url: "https://example.com/events"
+      url: "https://example.com/events",
     };
 
-    const first = await fetchCalendarEvents(noTokenConfig, dayjs("2026-07-03T00:00:00Z"));
-    const second = await fetchCalendarEvents(noTokenConfig, dayjs("2026-07-03T00:00:00Z"));
+    const first = await fetchCalendarEvents(
+      noTokenConfig,
+      dayjs("2026-07-03T00:00:00Z"),
+    );
+    const second = await fetchCalendarEvents(
+      noTokenConfig,
+      dayjs("2026-07-03T00:00:00Z"),
+    );
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(first.fetchStatus).toBe("fetched");
@@ -1385,37 +1462,42 @@ describe("fetchCalendarEvents", () => {
   });
 
   it("fetches this month and the next two months when URL has month token", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
-      const url = String(input);
-      const title = url.endsWith("/09")
-        ? "Third Month Event"
-        : url.endsWith("/08")
-          ? "Next Month Event"
-          : "This Month Event";
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input) => {
+        const url = String(input);
+        const title = url.endsWith("/09")
+          ? "Third Month Event"
+          : url.endsWith("/08")
+            ? "Next Month Event"
+            : "This Month Event";
 
-      return new Response(
-        `
+        return new Response(
+          `
           <article>
             <h2 class="event-title">${title}</h2>
             <time class="start" datetime="2026-07-04T18:00:00Z">July 4</time>
           </article>
-        `
-      );
-    });
+        `,
+        );
+      });
 
-    const result = await fetchCalendarEvents(config, dayjs("2026-07-03T00:00:00Z"));
+    const result = await fetchCalendarEvents(
+      config,
+      dayjs("2026-07-03T00:00:00Z"),
+    );
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(result.sourceUrls).toEqual([
       "https://example.com/events/2026/07",
       "https://example.com/events/2026/08",
-      "https://example.com/events/2026/09"
+      "https://example.com/events/2026/09",
     ]);
     expect(result.fetchStatuses).toEqual(["fetched", "fetched", "fetched"]);
     expect(result.events.map((event) => event.title)).toEqual([
       "This Month Event",
       "Next Month Event",
-      "Third Month Event"
+      "Third Month Event",
     ]);
   });
 
@@ -1427,15 +1509,18 @@ describe("fetchCalendarEvents", () => {
             <h2 class="event-title">Single URL Event</h2>
             <time class="start" datetime="2026-07-04T18:00:00Z">July 4</time>
           </article>
-        `
-      )
+        `,
+      ),
     );
 
     const noTokenConfig: CalendarSourceConfig = {
       ...config,
-      url: "https://example.com/events"
+      url: "https://example.com/events",
     };
-    const result = await fetchCalendarEvents(noTokenConfig, dayjs("2026-07-03T00:00:00Z"));
+    const result = await fetchCalendarEvents(
+      noTokenConfig,
+      dayjs("2026-07-03T00:00:00Z"),
+    );
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(result.sourceUrls).toEqual(["https://example.com/events"]);
@@ -1447,19 +1532,24 @@ describe("fetchCalendarEvents", () => {
     async (emptyPageText) => {
       const fetchMock = vi
         .spyOn(globalThis, "fetch")
-        .mockResolvedValue(new Response(`<p>${emptyPageText}</p>`, { status: 404 }));
+        .mockResolvedValue(
+          new Response(`<p>${emptyPageText}</p>`, { status: 404 }),
+        );
       const noTokenConfig: CalendarSourceConfig = {
         ...config,
-        url: "https://example.com/events"
+        url: "https://example.com/events",
       };
 
-      const result = await fetchCalendarEvents(noTokenConfig, dayjs("2026-07-03T00:00:00Z"));
+      const result = await fetchCalendarEvents(
+        noTokenConfig,
+        dayjs("2026-07-03T00:00:00Z"),
+      );
 
       expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(result.fetchStatus).toBe("fetched");
       expect(result.fetchStatuses).toEqual(["fetched"]);
       expect(result.events).toEqual([]);
-    }
+    },
   );
 
   it("parses events before classifying non-OK empty source page text", async () => {
@@ -1471,30 +1561,37 @@ describe("fetchCalendarEvents", () => {
             <time class="start" datetime="2026-07-04T18:00:00Z">July 4</time>
           </article>
         `,
-        { status: 404 }
-      )
+        { status: 404 },
+      ),
     );
     const noTokenConfig: CalendarSourceConfig = {
       ...config,
-      url: "https://example.com/events"
+      url: "https://example.com/events",
     };
 
-    const result = await fetchCalendarEvents(noTokenConfig, dayjs("2026-07-03T00:00:00Z"));
+    const result = await fetchCalendarEvents(
+      noTokenConfig,
+      dayjs("2026-07-03T00:00:00Z"),
+    );
 
     expect(result.fetchStatus).toBe("fetched");
-    expect(result.events.map((event) => event.title)).toEqual(["No Events Found Fundraiser"]);
+    expect(result.events.map((event) => event.title)).toEqual([
+      "No Events Found Fundraiser",
+    ]);
   });
 
   it("throws when non-OK HTML is not a known empty source page", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("<p>Server error</p>", { status: 500 }));
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("<p>Server error</p>", { status: 500 }),
+    );
     const noTokenConfig: CalendarSourceConfig = {
       ...config,
-      url: "https://example.com/events"
+      url: "https://example.com/events",
     };
 
-    await expect(fetchCalendarEvents(noTokenConfig, dayjs("2026-07-03T00:00:00Z"))).rejects.toThrow(
-      "Failed to fetch https://example.com/events: 500"
-    );
+    await expect(
+      fetchCalendarEvents(noTokenConfig, dayjs("2026-07-03T00:00:00Z")),
+    ).rejects.toThrow("Failed to fetch https://example.com/events: 500");
   });
 
   it("fetches and parses JSON source calendars", async () => {
@@ -1505,10 +1602,10 @@ describe("fetchCalendarEvents", () => {
             title: "JSON Event",
             startDate: 1783184400414,
             endDate: 1783195200414,
-            fullUrl: "/events/json-event"
-          }
-        ])
-      )
+            fullUrl: "/events/json-event",
+          },
+        ]),
+      ),
     );
     const jsonConfig: CalendarSourceConfig = {
       id: "json-source",
@@ -1519,17 +1616,20 @@ describe("fetchCalendarEvents", () => {
         title: "title",
         start: "startDate",
         end: "endDate",
-        url: "fullUrl"
+        url: "fullUrl",
       },
-      dateFormat: "epoch-ms"
+      dateFormat: "epoch-ms",
     };
-    const result = await fetchCalendarEvents(jsonConfig, dayjs("2026-07-03T00:00:00Z"));
+    const result = await fetchCalendarEvents(
+      jsonConfig,
+      dayjs("2026-07-03T00:00:00Z"),
+    );
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(result.sourceUrls).toEqual([
       "https://example.com/api/events?month=07-2026",
       "https://example.com/api/events?month=08-2026",
-      "https://example.com/api/events?month=09-2026"
+      "https://example.com/api/events?month=09-2026",
     ]);
     expect(result.events[0]?.title).toBe("JSON Event");
     expect(result.events[0]?.url).toBe("https://example.com/events/json-event");
@@ -1546,18 +1646,21 @@ describe("fetchCalendarEvents", () => {
           "DTEND:20260706T200000Z",
           "LOCATION:<p>City Hall<br>1 Municipal Plaza</p>",
           "END:VEVENT",
-          "END:VCALENDAR"
-        ].join("\r\n")
-      )
+          "END:VCALENDAR",
+        ].join("\r\n"),
+      ),
     );
     const icsConfig: CalendarSourceConfig = {
       id: "ics-source",
       name: "ICS Source",
       sourceType: "ics",
       url: "https://example.com/calendar.ics",
-      transformEvent: stripHtmlFromEventLocation
+      transformEvent: stripHtmlFromEventLocation,
     };
-    const result = await fetchCalendarEvents(icsConfig, dayjs("2026-07-03T00:00:00Z"));
+    const result = await fetchCalendarEvents(
+      icsConfig,
+      dayjs("2026-07-03T00:00:00Z"),
+    );
 
     expect(result.sourceUrls).toEqual(["https://example.com/calendar.ics"]);
     expect(result.events[0]?.title).toBe("ICS Event");
@@ -1625,8 +1728,8 @@ describe("fetchCalendarEvents", () => {
               </div>
             </div>
           </div>
-        `
-      )
+        `,
+      ),
     );
     const showroomConfig = getCalendarSource("showroom-cinemas");
 
@@ -1634,93 +1737,123 @@ describe("fetchCalendarEvents", () => {
       throw new Error("Missing ShowRoom Cinemas calendar config");
     }
 
-    const result = await fetchCalendarEvents(showroomConfig, dayjs("2026-07-03T00:00:00Z"));
+    const result = await fetchCalendarEvents(
+      showroomConfig,
+      dayjs("2026-07-03T00:00:00Z"),
+    );
 
-    expect(result.sourceUrls).toEqual(["https://showroomcinemas.com/coming-soon/"]);
+    expect(result.sourceUrls).toEqual([
+      "https://showroomcinemas.com/coming-soon/",
+    ]);
     expect(result.events).toHaveLength(4);
     expect(result.events[0]).toMatchObject({
       title: "From Russia with Love",
       description: "The world's masters of murder pull out all the stops.",
       address: "ShowRoom Cinemas, 707 Cookman Avenue, Asbury Park, NJ 07712",
       location: "ShowRoom Cinemas, 707 Cookman Avenue, Asbury Park, NJ 07712",
-      url: "https://showroomcinemas.com/purchase/259184/"
+      url: "https://showroomcinemas.com/purchase/259184/",
     });
-    expect(result.events[0]?.start.toISOString()).toBe("2026-07-08T23:30:00.000Z");
-    expect(result.events[0]?.end.toISOString()).toBe("2026-07-09T01:30:00.000Z");
+    expect(result.events[0]?.start.toISOString()).toBe(
+      "2026-07-08T23:30:00.000Z",
+    );
+    expect(result.events[0]?.end.toISOString()).toBe(
+      "2026-07-09T01:30:00.000Z",
+    );
     expect(result.events[1]?.title).toBe("Jaws");
-    expect(result.events[1]?.start.toISOString()).toBe("2026-07-11T23:30:00.000Z");
+    expect(result.events[1]?.start.toISOString()).toBe(
+      "2026-07-11T23:30:00.000Z",
+    );
     expect(result.events[2]?.title).toBe("Jaws");
-    expect(result.events[2]?.start.toISOString()).toBe("2026-07-15T23:30:00.000Z");
-    expect(result.events[2]?.url).toBe("https://showroomcinemas.com/purchase/257807/");
+    expect(result.events[2]?.start.toISOString()).toBe(
+      "2026-07-15T23:30:00.000Z",
+    );
+    expect(result.events[2]?.url).toBe(
+      "https://showroomcinemas.com/purchase/257807/",
+    );
     expect(result.events[3]).toMatchObject({
       title: "A Cell Phone Movie",
       allDay: true,
-      url: "https://showroomcinemas.com/movies/a-cell-phone-movie/"
+      url: "https://showroomcinemas.com/movies/a-cell-phone-movie/",
     });
-    expect(result.events[3]?.start.toISOString()).toBe("2026-08-07T04:00:00.000Z");
-    expect(result.events[3]?.end.toISOString()).toBe("2026-08-08T04:00:00.000Z");
+    expect(result.events[3]?.start.toISOString()).toBe(
+      "2026-08-07T04:00:00.000Z",
+    );
+    expect(result.events[3]?.end.toISOString()).toBe(
+      "2026-08-08T04:00:00.000Z",
+    );
   });
 
   it("stores set-cookie values by host and sends cookie pairs back", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
-      const response = new Response(
-        `
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => {
+        const response = new Response(
+          `
           <article>
             <h2 class="event-title">Cookie Event</h2>
             <time class="start" datetime="2026-07-04T18:00:00Z">July 4</time>
           </article>
-        `
-      );
-      Object.defineProperty(response.headers, "getSetCookie", {
-        value: () => ["X_Obolus_Proof=abc123; Path=/; HttpOnly", "source_session=def456; Secure"]
-      });
+        `,
+        );
+        Object.defineProperty(response.headers, "getSetCookie", {
+          value: () => [
+            "X_Obolus_Proof=abc123; Path=/; HttpOnly",
+            "source_session=def456; Secure",
+          ],
+        });
 
-      return response;
-    });
+        return response;
+      });
     const noCacheConfig: CalendarSourceConfig = {
       ...config,
-      url: "https://example.com/events"
+      url: "https://example.com/events",
     };
 
     await fetchCalendarEvents(noCacheConfig, dayjs("2026-07-03T00:00:00Z"));
     await fetchCalendarEvents(noCacheConfig, dayjs("2026-07-03T00:00:00Z"));
 
-    const secondRequestHeaders = fetchMock.mock.calls[1]?.[1]?.headers as Record<string, string>;
+    const secondRequestHeaders = fetchMock.mock.calls[1]?.[1]
+      ?.headers as Record<string, string>;
 
-    expect(secondRequestHeaders.cookie).toBe("X_Obolus_Proof=abc123; source_session=def456");
+    expect(secondRequestHeaders.cookie).toBe(
+      "X_Obolus_Proof=abc123; source_session=def456",
+    );
   });
 
   it("does not send cookies across source hosts", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
-      const response = new Response(
-        `
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => {
+        const response = new Response(
+          `
           <article>
             <h2 class="event-title">Host Event</h2>
             <time class="start" datetime="2026-07-04T18:00:00Z">July 4</time>
           </article>
         `,
-        {
-          headers: {
-            "set-cookie": "source_session=example-cookie; Path=/"
-          }
-        }
-      );
+          {
+            headers: {
+              "set-cookie": "source_session=example-cookie; Path=/",
+            },
+          },
+        );
 
-      return response;
-    });
+        return response;
+      });
     const exampleConfig: CalendarSourceConfig = {
       ...config,
-      url: "https://example.com/events"
+      url: "https://example.com/events",
     };
     const otherConfig: CalendarSourceConfig = {
       ...config,
-      url: "https://events.example.net/events"
+      url: "https://events.example.net/events",
     };
 
     await fetchCalendarEvents(exampleConfig, dayjs("2026-07-03T00:00:00Z"));
     await fetchCalendarEvents(otherConfig, dayjs("2026-07-03T00:00:00Z"));
 
-    const secondRequestHeaders = fetchMock.mock.calls[1]?.[1]?.headers as Record<string, string>;
+    const secondRequestHeaders = fetchMock.mock.calls[1]?.[1]
+      ?.headers as Record<string, string>;
 
     expect(secondRequestHeaders.cookie).toBeUndefined();
   });

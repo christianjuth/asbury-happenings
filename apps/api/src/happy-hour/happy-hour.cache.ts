@@ -1,13 +1,19 @@
 import type { FastifyBaseLogger } from "fastify";
 
 import dayjs, { type Dayjs } from "../calendar/calendar.dates.js";
-import { filterCalendarEvents, type FetchStatus } from "../calendar/calendar.service.js";
-import { HAPPY_HOUR_SOURCE, type HappyHourSourceConfig } from "./happy-hour.config.js";
+import {
+  filterCalendarEvents,
+  type FetchStatus,
+} from "../calendar/calendar.service.js";
+import {
+  HAPPY_HOUR_SOURCE,
+  type HappyHourSourceConfig,
+} from "./happy-hour.config.js";
 import {
   fetchHappyHourEvents,
   happyHourEventsToDebugText,
   happyHourEventsToIcs,
-  type HappyHourEvent
+  type HappyHourEvent,
 } from "./happy-hour.service.js";
 
 const CACHE_BACKOFF_BASE_MS = 5_000;
@@ -30,18 +36,21 @@ let BACKOFF_ATTEMPT = 0;
 
 export function getCachedHappyHourFeed(
   config: HappyHourSourceConfig = HAPPY_HOUR_SOURCE,
-  filters?: string | string[]
+  filters?: string | string[],
 ): string | null {
   if (!SNAPSHOT || SNAPSHOT.status === "error") {
     return null;
   }
 
-  return happyHourEventsToIcs(config.name, filterCalendarEvents(SNAPSHOT.events, filters));
+  return happyHourEventsToIcs(
+    config.name,
+    filterCalendarEvents(SNAPSHOT.events, filters),
+  );
 }
 
 export function getCachedHappyHourDebugText(
   config: HappyHourSourceConfig = HAPPY_HOUR_SOURCE,
-  filters?: string | string[]
+  filters?: string | string[],
 ): string {
   if (!SNAPSHOT) {
     return happyHourEventsToDebugText(config.name, config.url, [], "warming");
@@ -51,23 +60,26 @@ export function getCachedHappyHourDebugText(
     config.name,
     SNAPSHOT.sourceUrl,
     filterCalendarEvents(SNAPSHOT.events, filters),
-    SNAPSHOT.status
+    SNAPSHOT.status,
   );
 }
 
 export async function warmHappyHourCache(
   config: HappyHourSourceConfig = HAPPY_HOUR_SOURCE,
   now = dayjs(),
-  logger?: FastifyBaseLogger
+  logger?: FastifyBaseLogger,
 ): Promise<boolean> {
   try {
-    const { sourceUrl, events, fetchStatus } = await fetchHappyHourEvents(config, now);
+    const { sourceUrl, events, fetchStatus } = await fetchHappyHourEvents(
+      config,
+      now,
+    );
 
     SNAPSHOT = {
       sourceUrl,
       events,
       fetchedAt: dayjs(),
-      status: fetchStatus
+      status: fetchStatus,
     };
     BACKOFF_ATTEMPT = 0;
     return true;
@@ -79,14 +91,22 @@ export async function warmHappyHourCache(
       events: SNAPSHOT?.events ?? [],
       fetchedAt: dayjs(),
       status: SNAPSHOT ? "stale" : "error",
-      error: message
+      error: message,
     };
-    logger?.warn({ errorName: error instanceof Error ? error.name : undefined, errorMessage: message }, "Happy hour cache warm failed");
+    logger?.warn(
+      {
+        errorName: error instanceof Error ? error.name : undefined,
+        errorMessage: message,
+      },
+      "Happy hour cache warm failed",
+    );
     return false;
   }
 }
 
-export function startHappyHourCacheScheduler(logger: FastifyBaseLogger): () => Promise<void> {
+export function startHappyHourCacheScheduler(
+  logger: FastifyBaseLogger,
+): () => Promise<void> {
   STOPPED = false;
   void runHappyHourCacheCycle(HAPPY_HOUR_SOURCE, logger);
 
@@ -107,7 +127,10 @@ export function clearHappyHourCache(): void {
   BACKOFF_ATTEMPT = 0;
 }
 
-async function runHappyHourCacheCycle(config: HappyHourSourceConfig, logger: FastifyBaseLogger): Promise<void> {
+async function runHappyHourCacheCycle(
+  config: HappyHourSourceConfig,
+  logger: FastifyBaseLogger,
+): Promise<void> {
   const success = await warmHappyHourCache(config, dayjs(), logger);
 
   if (STOPPED) {
@@ -118,12 +141,15 @@ async function runHappyHourCacheCycle(config: HappyHourSourceConfig, logger: Fas
     () => {
       void runHappyHourCacheCycle(config, logger);
     },
-    success ? HAPPY_HOUR_REFRESH_MS : getRetryDelayMs()
+    success ? HAPPY_HOUR_REFRESH_MS : getRetryDelayMs(),
   );
 }
 
 function getRetryDelayMs(): number {
-  const exponentialDelay = Math.min(CACHE_BACKOFF_BASE_MS * 2 ** BACKOFF_ATTEMPT, CACHE_BACKOFF_MAX_MS);
+  const exponentialDelay = Math.min(
+    CACHE_BACKOFF_BASE_MS * 2 ** BACKOFF_ATTEMPT,
+    CACHE_BACKOFF_MAX_MS,
+  );
   const jitter = exponentialDelay * CACHE_BACKOFF_JITTER * Math.random();
 
   BACKOFF_ATTEMPT += 1;

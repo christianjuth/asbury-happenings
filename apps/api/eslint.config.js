@@ -6,7 +6,7 @@ import ts from "typescript";
 
 const DEAD_EXPORT_GRAPH = buildDeadExportGraph({
   exportRoots: ["src"],
-  usageRoots: ["src", "test"]
+  usageRoots: ["src", "test"],
 });
 
 const localRules = {
@@ -15,16 +15,19 @@ const localRules = {
       meta: {
         type: "problem",
         docs: {
-          description: "Report exported declarations in src that are not imported anywhere in the codebase."
+          description:
+            "Report exported declarations in src that are not imported anywhere in the codebase.",
         },
         messages: {
-          unusedExport: "'{{name}}' is exported but not imported anywhere in src or test."
+          unusedExport:
+            "'{{name}}' is exported but not imported anywhere in src or test.",
         },
-        schema: []
+        schema: [],
       },
       create(context) {
         const filePath = normalizePath(context.filename);
-        const unusedExports = DEAD_EXPORT_GRAPH.unusedExportsByFile.get(filePath);
+        const unusedExports =
+          DEAD_EXPORT_GRAPH.unusedExportsByFile.get(filePath);
 
         if (!unusedExports?.length) {
           return {};
@@ -38,62 +41,73 @@ const localRules = {
                 loc: exportInfo.loc,
                 messageId: "unusedExport",
                 data: {
-                  name: exportInfo.name
-                }
+                  name: exportInfo.name,
+                },
               });
             }
-          }
+          },
         };
-      }
-    }
-  }
+      },
+    },
+  },
 };
 
 export default [
   {
-    ignores: ["dist/**", "node_modules/**"]
+    ignores: ["dist/**", "node_modules/**"],
   },
   {
     files: ["src/**/*.ts", "test/**/*.ts", "*.ts"],
     plugins: {
       "import-x": importX,
-      local: localRules
+      local: localRules,
     },
     settings: {
       "import-x/extensions": [".ts", ".mts", ".cts", ".js", ".mjs", ".cjs"],
       "import-x/parsers": {
-        "@typescript-eslint/parser": [".ts", ".mts", ".cts"]
+        "@typescript-eslint/parser": [".ts", ".mts", ".cts"],
       },
       "import-x/resolver-next": [
         createNodeResolver({
           extensionAlias: {
             ".js": [".ts", ".js"],
             ".mjs": [".mts", ".mjs"],
-            ".cjs": [".cts", ".cjs"]
+            ".cjs": [".cts", ".cjs"],
           },
-          extensions: [".ts", ".mts", ".cts", ".js", ".mjs", ".cjs", ".json", ".node"]
-        })
-      ]
+          extensions: [
+            ".ts",
+            ".mts",
+            ".cts",
+            ".js",
+            ".mjs",
+            ".cjs",
+            ".json",
+            ".node",
+          ],
+        }),
+      ],
     },
     languageOptions: {
       parser: tsParser,
       ecmaVersion: "latest",
-      sourceType: "module"
+      sourceType: "module",
     },
     rules: {
       "import-x/no-cycle": [
         "error",
         {
-          ignoreExternal: true
-        }
+          ignoreExternal: true,
+        },
       ],
-      "local/no-unused-exports": "error"
-    }
-  }
+      "local/no-unused-exports": "error",
+    },
+  },
 ];
 
 function buildDeadExportGraph({ exportRoots, usageRoots }) {
-  const exportFiles = new Set(exportRoots.flatMap((root) => findTypeScriptFiles(root)));
+  const exportFiles = new Set(
+    exportRoots.flatMap((root) => findTypeScriptFiles(root)),
+  );
   const usageFiles = usageRoots.flatMap((root) => findTypeScriptFiles(root));
   const exportsByFile = new Map();
   const usedExportsByFile = new Map();
@@ -117,7 +131,9 @@ function buildDeadExportGraph({ exportRoots, usageRoots }) {
 
   for (const [filePath, exportInfos] of exportsByFile) {
     const usedNames = usedExportsByFile.get(filePath) ?? new Set();
-    const unusedExports = exportInfos.filter((exportInfo) => !usedNames.has(exportInfo.name));
+    const unusedExports = exportInfos.filter(
+      (exportInfo) => !usedNames.has(exportInfo.name),
+    );
 
     if (unusedExports.length) {
       unusedExportsByFile.set(filePath, unusedExports);
@@ -136,9 +152,18 @@ function collectExports(sourceFile) {
       continue;
     }
 
-    if (ts.isExportDeclaration(statement) && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+    if (
+      ts.isExportDeclaration(statement) &&
+      statement.exportClause &&
+      ts.isNamedExports(statement.exportClause)
+    ) {
       for (const specifier of statement.exportClause.elements) {
-        addExportInfo(exportInfos, specifier.name.text, specifier.name, sourceFile);
+        addExportInfo(
+          exportInfos,
+          specifier.name.text,
+          specifier.name,
+          sourceFile,
+        );
       }
     }
   }
@@ -171,10 +196,20 @@ function collectExportedDeclaration(statement, sourceFile, exportInfos) {
   }
 }
 
-function collectImportUses(sourceFile, filePath, exportFiles, usedExportsByFile) {
+function collectImportUses(
+  sourceFile,
+  filePath,
+  exportFiles,
+  usedExportsByFile,
+) {
   for (const statement of sourceFile.statements) {
     if (ts.isImportDeclaration(statement)) {
-      collectImportDeclarationUses(statement, filePath, exportFiles, usedExportsByFile);
+      collectImportDeclarationUses(
+        statement,
+        filePath,
+        exportFiles,
+        usedExportsByFile,
+      );
       continue;
     }
 
@@ -184,8 +219,17 @@ function collectImportUses(sourceFile, filePath, exportFiles, usedExportsByFile)
   }
 }
 
-function collectImportDeclarationUses(statement, filePath, exportFiles, usedExportsByFile) {
-  const importedFilePath = resolveLocalModule(filePath, getModuleSpecifierText(statement), exportFiles);
+function collectImportDeclarationUses(
+  statement,
+  filePath,
+  exportFiles,
+  usedExportsByFile,
+) {
+  const importedFilePath = resolveLocalModule(
+    filePath,
+    getModuleSpecifierText(statement),
+    exportFiles,
+  );
 
   if (!importedFilePath || !statement.importClause) {
     return;
@@ -207,12 +251,25 @@ function collectImportDeclarationUses(statement, filePath, exportFiles, usedExpo
   }
 
   for (const specifier of namedBindings.elements) {
-    addUsedExport(usedExportsByFile, importedFilePath, (specifier.propertyName ?? specifier.name).text);
+    addUsedExport(
+      usedExportsByFile,
+      importedFilePath,
+      (specifier.propertyName ?? specifier.name).text,
+    );
   }
 }
 
-function collectReExportUses(statement, filePath, exportFiles, usedExportsByFile) {
-  const importedFilePath = resolveLocalModule(filePath, getModuleSpecifierText(statement), exportFiles);
+function collectReExportUses(
+  statement,
+  filePath,
+  exportFiles,
+  usedExportsByFile,
+) {
+  const importedFilePath = resolveLocalModule(
+    filePath,
+    getModuleSpecifierText(statement),
+    exportFiles,
+  );
 
   if (!importedFilePath) {
     return;
@@ -228,7 +285,11 @@ function collectReExportUses(statement, filePath, exportFiles, usedExportsByFile
   }
 
   for (const specifier of statement.exportClause.elements) {
-    addUsedExport(usedExportsByFile, importedFilePath, (specifier.propertyName ?? specifier.name).text);
+    addUsedExport(
+      usedExportsByFile,
+      importedFilePath,
+      (specifier.propertyName ?? specifier.name).text,
+    );
   }
 }
 
@@ -246,14 +307,16 @@ function collectBindingNameExports(name, sourceFile, exportInfos) {
 }
 
 function addExportInfo(exportInfos, name, node, sourceFile) {
-  const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
+  const { line, character } = sourceFile.getLineAndCharacterOfPosition(
+    node.getStart(sourceFile),
+  );
 
   exportInfos.push({
     name,
     loc: {
       line: line + 1,
-      column: character
-    }
+      column: character,
+    },
   });
 }
 
@@ -273,15 +336,25 @@ function markAllExportsUsed(usedExportsByFile, filePath) {
 }
 
 function hasExportModifier(node) {
-  return Boolean(node.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword));
+  return Boolean(
+    node.modifiers?.some(
+      (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword,
+    ),
+  );
 }
 
 function hasDefaultModifier(node) {
-  return Boolean(node.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.DefaultKeyword));
+  return Boolean(
+    node.modifiers?.some(
+      (modifier) => modifier.kind === ts.SyntaxKind.DefaultKeyword,
+    ),
+  );
 }
 
 function getModuleSpecifierText(statement) {
-  return ts.isStringLiteral(statement.moduleSpecifier) ? statement.moduleSpecifier.text : undefined;
+  return ts.isStringLiteral(statement.moduleSpecifier)
+    ? statement.moduleSpecifier.text
+    : undefined;
 }
 
 function resolveLocalModule(importerPath, specifier, knownFiles) {
@@ -289,12 +362,14 @@ function resolveLocalModule(importerPath, specifier, knownFiles) {
     return undefined;
   }
 
-  const basePath = normalizePath(path.resolve(path.dirname(importerPath), specifier));
+  const basePath = normalizePath(
+    path.resolve(path.dirname(importerPath), specifier),
+  );
   const candidates = [
     basePath,
     replaceExtension(basePath, ".ts"),
     `${basePath}.ts`,
-    normalizePath(path.join(basePath, "index.ts"))
+    normalizePath(path.join(basePath, "index.ts")),
   ];
 
   return candidates.find((candidate) => knownFiles.has(candidate));
@@ -305,7 +380,12 @@ function replaceExtension(filePath, extension) {
 }
 
 function readSourceFile(filePath) {
-  return ts.createSourceFile(filePath, fs.readFileSync(filePath, "utf8"), ts.ScriptTarget.Latest, true);
+  return ts.createSourceFile(
+    filePath,
+    fs.readFileSync(filePath, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+  );
 }
 
 function findTypeScriptFiles(root) {
@@ -316,7 +396,9 @@ function findTypeScriptFiles(root) {
   }
 
   return walkFiles(rootPath)
-    .filter((filePath) => filePath.endsWith(".ts") && !filePath.endsWith(".d.ts"))
+    .filter(
+      (filePath) => filePath.endsWith(".ts") && !filePath.endsWith(".d.ts"),
+    )
     .map(normalizePath);
 }
 

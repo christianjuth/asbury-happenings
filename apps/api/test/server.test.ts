@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clearCalendarPageCache, getCachedCalendarDebugText, warmCalendarPage } from "../src/calendar/calendar.cache.js";
+import {
+  clearCalendarPageCache,
+  getCachedCalendarDebugText,
+  warmCalendarPage,
+} from "../src/calendar/calendar.cache.js";
 import { getCalendarSource } from "../src/calendar/calendar.config.js";
 import dayjs from "../src/calendar/calendar.dates.js";
 import { clearCalendarFetchState } from "../src/calendar/calendar.service.js";
@@ -18,12 +22,12 @@ describe("server", () => {
 
     const response = await server.inject({
       method: "GET",
-      url: "/health"
+      url: "/health",
     });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
-      ok: true
+      ok: true,
     });
 
     await server.close();
@@ -34,7 +38,7 @@ describe("server", () => {
 
     const response = await server.inject({
       method: "GET",
-      url: "/calendar"
+      url: "/calendar",
     });
 
     expect(response.statusCode).toBe(200);
@@ -43,105 +47,106 @@ describe("server", () => {
         {
           id: "asbury-brickwall",
           name: "Brickwall",
-          path: "/calendar/asbury-brickwall.ics"
+          path: "/calendar/asbury-brickwall.ics",
         },
         {
           id: "asbury-lovesick",
           name: "Lovesick",
-          path: "/calendar/asbury-lovesick.ics"
+          path: "/calendar/asbury-lovesick.ics",
         },
         {
           id: "stone-pony",
           name: "The Stone Pony",
-          path: "/calendar/stone-pony.ics"
+          path: "/calendar/stone-pony.ics",
         },
         {
           id: "uncorked-wine-inspired",
           name: "Uncorked Wine Inspired",
-          path: "/calendar/uncorked-wine-inspired.ics"
+          path: "/calendar/uncorked-wine-inspired.ics",
         },
         {
           id: "asbury-book-coop",
           name: "Asbury Book Coop",
-          path: "/calendar/asbury-book-coop.ics"
+          path: "/calendar/asbury-book-coop.ics",
         },
         {
           id: "tim-mcloones-supper-club",
           name: "Tim McLoone's Supper Club",
-          path: "/calendar/tim-mcloones-supper-club.ics"
+          path: "/calendar/tim-mcloones-supper-club.ics",
         },
         {
           id: "ap-rooftop",
           name: "AP Rooftop",
-          path: "/calendar/ap-rooftop.ics"
+          path: "/calendar/ap-rooftop.ics",
         },
         {
           id: "iron-whale",
           name: "Iron Whale",
-          path: "/calendar/iron-whale.ics"
+          path: "/calendar/iron-whale.ics",
         },
         {
           id: "r-bar",
           name: "R Bar",
-          path: "/calendar/r-bar.ics"
+          path: "/calendar/r-bar.ics",
         },
         {
           id: "wonder-bar",
           name: "Wonder Bar",
-          path: "/calendar/wonder-bar.ics"
+          path: "/calendar/wonder-bar.ics",
         },
         {
           id: "house-of-independents",
           name: "House of Independents",
-          path: "/calendar/house-of-independents.ics"
+          path: "/calendar/house-of-independents.ics",
         },
         {
           id: "showroom-cinemas",
           name: "ShowRoom Cinemas",
-          path: "/calendar/showroom-cinemas.ics"
+          path: "/calendar/showroom-cinemas.ics",
         },
         {
           id: "asbury-park-brewery",
           name: "Asbury Park Brewery",
-          path: "/calendar/asbury-park-brewery.ics"
+          path: "/calendar/asbury-park-brewery.ics",
         },
         {
           id: "black-swan",
           name: "The Black Swan Public House",
-          path: "/calendar/black-swan.ics"
+          path: "/calendar/black-swan.ics",
         },
         {
           id: "asbury-lanes",
           name: "Asbury Lanes / Hotel",
-          path: "/calendar/asbury-lanes.ics"
+          path: "/calendar/asbury-lanes.ics",
         },
         {
           id: "asbury-park-city",
           name: "City of Asbury Park",
-          path: "/calendar/asbury-park-city.ics"
+          path: "/calendar/asbury-park-city.ics",
         },
         {
           id: "samantha-dress",
           name: "Samantha Dress",
-          path: "/calendar/samantha-dress.ics"
-        }
-      ]
+          path: "/calendar/samantha-dress.ics",
+        },
+      ],
     });
 
     await server.close();
   });
 
   it("returns plain text debug output from the ics route with debug query", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
-      new Response(
-        `
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(
+          `
           <div class="events_col2">
             <div class="event_date">Saturday, July 4</div>
             <h2><a href="events.php?id=1">Query Debug Event</a></h2>
             <div>6:00pm - 8:00pm</div>
           </div>
-        `
-      )
+        `,
+        ),
     );
 
     const server = await buildServer();
@@ -155,7 +160,7 @@ describe("server", () => {
 
     const response = await server.inject({
       method: "GET",
-      url: "/calendar/tim-mcloones-supper-club.ics?debug=1"
+      url: "/calendar/tim-mcloones-supper-club.ics?debug=1",
     });
 
     expect(response.statusCode).toBe(200);
@@ -172,16 +177,17 @@ describe("server", () => {
   it("shows when cached calendar snapshots are past the revalidate window", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-03T00:00:00Z"));
-    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
-      new Response(
-        `
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(
+          `
           <div class="events_col2">
             <div class="event_date">Saturday, July 4</div>
             <h2><a href="events.php?id=1">Stale Debug Event</a></h2>
             <div>6:00pm - 8:00pm</div>
           </div>
-        `
-      )
+        `,
+        ),
     );
     const config = getCalendarSource("tim-mcloones-supper-club");
 
@@ -191,14 +197,22 @@ describe("server", () => {
 
     await warmCalendarPage(config, 0, dayjs("2026-07-03T00:00:00Z"));
 
-    const freshDebugText = getCachedCalendarDebugText(config, undefined, dayjs("2026-07-03T00:29:59Z"));
-    const dueDebugText = getCachedCalendarDebugText(config, undefined, dayjs("2026-07-03T00:30:00Z"));
+    const freshDebugText = getCachedCalendarDebugText(
+      config,
+      undefined,
+      dayjs("2026-07-03T00:29:59Z"),
+    );
+    const dueDebugText = getCachedCalendarDebugText(
+      config,
+      undefined,
+      dayjs("2026-07-03T00:30:00Z"),
+    );
 
     expect(freshDebugText).toContain(
-      "1. fetch fetched | snapshot 2026-07-03T00:00:00.000Z | revalidate fresh until 2026-07-03T00:30:00.000Z"
+      "1. fetch fetched | snapshot 2026-07-03T00:00:00.000Z | revalidate fresh until 2026-07-03T00:30:00.000Z",
     );
     expect(dueDebugText).toContain(
-      "1. fetch fetched | snapshot 2026-07-03T00:00:00.000Z | revalidate due since 2026-07-03T00:30:00.000Z"
+      "1. fetch fetched | snapshot 2026-07-03T00:00:00.000Z | revalidate due since 2026-07-03T00:30:00.000Z",
     );
   });
 
@@ -212,10 +226,12 @@ describe("server", () => {
               <h2><a href="events.php?id=1">Last Good Event</a></h2>
               <div>6:00pm - 8:00pm</div>
             </div>
-          `
-        )
+          `,
+        ),
       )
-      .mockResolvedValueOnce(new Response("Too many requests", { status: 429 }));
+      .mockResolvedValueOnce(
+        new Response("Too many requests", { status: 429 }),
+      );
     const config = getCalendarSource("tim-mcloones-supper-club");
 
     if (!config) {
@@ -225,7 +241,11 @@ describe("server", () => {
     await warmCalendarPage(config, 0, dayjs("2026-07-03T00:00:00Z"));
     await warmCalendarPage(config, 0, dayjs("2026-07-03T00:00:00Z"));
 
-    const debugText = getCachedCalendarDebugText(config, undefined, dayjs("2026-07-03T00:00:00Z"));
+    const debugText = getCachedCalendarDebugText(
+      config,
+      undefined,
+      dayjs("2026-07-03T00:00:00Z"),
+    );
 
     expect(debugText).toContain("1. fetch stale | snapshot ");
     expect(debugText).toContain("revalidate error");
@@ -233,9 +253,10 @@ describe("server", () => {
   });
 
   it("filters cached calendar events from repeated filter query params", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
-      new Response(
-        `
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(
+          `
           <div class="events_col2">
             <div class="event_date">Saturday, July 4</div>
             <h2><a href="events.php?id=1">Query Debug Event</a></h2>
@@ -246,8 +267,8 @@ describe("server", () => {
             <h2><a href="events.php?id=2">Other Debug Event</a></h2>
             <div>6:00pm - 8:00pm</div>
           </div>
-        `
-      )
+        `,
+        ),
     );
 
     const server = await buildServer();
@@ -261,7 +282,7 @@ describe("server", () => {
 
     const response = await server.inject({
       method: "GET",
-      url: "/calendar/tim-mcloones-supper-club.ics?debug=1&filter=debug&filter=!other"
+      url: "/calendar/tim-mcloones-supper-club.ics?debug=1&filter=debug&filter=!other",
     });
 
     expect(response.statusCode).toBe(200);
@@ -279,28 +300,34 @@ describe("server", () => {
       method: "GET",
       url: "/calendar/samantha-dress.ics",
       headers: {
-        origin: "https://samanthadress.com"
-      }
+        origin: "https://samanthadress.com",
+      },
     });
     const disallowedFeedResponse = await server.inject({
       method: "GET",
       url: "/calendar/asbury-book-coop.ics",
       headers: {
-        origin: "https://samanthadress.com"
-      }
+        origin: "https://samanthadress.com",
+      },
     });
     const disallowedOriginResponse = await server.inject({
       method: "GET",
       url: "/calendar/samantha-dress.ics",
       headers: {
-        origin: "https://example.com"
-      }
+        origin: "https://example.com",
+      },
     });
 
-    expect(allowedResponse.headers["access-control-allow-origin"]).toBe("https://samanthadress.com");
+    expect(allowedResponse.headers["access-control-allow-origin"]).toBe(
+      "https://samanthadress.com",
+    );
     expect(allowedResponse.headers.vary).toBe("Origin");
-    expect(disallowedFeedResponse.headers["access-control-allow-origin"]).toBeUndefined();
-    expect(disallowedOriginResponse.headers["access-control-allow-origin"]).toBeUndefined();
+    expect(
+      disallowedFeedResponse.headers["access-control-allow-origin"],
+    ).toBeUndefined();
+    expect(
+      disallowedOriginResponse.headers["access-control-allow-origin"],
+    ).toBeUndefined();
 
     await server.close();
   });
@@ -313,13 +340,17 @@ describe("server", () => {
       url: "/calendar/samantha-dress.ics",
       headers: {
         origin: "https://samanthadress.com",
-        "access-control-request-method": "GET"
-      }
+        "access-control-request-method": "GET",
+      },
     });
 
     expect(response.statusCode).toBe(204);
-    expect(response.headers["access-control-allow-origin"]).toBe("https://samanthadress.com");
-    expect(response.headers["access-control-allow-methods"]).toBe("GET, OPTIONS");
+    expect(response.headers["access-control-allow-origin"]).toBe(
+      "https://samanthadress.com",
+    );
+    expect(response.headers["access-control-allow-methods"]).toBe(
+      "GET, OPTIONS",
+    );
 
     await server.close();
   });

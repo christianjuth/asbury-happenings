@@ -10,12 +10,12 @@ export interface SourcePage {
 export type SelectorSpec =
   | string
   | {
-    selector: string;
-    attr?: string;
-    format?: string | string[];
-    pattern?: string | RegExp;
-    remove?: string[];
-  };
+      selector: string;
+      attr?: string;
+      format?: string | string[];
+      pattern?: string | RegExp;
+      remove?: string[];
+    };
 
 interface EventSelectorConfig {
   title: SelectorSpec;
@@ -36,9 +36,9 @@ export type JsonDateFormat = "epoch-ms" | "epoch-seconds" | "iso";
 export type JsonFieldSpec =
   | string
   | {
-    path: string | string[];
-    dateFormat?: JsonDateFormat;
-  };
+      path: string | string[];
+      dateFormat?: JsonDateFormat;
+    };
 
 interface JsonEventFieldConfig {
   title: JsonFieldSpec;
@@ -95,12 +95,15 @@ export interface CalendarEvent {
   url?: string;
 }
 
-export type CalendarEventTransform = (event: CalendarEvent) => CalendarEvent | null;
+export type CalendarEventTransform = (
+  event: CalendarEvent,
+) => CalendarEvent | null;
 type CalendarSourceTextExtractor<TConfig extends CalendarSourceConfig> = (
   text: string,
   config: TConfig,
-  sourcePage: SourcePage
+  sourcePage: SourcePage,
 ) => CalendarEvent[];
 
-export type CalendarSourceConfig = HtmlCalendarSourceConfig | JsonCalendarSourceConfig | IcsCalendarSourceConfig;
+export type CalendarSourceConfig =
+  HtmlCalendarSourceConfig | JsonCalendarSourceConfig | IcsCalendarSourceConfig;
 export type EventFilterInput = string | string[] | undefined;

@@ -14,14 +14,14 @@ import type {
   JsonDateFormat,
   JsonFieldSpec,
   SelectorSpec,
-  SourcePage
+  SourcePage,
 } from "./calendar.types.js";
 import {
   normalizeText,
   parseDateAndTimeOrNull,
   parseDateOrNull,
   parseWithOptionalTimeZone,
-  resolveOptionalUrl
+  resolveOptionalUrl,
 } from "./calendar.utils.js";
 import dayjs, { type Dayjs } from "./calendar.dates.js";
 
@@ -33,14 +33,14 @@ export type {
   HtmlCalendarSourceConfig,
   IcsCalendarSourceConfig,
   JsonCalendarSourceConfig,
-  SourcePage
+  SourcePage,
 } from "./calendar.types.js";
 
 class SourceFetchError extends Error {
   constructor(
     readonly sourceUrl: string,
     readonly status: number,
-    readonly text: string
+    readonly text: string,
   ) {
     super(`Failed to fetch ${sourceUrl}: ${status}`);
     this.name = "SourceFetchError";
@@ -52,7 +52,7 @@ const COOKIE_JAR = new Map<string, Map<string, string>>();
 
 export async function fetchCalendarEvents(
   config: CalendarSourceConfig,
-  now = dayjs()
+  now = dayjs(),
 ): Promise<{
   sourceUrl: string;
   sourceUrls: string[];
@@ -67,7 +67,10 @@ export async function fetchCalendarEvents(
 
   for (const sourcePage of sourcePages) {
     try {
-      const { events, fetchStatus } = await fetchCalendarSourcePage(config, sourcePage);
+      const { events, fetchStatus } = await fetchCalendarSourcePage(
+        config,
+        sourcePage,
+      );
 
       allEvents.push(...events);
       fetchStatuses.push(fetchStatus);
@@ -87,23 +90,33 @@ export async function fetchCalendarEvents(
     sourceUrls,
     events,
     fetchStatus: fetchStatuses[0] ?? "fetched",
-    fetchStatuses
+    fetchStatuses,
   };
 }
 
 export async function fetchCalendarSourcePage(
   config: CalendarSourceConfig,
-  sourcePage: SourcePage
+  sourcePage: SourcePage,
 ): Promise<{ events: CalendarEvent[]; fetchStatus: FetchStatus }> {
   try {
     const text = await fetchSourceText(sourcePage.sourceUrl);
-    const events = applyEventTransform(extractEventsFromSourceText(text, config, sourcePage), config.transformEvent);
+    const events = applyEventTransform(
+      extractEventsFromSourceText(text, config, sourcePage),
+      config.transformEvent,
+    );
 
     return { events, fetchStatus: "fetched" };
   } catch (error) {
     if (error instanceof SourceFetchError) {
-      const extractedEvents = extractEventsFromSourceText(error.text, config, sourcePage);
-      const events = applyEventTransform(extractedEvents, config.transformEvent);
+      const extractedEvents = extractEventsFromSourceText(
+        error.text,
+        config,
+        sourcePage,
+      );
+      const events = applyEventTransform(
+        extractedEvents,
+        config.transformEvent,
+      );
 
       if (extractedEvents.length || isEmptySourcePageText(error.text)) {
         return { events, fetchStatus: "fetched" };
@@ -114,13 +127,16 @@ export async function fetchCalendarSourcePage(
   }
 }
 
-export function eventsToIcs(calendarName: string, events: CalendarEvent[]): string {
+export function eventsToIcs(
+  calendarName: string,
+  events: CalendarEvent[],
+): string {
   const calendar = ical({
     name: calendarName,
     prodId: {
       company: "calendar-service",
-      product: "webpage-calendar"
-    }
+      product: "webpage-calendar",
+    },
   });
 
   for (const event of events) {
@@ -131,7 +147,7 @@ export function eventsToIcs(calendarName: string, events: CalendarEvent[]): stri
       allDay: event.allDay,
       description: event.description,
       location: event.location,
-      url: event.url
+      url: event.url,
     });
   }
 
@@ -141,9 +157,12 @@ export function eventsToIcs(calendarName: string, events: CalendarEvent[]): stri
 export function filterCalendarEvents(
   events: CalendarEvent[],
   filters: EventFilterInput,
-  defaultFilters: string[] = []
+  defaultFilters: string[] = [],
 ): CalendarEvent[] {
-  const { include, exclude } = parseEventFilters([...defaultFilters, ...lodash.castArray(filters)]);
+  const { include, exclude } = parseEventFilters([
+    ...defaultFilters,
+    ...lodash.castArray(filters),
+  ]);
 
   if (!include.length && !exclude.length) {
     return events;
@@ -152,7 +171,10 @@ export function filterCalendarEvents(
   return events.filter((event) => {
     const searchText = getEventSearchText(event);
 
-    if (include.length && !include.some((keyword) => searchText.includes(keyword))) {
+    if (
+      include.length &&
+      !include.some((keyword) => searchText.includes(keyword))
+    ) {
       return false;
     }
 
@@ -184,7 +206,7 @@ async function fetchFreshText(sourceUrl: string): Promise<string> {
   }
 
   const pendingFetch = fetch(sourceUrl, {
-    headers: requestHeaders
+    headers: requestHeaders,
   }).then(async (response) => {
     const text = await response.text();
 
@@ -216,7 +238,10 @@ function buildRequestHeaders(): Record<string, string> {
 function isEmptySourcePageText(text: string): boolean {
   const normalizedText = normalizeText(text).toLowerCase();
 
-  return normalizedText.includes("no events found") || normalizedText.includes("page not found");
+  return (
+    normalizedText.includes("no events found") ||
+    normalizedText.includes("page not found")
+  );
 }
 
 function getCookieHeader(sourceUrl: string): string | undefined {
@@ -226,7 +251,9 @@ function getCookieHeader(sourceUrl: string): string | undefined {
     return undefined;
   }
 
-  return [...hostCookies.entries()].map(([name, value]) => `${name}=${value}`).join("; ");
+  return [...hostCookies.entries()]
+    .map(([name, value]) => `${name}=${value}`)
+    .join("; ");
 }
 
 function storeResponseCookies(sourceUrl: string, headers: Headers): void {
@@ -266,7 +293,9 @@ function storeResponseCookies(sourceUrl: string, headers: Headers): void {
 }
 
 function getSetCookieHeaders(headers: Headers): string[] {
-  const headersWithSetCookie = headers as Headers & { getSetCookie?: () => string[] };
+  const headersWithSetCookie = headers as Headers & {
+    getSetCookie?: () => string[];
+  };
   const setCookieHeaders = headersWithSetCookie.getSetCookie?.();
 
   if (setCookieHeaders?.length) {
@@ -279,10 +308,15 @@ function getSetCookieHeaders(headers: Headers): string[] {
 }
 
 function splitSetCookieHeader(value: string): string[] {
-  return lodash.compact(value.split(/,(?=\s*[^;,]+=)/).map((cookie) => cookie.trim()));
+  return lodash.compact(
+    value.split(/,(?=\s*[^;,]+=)/).map((cookie) => cookie.trim()),
+  );
 }
 
-function parseEventFilters(filters: EventFilterInput): { include: string[]; exclude: string[] } {
+function parseEventFilters(filters: EventFilterInput): {
+  include: string[];
+  exclude: string[];
+} {
   const include: string[] = [];
   const exclude: string[] = [];
 
@@ -331,7 +365,7 @@ export function extractEventsFromHtml(
   html: string,
   config: HtmlCalendarSourceConfig,
   sourceUrl: string,
-  referenceDate = dayjs()
+  referenceDate = dayjs(),
 ): CalendarEvent[] {
   const $ = cheerio.load(html);
   const events: CalendarEvent[] = [];
@@ -339,16 +373,21 @@ export function extractEventsFromHtml(
   $(config.containerSelector).each((_, element) => {
     const container = $(element);
     const readValue = (selector: SelectorSpec): string => {
-      const selectorConfig = typeof selector === "string" ? { selector } : selector;
+      const selectorConfig =
+        typeof selector === "string" ? { selector } : selector;
       const selected =
-        selectorConfig.selector === ":self" ? container.clone() : container.find(selectorConfig.selector).first().clone();
+        selectorConfig.selector === ":self"
+          ? container.clone()
+          : container.find(selectorConfig.selector).first().clone();
 
       for (const removeSelector of selectorConfig.remove ?? []) {
         selected.find(removeSelector).remove();
       }
 
       selected.find("br").replaceWith(" ");
-      const rawValue = selectorConfig.attr ? selected.attr(selectorConfig.attr) : selected.text();
+      const rawValue = selectorConfig.attr
+        ? selected.attr(selectorConfig.attr)
+        : selected.text();
       const value = normalizeText(rawValue);
 
       return applyPattern(value, selectorConfig.pattern);
@@ -363,7 +402,9 @@ export function extractEventsFromHtml(
 
     const title = readValue(config.selectors.title);
     const missingStartTime = Boolean(
-      config.selectors.startDate && config.selectors.startTime && !readOptional(config.selectors.startTime)
+      config.selectors.startDate &&
+      config.selectors.startTime &&
+      !readOptional(config.selectors.startTime),
     );
     const start = readEventDate({
       fullDateTimeSelector: config.selectors.start,
@@ -372,7 +413,7 @@ export function extractEventsFromHtml(
       readValue,
       readOptional,
       config,
-      referenceDate
+      referenceDate,
     });
 
     if (!title || !start) {
@@ -381,18 +422,19 @@ export function extractEventsFromHtml(
 
     const end = missingStartTime
       ? start.add(1, "day")
-      : readEventDate({
-        fullDateTimeSelector: config.selectors.end,
-        dateSelector: config.selectors.endDate ?? config.selectors.startDate,
-        timeSelector: config.selectors.endTime,
-        readValue,
-        readOptional,
-        config,
-        referenceDate,
-        requireTimeWhenTimeSelectorProvided: true
-      }) ?? start.add(config.defaultDurationMinutes ?? 60, "minute");
+      : (readEventDate({
+          fullDateTimeSelector: config.selectors.end,
+          dateSelector: config.selectors.endDate ?? config.selectors.startDate,
+          timeSelector: config.selectors.endTime,
+          readValue,
+          readOptional,
+          config,
+          referenceDate,
+          requireTimeWhenTimeSelectorProvided: true,
+        }) ?? start.add(config.defaultDurationMinutes ?? 60, "minute"));
 
-    const address = readOptional(config.selectors.address) ?? config.defaultAddress;
+    const address =
+      readOptional(config.selectors.address) ?? config.defaultAddress;
     const location = readOptional(config.selectors.location) ?? address;
 
     events.push({
@@ -403,7 +445,7 @@ export function extractEventsFromHtml(
       description: readOptional(config.selectors.description),
       location,
       address,
-      url: resolveOptionalUrl(readOptional(config.selectors.url), sourceUrl)
+      url: resolveOptionalUrl(readOptional(config.selectors.url), sourceUrl),
     });
   });
 
@@ -413,16 +455,23 @@ export function extractEventsFromHtml(
 export function extractEventsFromJson(
   jsonText: string,
   config: JsonCalendarSourceConfig,
-  sourceUrl: string
+  sourceUrl: string,
 ): CalendarEvent[] {
   const payload = JSON.parse(jsonText) as unknown;
-  const rawItems = config.itemsPath ? lodash.get(payload, config.itemsPath) : payload;
+  const rawItems = config.itemsPath
+    ? lodash.get(payload, config.itemsPath)
+    : payload;
   const items = Array.isArray(rawItems) ? rawItems : [];
 
-  return lodash.compact(items.map((item) => readJsonEvent(item, config, sourceUrl)));
+  return lodash.compact(
+    items.map((item) => readJsonEvent(item, config, sourceUrl)),
+  );
 }
 
-export function extractEventsFromIcs(icsText: string, config: IcsCalendarSourceConfig): CalendarEvent[] {
+export function extractEventsFromIcs(
+  icsText: string,
+  config: IcsCalendarSourceConfig,
+): CalendarEvent[] {
   return lodash.compact(
     readIcsEventComponents(icsText).map((component) => {
       const title = readIcsText(component, "SUMMARY");
@@ -434,9 +483,10 @@ export function extractEventsFromIcs(icsText: string, config: IcsCalendarSourceC
 
       const end = readIcsDate(component, "DTEND", config) ?? {
         date: start.date.add(config.defaultDurationMinutes ?? 60, "minute"),
-        allDay: start.allDay
+        allDay: start.allDay,
       };
-      const location = readIcsText(component, "LOCATION") ?? config.defaultAddress;
+      const location =
+        readIcsText(component, "LOCATION") ?? config.defaultAddress;
 
       return {
         title,
@@ -446,21 +496,38 @@ export function extractEventsFromIcs(icsText: string, config: IcsCalendarSourceC
         description: readIcsText(component, "DESCRIPTION"),
         location,
         address: location,
-        url: readIcsText(component, "URL")
+        url: readIcsText(component, "URL"),
       };
-    })
+    }),
   );
 }
 
-function extractEventsFromSourceText(text: string, config: CalendarSourceConfig, sourcePage: SourcePage): CalendarEvent[] {
+function extractEventsFromSourceText(
+  text: string,
+  config: CalendarSourceConfig,
+  sourcePage: SourcePage,
+): CalendarEvent[] {
   switch (config.sourceType) {
     case "html":
-      return config.extractEvents?.(text, config, sourcePage) ??
-        extractEventsFromHtml(text, config, sourcePage.sourceUrl, sourcePage.referenceDate);
+      return (
+        config.extractEvents?.(text, config, sourcePage) ??
+        extractEventsFromHtml(
+          text,
+          config,
+          sourcePage.sourceUrl,
+          sourcePage.referenceDate,
+        )
+      );
     case "json":
-      return config.extractEvents?.(text, config, sourcePage) ?? extractEventsFromJson(text, config, sourcePage.sourceUrl);
+      return (
+        config.extractEvents?.(text, config, sourcePage) ??
+        extractEventsFromJson(text, config, sourcePage.sourceUrl)
+      );
     case "ics":
-      return config.extractEvents?.(text, config, sourcePage) ?? extractEventsFromIcs(text, config);
+      return (
+        config.extractEvents?.(text, config, sourcePage) ??
+        extractEventsFromIcs(text, config)
+      );
     default:
       return assertNever(config);
   }
@@ -468,7 +535,7 @@ function extractEventsFromSourceText(text: string, config: CalendarSourceConfig,
 
 function applyEventTransform(
   events: CalendarEvent[],
-  transformEvent: CalendarEventTransform | undefined
+  transformEvent: CalendarEventTransform | undefined,
 ): CalendarEvent[] {
   if (!transformEvent) {
     return events;
@@ -477,7 +544,11 @@ function applyEventTransform(
   return lodash.compact(events.map((event) => transformEvent(event)));
 }
 
-function readJsonEvent(item: unknown, config: JsonCalendarSourceConfig, sourceUrl: string): CalendarEvent | null {
+function readJsonEvent(
+  item: unknown,
+  config: JsonCalendarSourceConfig,
+  sourceUrl: string,
+): CalendarEvent | null {
   const title = readJsonText(item, config.fields.title);
   const start = readJsonDate(item, config.fields.start, config.dateFormat);
 
@@ -486,8 +557,10 @@ function readJsonEvent(item: unknown, config: JsonCalendarSourceConfig, sourceUr
   }
 
   const end =
-    readJsonDate(item, config.fields.end, config.dateFormat) ?? start.add(config.defaultDurationMinutes ?? 60, "minute");
-  const address = readJsonText(item, config.fields.address) ?? config.defaultAddress;
+    readJsonDate(item, config.fields.end, config.dateFormat) ??
+    start.add(config.defaultDurationMinutes ?? 60, "minute");
+  const address =
+    readJsonText(item, config.fields.address) ?? config.defaultAddress;
   const location = readJsonText(item, config.fields.location) ?? address;
 
   return {
@@ -497,11 +570,14 @@ function readJsonEvent(item: unknown, config: JsonCalendarSourceConfig, sourceUr
     description: readJsonText(item, config.fields.description),
     location,
     address,
-    url: resolveOptionalUrl(readJsonText(item, config.fields.url), sourceUrl)
+    url: resolveOptionalUrl(readJsonText(item, config.fields.url), sourceUrl),
   };
 }
 
-function readJsonText(item: unknown, field: JsonFieldSpec | undefined): string | undefined {
+function readJsonText(
+  item: unknown,
+  field: JsonFieldSpec | undefined,
+): string | undefined {
   if (!field) {
     return undefined;
   }
@@ -522,17 +598,22 @@ function readJsonText(item: unknown, field: JsonFieldSpec | undefined): string |
 function readJsonDate(
   item: unknown,
   field: JsonFieldSpec | undefined,
-  fallbackFormat: JsonDateFormat | undefined
+  fallbackFormat: JsonDateFormat | undefined,
 ): Dayjs | null {
   if (!field) {
     return null;
   }
 
-  return parseJsonDateOrNull(readJsonValue(item, field), getJsonDateFormat(field, fallbackFormat));
+  return parseJsonDateOrNull(
+    readJsonValue(item, field),
+    getJsonDateFormat(field, fallbackFormat),
+  );
 }
 
 function readJsonValue(item: unknown, field: JsonFieldSpec): unknown {
-  const paths = lodash.castArray(typeof field === "string" ? field : field.path);
+  const paths = lodash.castArray(
+    typeof field === "string" ? field : field.path,
+  );
 
   for (const path of paths) {
     const value = lodash.get(item, path);
@@ -545,11 +626,19 @@ function readJsonValue(item: unknown, field: JsonFieldSpec): unknown {
   return undefined;
 }
 
-function getJsonDateFormat(field: JsonFieldSpec, fallbackFormat: JsonDateFormat | undefined): JsonDateFormat | undefined {
-  return typeof field === "object" ? field.dateFormat ?? fallbackFormat : fallbackFormat;
+function getJsonDateFormat(
+  field: JsonFieldSpec,
+  fallbackFormat: JsonDateFormat | undefined,
+): JsonDateFormat | undefined {
+  return typeof field === "object"
+    ? (field.dateFormat ?? fallbackFormat)
+    : fallbackFormat;
 }
 
-function parseJsonDateOrNull(value: unknown, dateFormat: JsonDateFormat | undefined): Dayjs | null {
+function parseJsonDateOrNull(
+  value: unknown,
+  dateFormat: JsonDateFormat | undefined,
+): Dayjs | null {
   if (dayjs.isDayjs(value)) {
     return value.isValid() ? value : null;
   }
@@ -614,12 +703,18 @@ function readIcsEventComponents(icsText: string): IcsContentLine[][] {
       continue;
     }
 
-    if (contentLine.name === "BEGIN" && contentLine.value.toUpperCase() === "VEVENT") {
+    if (
+      contentLine.name === "BEGIN" &&
+      contentLine.value.toUpperCase() === "VEVENT"
+    ) {
       currentComponent = [];
       continue;
     }
 
-    if (contentLine.name === "END" && contentLine.value.toUpperCase() === "VEVENT") {
+    if (
+      contentLine.name === "END" &&
+      contentLine.value.toUpperCase() === "VEVENT"
+    ) {
       if (currentComponent) {
         components.push(currentComponent);
       }
@@ -637,7 +732,10 @@ function readIcsEventComponents(icsText: string): IcsContentLine[][] {
 function unfoldIcsLines(icsText: string): string[] {
   const lines: string[] = [];
 
-  for (const line of icsText.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n")) {
+  for (const line of icsText
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .split("\n")) {
     if (/^[ \t]/.test(line) && lines.length) {
       lines[lines.length - 1] += line.slice(1);
       continue;
@@ -668,24 +766,37 @@ function parseIcsContentLine(line: string): IcsContentLine | null {
   return {
     name,
     params: Object.fromEntries(
-      rawParams.map((param) => {
-        const [rawKey, ...rawValueParts] = param.split("=");
+      rawParams
+        .map((param) => {
+          const [rawKey, ...rawValueParts] = param.split("=");
 
-        return rawKey ? [rawKey.toUpperCase(), rawValueParts.join("=").replace(/^"|"$/g, "")] : undefined;
-      })
-        .filter((entry): entry is [string, string] => Boolean(entry))
+          return rawKey
+            ? [
+                rawKey.toUpperCase(),
+                rawValueParts.join("=").replace(/^"|"$/g, ""),
+              ]
+            : undefined;
+        })
+        .filter((entry): entry is [string, string] => Boolean(entry)),
     ),
-    value
+    value,
   };
 }
 
-function readIcsText(component: IcsContentLine[], name: string): string | undefined {
+function readIcsText(
+  component: IcsContentLine[],
+  name: string,
+): string | undefined {
   const value = component.find((line) => line.name === name)?.value;
 
   return value ? normalizeText(unescapeIcsText(value)) || undefined : undefined;
 }
 
-function readIcsDate(component: IcsContentLine[], name: string, config: IcsCalendarSourceConfig): IcsDateValue | null {
+function readIcsDate(
+  component: IcsContentLine[],
+  name: string,
+  config: IcsCalendarSourceConfig,
+): IcsDateValue | null {
   const line = component.find((contentLine) => contentLine.name === name);
 
   if (!line) {
@@ -698,7 +809,7 @@ function readIcsDate(component: IcsContentLine[], name: string, config: IcsCalen
 function parseIcsDateOrNull(
   value: string,
   params: Record<string, string>,
-  fallbackTimeZone?: string
+  fallbackTimeZone?: string,
 ): IcsDateValue | null {
   const normalizedValue = normalizeText(value);
 
@@ -722,7 +833,7 @@ function parseIcsDateOrNull(
     const parsed = parseWithOptionalTimeZone(
       normalizedValue,
       "YYYYMMDDTHHmmss",
-      normalizeIcsTimeZone(params["TZID"], fallbackTimeZone)
+      normalizeIcsTimeZone(params["TZID"], fallbackTimeZone),
     );
 
     return parsed.isValid() ? { date: parsed, allDay: false } : null;
@@ -733,7 +844,10 @@ function parseIcsDateOrNull(
   return parsed.isValid() ? { date: parsed, allDay: false } : null;
 }
 
-function normalizeIcsTimeZone(tzid: string | undefined, fallbackTimeZone: string | undefined): string | undefined {
+function normalizeIcsTimeZone(
+  tzid: string | undefined,
+  fallbackTimeZone: string | undefined,
+): string | undefined {
   if (tzid && isValidTimeZone(tzid)) {
     return tzid;
   }
@@ -771,11 +885,16 @@ export function renderSourceUrls(template: string, now = dayjs()): string[] {
   return renderSourcePages(template, now).map((page) => page.sourceUrl);
 }
 
-export function renderSourcePages(template: string, now = dayjs()): SourcePage[] {
+export function renderSourcePages(
+  template: string,
+  now = dayjs(),
+): SourcePage[] {
   const utcNow = now.utc();
 
   if (!template.includes("{month}")) {
-    return [{ sourceUrl: renderSourceUrl(template, utcNow), referenceDate: utcNow }];
+    return [
+      { sourceUrl: renderSourceUrl(template, utcNow), referenceDate: utcNow },
+    ];
   }
 
   return lodash.range(3).map((monthOffset) => {
@@ -783,7 +902,7 @@ export function renderSourcePages(template: string, now = dayjs()): SourcePage[]
 
     return {
       sourceUrl: renderSourceUrl(template, referenceDate),
-      referenceDate
+      referenceDate,
     };
   });
 }
@@ -796,12 +915,16 @@ function getEventDedupeKey(event: CalendarEvent): string {
   return [event.title, event.start.toISOString(), event.url ?? ""].join("|");
 }
 
-function applyPattern(value: string, pattern: string | RegExp | undefined): string {
+function applyPattern(
+  value: string,
+  pattern: string | RegExp | undefined,
+): string {
   if (!pattern) {
     return value;
   }
 
-  const regex = typeof pattern === "string" ? new RegExp(pattern, "i") : pattern;
+  const regex =
+    typeof pattern === "string" ? new RegExp(pattern, "i") : pattern;
   const match = value.match(regex);
 
   if (!match) {
@@ -830,13 +953,19 @@ function readEventDate({
   readOptional,
   config,
   referenceDate,
-  requireTimeWhenTimeSelectorProvided = false
+  requireTimeWhenTimeSelectorProvided = false,
 }: ReadEventDateOptions): Dayjs | null {
   if (fullDateTimeSelector) {
     const value = readOptional(fullDateTimeSelector);
 
     if (value) {
-      return parseDateOrNull(value, fullDateTimeSelector, config.dateFormats, referenceDate, config.timeZone);
+      return parseDateOrNull(
+        value,
+        fullDateTimeSelector,
+        config.dateFormats,
+        referenceDate,
+        config.timeZone,
+      );
     }
   }
 
@@ -857,7 +986,13 @@ function readEventDate({
       return null;
     }
 
-    return parseDateOrNull(dateValue, dateSelector, config.dateFormats, referenceDate, config.timeZone);
+    return parseDateOrNull(
+      dateValue,
+      dateSelector,
+      config.dateFormats,
+      referenceDate,
+      config.timeZone,
+    );
   }
 
   return parseDateAndTimeOrNull(
@@ -868,10 +1003,12 @@ function readEventDate({
     config.dateFormats,
     config.timeFormats,
     referenceDate,
-    config.timeZone
+    config.timeZone,
   );
 }
 
 function assertNever(value: never): never {
-  throw new Error(`Unsupported calendar source config: ${JSON.stringify(value)}`);
+  throw new Error(
+    `Unsupported calendar source config: ${JSON.stringify(value)}`,
+  );
 }
