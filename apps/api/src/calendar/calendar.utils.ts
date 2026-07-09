@@ -1,4 +1,4 @@
-import lodash from "lodash";
+import _ from "lodash";
 
 import type { SelectorSpec } from "./calendar.types.js";
 import dayjs, { type Dayjs } from "./calendar.dates.js";
@@ -153,10 +153,10 @@ function getDateFormats(
 ): string[] {
   const selectorFormats =
     typeof selector === "object" && selector.format
-      ? lodash.castArray(selector.format)
+      ? _.castArray(selector.format)
       : [];
 
-  return lodash.uniq([
+  return _.uniq([
     ...selectorFormats,
     ...(fallbackFormats ?? []),
     ...DEFAULT_DATE_FORMATS,
@@ -169,10 +169,10 @@ function getTimeFormats(
 ): string[] {
   const selectorFormats =
     typeof selector === "object" && selector.format
-      ? lodash.castArray(selector.format)
+      ? _.castArray(selector.format)
       : [];
 
-  return lodash.uniq([
+  return _.uniq([
     ...selectorFormats,
     ...(fallbackFormats ?? []),
     ...DEFAULT_TIME_FORMATS,

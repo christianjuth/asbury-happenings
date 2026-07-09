@@ -1,4 +1,4 @@
-import lodash from "lodash";
+import _ from "lodash";
 import type { Dayjs } from "./calendar.dates.js";
 import type { CalendarEvent, FetchStatus } from "./calendar.types.js";
 
@@ -21,8 +21,8 @@ export function eventsToDebugText(
   fetchStatus?: FetchStatus | FetchStatus[],
   debugPages?: CalendarDebugPage[],
 ): string {
-  const sourceUrls = lodash.castArray(sourceUrl);
-  const fetchStatuses = fetchStatus ? lodash.castArray(fetchStatus) : [];
+  const sourceUrls = _.castArray(sourceUrl);
+  const fetchStatuses = fetchStatus ? _.castArray(fetchStatus) : [];
   const lines = [
     `Calendar: ${calendarName}`,
     `Source: ${sourceUrls.join(", ")}`,

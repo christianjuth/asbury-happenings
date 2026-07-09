@@ -1,6 +1,6 @@
 import * as cheerio from "cheerio";
 import ical, { ICalEventRepeatingFreq, ICalWeekday } from "ical-generator";
-import lodash from "lodash";
+import _ from "lodash";
 
 import dayjs, { type Dayjs } from "../calendar/calendar.dates.js";
 import {
@@ -151,7 +151,7 @@ export function extractHappyHourEvents(
     });
   });
 
-  return lodash.uniqBy(events, (event) =>
+  return _.uniqBy(events, (event) =>
     [event.title, event.day, event.scheduleText].join("|"),
   );
 }
@@ -296,20 +296,18 @@ function buildEventDescription(
   restaurant: RestaurantDetails,
 ): string | undefined {
   return (
-    lodash
-      .compact([
-        restaurant.specials.join("\n"),
-        restaurant.phone ? `Phone: ${restaurant.phone}` : undefined,
-        restaurant.verifiedDate
-          ? `Verified: ${restaurant.verifiedDate}`
-          : undefined,
-        restaurant.menuUrl ? `Menu: ${restaurant.menuUrl}` : undefined,
-        restaurant.instagramUrl
-          ? `Instagram: ${restaurant.instagramUrl}`
-          : undefined,
-        restaurant.mapUrl ? `Map: ${restaurant.mapUrl}` : undefined,
-      ])
-      .join("\n") || undefined
+    _.compact([
+      restaurant.specials.join("\n"),
+      restaurant.phone ? `Phone: ${restaurant.phone}` : undefined,
+      restaurant.verifiedDate
+        ? `Verified: ${restaurant.verifiedDate}`
+        : undefined,
+      restaurant.menuUrl ? `Menu: ${restaurant.menuUrl}` : undefined,
+      restaurant.instagramUrl
+        ? `Instagram: ${restaurant.instagramUrl}`
+        : undefined,
+      restaurant.mapUrl ? `Map: ${restaurant.mapUrl}` : undefined,
+    ]).join("\n") || undefined
   );
 }
 
@@ -342,28 +340,26 @@ function parseScheduleSlot(value: string): ScheduleSlot | null {
 }
 
 function parseDays(value: string): number[] {
-  return lodash.uniq(
-    lodash
-      .flatMap(value.split(","), (part) => {
-        const [rawStart, rawEnd] = part
-          .split("-")
-          .map((day) => normalizeText(day).toLowerCase());
-        const start = rawStart ? DAY_NAME_TO_INDEX.get(rawStart) : undefined;
-        const end = rawEnd ? DAY_NAME_TO_INDEX.get(rawEnd) : undefined;
+  return _.uniq(
+    _.flatMap(value.split(","), (part) => {
+      const [rawStart, rawEnd] = part
+        .split("-")
+        .map((day) => normalizeText(day).toLowerCase());
+      const start = rawStart ? DAY_NAME_TO_INDEX.get(rawStart) : undefined;
+      const end = rawEnd ? DAY_NAME_TO_INDEX.get(rawEnd) : undefined;
 
-        if (start === undefined) {
-          return [];
-        }
+      if (start === undefined) {
+        return [];
+      }
 
-        if (end === undefined) {
-          return [start];
-        }
+      if (end === undefined) {
+        return [start];
+      }
 
-        const dayCount = end >= start ? end - start + 1 : 7 - start + end + 1;
+      const dayCount = end >= start ? end - start + 1 : 7 - start + end + 1;
 
-        return lodash.range(dayCount).map((offset) => (start + offset) % 7);
-      })
-      .sort((left, right) => left - right),
+      return _.range(dayCount).map((offset) => (start + offset) % 7);
+    }).sort((left, right) => left - right),
   );
 }
 

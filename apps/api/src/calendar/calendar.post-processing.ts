@@ -1,5 +1,5 @@
 import * as cheerio from "cheerio";
-import lodash from "lodash";
+import _ from "lodash";
 
 import {
   normalizeText,
@@ -299,7 +299,7 @@ function parseUncorkedWineInspiredDateTime(
     return null;
   }
 
-  const month = lodash.startCase(rawMonth.toLowerCase());
+  const month = _.startCase(rawMonth.toLowerCase());
   const parsed = parseWithOptionalTimeZone(
     `${month} ${day}, ${year} ${time}`,
     "MMMM DD, YYYY h:mmA",

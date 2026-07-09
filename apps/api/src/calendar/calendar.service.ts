@@ -1,6 +1,6 @@
 import * as cheerio from "cheerio";
 import ical from "ical-generator";
-import lodash from "lodash";
+import _ from "lodash";
 
 import type {
   CalendarEvent,
@@ -161,7 +161,7 @@ export function filterCalendarEvents(
 ): CalendarEvent[] {
   const { include, exclude } = parseEventFilters([
     ...defaultFilters,
-    ...lodash.castArray(filters),
+    ..._.castArray(filters),
   ]);
 
   if (!include.length && !exclude.length) {
@@ -308,7 +308,7 @@ function getSetCookieHeaders(headers: Headers): string[] {
 }
 
 function splitSetCookieHeader(value: string): string[] {
-  return lodash.compact(
+  return _.compact(
     value.split(/,(?=\s*[^;,]+=)/).map((cookie) => cookie.trim()),
   );
 }
@@ -320,7 +320,7 @@ function parseEventFilters(filters: EventFilterInput): {
   const include: string[] = [];
   const exclude: string[] = [];
 
-  for (const rawFilter of lodash.castArray(filters)) {
+  for (const rawFilter of _.castArray(filters)) {
     const filter = normalizeText(rawFilter);
 
     if (!filter) {
@@ -351,8 +351,7 @@ function normalizeFilterKeyword(value: string): string {
 }
 
 function getEventSearchText(event: CalendarEvent): string {
-  return lodash
-    .compact([event.title, event.location, event.address, event.url])
+  return _.compact([event.title, event.location, event.address, event.url])
     .join(" ")
     .toLowerCase();
 }
@@ -459,20 +458,18 @@ export function extractEventsFromJson(
 ): CalendarEvent[] {
   const payload = JSON.parse(jsonText) as unknown;
   const rawItems = config.itemsPath
-    ? lodash.get(payload, config.itemsPath)
+    ? _.get(payload, config.itemsPath)
     : payload;
   const items = Array.isArray(rawItems) ? rawItems : [];
 
-  return lodash.compact(
-    items.map((item) => readJsonEvent(item, config, sourceUrl)),
-  );
+  return _.compact(items.map((item) => readJsonEvent(item, config, sourceUrl)));
 }
 
 export function extractEventsFromIcs(
   icsText: string,
   config: IcsCalendarSourceConfig,
 ): CalendarEvent[] {
-  return lodash.compact(
+  return _.compact(
     readIcsEventComponents(icsText).map((component) => {
       const title = readIcsText(component, "SUMMARY");
       const start = readIcsDate(component, "DTSTART", config);
@@ -541,7 +538,7 @@ function applyEventTransform(
     return events;
   }
 
-  return lodash.compact(events.map((event) => transformEvent(event)));
+  return _.compact(events.map(transformEvent));
 }
 
 function readJsonEvent(
@@ -574,6 +571,7 @@ function readJsonEvent(
   };
 }
 
+// Normalize text-like JSON fields while treating booleans as missing values.
 function readJsonText(
   item: unknown,
   field: JsonFieldSpec | undefined,
@@ -611,12 +609,10 @@ function readJsonDate(
 }
 
 function readJsonValue(item: unknown, field: JsonFieldSpec): unknown {
-  const paths = lodash.castArray(
-    typeof field === "string" ? field : field.path,
-  );
+  const paths = _.castArray(typeof field === "string" ? field : field.path);
 
   for (const path of paths) {
-    const value = lodash.get(item, path);
+    const value = _.get(item, path);
 
     if (value !== undefined && value !== null && value !== "") {
       return value;
@@ -897,7 +893,7 @@ export function renderSourcePages(
     ];
   }
 
-  return lodash.range(3).map((monthOffset) => {
+  return _.range(3).map((monthOffset) => {
     const referenceDate = utcNow.add(monthOffset, "month");
 
     return {
@@ -908,7 +904,7 @@ export function renderSourcePages(
 }
 
 export function dedupeEvents(events: CalendarEvent[]): CalendarEvent[] {
-  return lodash.uniqBy(events, getEventDedupeKey);
+  return _.uniqBy(events, getEventDedupeKey);
 }
 
 function getEventDedupeKey(event: CalendarEvent): string {

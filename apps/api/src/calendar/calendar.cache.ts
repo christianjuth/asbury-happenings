@@ -17,8 +17,8 @@ import {
 } from "./calendar.service.js";
 
 const CACHE_REFRESH_MS = 30 * 60_000;
-const CACHE_BACKOFF_BASE_MS = 5_000;
-const CACHE_BACKOFF_MAX_MS = 15 * 60_000;
+const CACHE_BACKOFF_BASE_MS = 10_000;
+const CACHE_BACKOFF_MAX_MS = CACHE_REFRESH_MS;
 const CACHE_BACKOFF_JITTER = 0.3;
 const SOURCE_HOST_MIN_TIME_MS = 1_000;
 
@@ -251,7 +251,7 @@ async function warmCalendarSourcePage(
   sourcePage: SourcePage,
   logger?: FastifyBaseLogger,
 ): Promise<boolean> {
-  const key = cacheKey(config.id, sourcePage.sourceUrl);
+  const key = cacheKey(config, sourcePage);
 
   REFRESHING_PAGES.add(key);
 
@@ -312,7 +312,7 @@ function getCalendarSnapshot(
 ): CalendarSnapshot {
   const sourcePages = renderSourcePages(config.url, now);
   const pageKeys = sourcePages.map((sourcePage) =>
-    cacheKey(config.id, sourcePage.sourceUrl),
+    cacheKey(config, sourcePage),
   );
   const cachedPages = pageKeys.map((key) => PAGE_CACHE.get(key));
   const events = dedupeEvents(
@@ -388,8 +388,11 @@ function getRevalidateStatus(
   return now.isBefore(revalidateAt) ? "fresh" : "due";
 }
 
-function cacheKey(calendarId: string, sourceUrl: string): string {
-  return `${calendarId}:${sourceUrl}`;
+function cacheKey(
+  { id }: CalendarSourceConfig,
+  { sourceUrl }: SourcePage,
+): string {
+  return `${id}:${sourceUrl}`;
 }
 
 function getRetryDelayMs(retryCount: number): number {
@@ -420,6 +423,7 @@ function getSourceHostLimiter(sourceUrlTemplate: string): Bottleneck {
   return limiter;
 }
 
+// Keep structured log context small and JSON-safe instead of passing raw errors.
 function getErrorDetails(error: unknown): Record<string, unknown> {
   if (!(error instanceof Error)) {
     return {
