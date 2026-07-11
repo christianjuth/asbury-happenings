@@ -7,11 +7,13 @@ import {
 import { getCalendarSource } from "../src/calendar/calendar.config.js";
 import dayjs from "../src/calendar/calendar.dates.js";
 import { clearCalendarFetchState } from "../src/calendar/calendar.service.js";
+import { clearNixleRssCache } from "../src/nixle/nixle.cache.js";
 import { buildServer } from "../src/server.js";
 
 afterEach(() => {
   clearCalendarPageCache();
   clearCalendarFetchState();
+  clearNixleRssCache();
   vi.restoreAllMocks();
   vi.useRealTimers();
 });
@@ -351,6 +353,72 @@ describe("server", () => {
     expect(response.headers["access-control-allow-methods"]).toBe(
       "GET, OPTIONS",
     );
+
+    await server.close();
+  });
+
+  it("lists configured Nixle RSS feeds", async () => {
+    const server = await buildServer();
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/rss",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      feeds: [
+        {
+          id: "asbury-park-city",
+          name: "City of Asbury Park NJ",
+          path: "/rss/asbury-park-city.xml",
+        },
+        {
+          id: "asbury-park-police",
+          name: "Asbury Park Police Department",
+          path: "/rss/asbury-park-police.xml",
+        },
+      ],
+    });
+
+    await server.close();
+  });
+
+  it("serves Nixle RSS feeds from a short in-memory cache", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(`
+        <div id="message_widget">
+          <ol>
+            <li>
+              <span class="priority community">Community</span>
+              <p>First Fridays <a href="https://nixle.us/HFL39">More&nbsp;»</a></p>
+              <p class="time"> "Entered: 18 hours ago "</p>
+            </li>
+          </ol>
+        </div>
+      `),
+    );
+    const server = await buildServer();
+
+    const firstResponse = await server.inject({
+      method: "GET",
+      url: "/rss/asbury-park-city.xml",
+    });
+    const secondResponse = await server.inject({
+      method: "GET",
+      url: "/rss/asbury-park-city.xml",
+    });
+
+    expect(firstResponse.statusCode).toBe(200);
+    expect(firstResponse.headers["content-type"]).toContain(
+      "application/rss+xml",
+    );
+    expect(firstResponse.body).toContain(
+      "<title>City of Asbury Park NJ Nixle Alerts</title>",
+    );
+    expect(firstResponse.body).toContain("<title>First Fridays</title>");
+    expect(secondResponse.body).toBe(firstResponse.body);
+    expect(fetch).toHaveBeenCalledTimes(1);
 
     await server.close();
   });

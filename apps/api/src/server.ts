@@ -5,6 +5,7 @@ import { registerCalendarRoutes } from "./calendar/calendar.routes.js";
 import { ENV } from "./env.js";
 import { startHappyHourCacheScheduler } from "./happy-hour/happy-hour.cache.js";
 import { registerHappyHourRoutes } from "./happy-hour/happy-hour.routes.js";
+import { registerNixleRoutes } from "./nixle/nixle.routes.js";
 
 export async function buildServer() {
   const server = Fastify({
@@ -31,6 +32,7 @@ export async function buildServer() {
 
   await registerCalendarRoutes(server);
   await registerHappyHourRoutes(server);
+  await registerNixleRoutes(server);
 
   return server;
 }
