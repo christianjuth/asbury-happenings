@@ -1,13 +1,7 @@
 import * as cheerio from "cheerio";
 import _ from "lodash";
 
-import {
-  normalizeText,
-  parseDateAndTimeOrNull,
-  parseDateOrNull,
-  parseWithOptionalTimeZone,
-  resolveOptionalUrl,
-} from "./calendar.utils.js";
+import { normalizeText, parseWithOptionalTimeZone } from "./calendar.utils.js";
 import type {
   CalendarEvent,
   HtmlCalendarSourceConfig,
@@ -39,116 +33,6 @@ export function stripHtmlFromEventDescription(
     ...event,
     description,
   };
-}
-
-export function extractShowroomComingSoonEvents(
-  html: string,
-  config: HtmlCalendarSourceConfig,
-  sourcePage: SourcePage,
-): CalendarEvent[] {
-  // ShowRoom nests multiple dated showtimes inside one movie card, and some cards only
-  // expose an "Opens on" date. The generic HTML extractor maps one card to one event.
-  const $ = cheerio.load(html);
-  const events: CalendarEvent[] = [];
-
-  $(".show-list > .show-details, .show-details").each((_, element) => {
-    const container = $(element);
-    const title = normalizeText(
-      container.find(".show-title .title").first().text(),
-    );
-
-    if (!title) {
-      return;
-    }
-
-    const detailUrl = resolveOptionalUrl(
-      container.find(".show-title .title").first().attr("href"),
-      sourcePage.sourceUrl,
-    );
-    const description =
-      normalizeText(container.find(".show-content").first().text()) ||
-      undefined;
-    const address = config.defaultAddress;
-    const dateByTimestamp = new Map<string, string>();
-
-    container.find(".datelist .show-date").each((_, dateElement) => {
-      const dateItem = $(dateElement);
-      const timestamp = normalizeText(dateItem.attr("data-date"));
-      const dateText = normalizeShowroomDateText(
-        dateItem.find("span").first().text(),
-      );
-
-      if (timestamp && dateText) {
-        dateByTimestamp.set(timestamp, dateText);
-      }
-    });
-
-    container.find("ol.showtimes li").each((_, showtimeElement) => {
-      const showtimeItem = $(showtimeElement);
-      const timestamp = normalizeText(showtimeItem.attr("data-date"));
-      const dateText = dateByTimestamp.get(timestamp);
-      const timeText = normalizeText(
-        showtimeItem.find("a.showtime").first().text(),
-      );
-      const start = dateText
-        ? parseShowroomDateTime(
-            dateText,
-            timeText,
-            config,
-            sourcePage.referenceDate,
-          )
-        : null;
-
-      if (!start) {
-        return;
-      }
-
-      events.push({
-        title,
-        start,
-        end: start.add(config.defaultDurationMinutes ?? 120, "minute"),
-        description,
-        location: address,
-        address,
-        url:
-          resolveOptionalUrl(
-            showtimeItem.find("a.showtime").first().attr("href"),
-            sourcePage.sourceUrl,
-          ) ?? detailUrl,
-      });
-    });
-
-    const opensOnText = normalizeText(
-      container.find(".no-showtimes-date").first().text(),
-    );
-    const opensOnDateText = normalizeShowroomDateText(opensOnText);
-    const opensOnDate = opensOnDateText
-      ? parseDateOrNull(
-          opensOnDateText,
-          { selector: ":self", format: ["MMM D", "MMMM D"] },
-          undefined,
-          sourcePage.referenceDate,
-          config.timeZone,
-        )
-      : null;
-
-    if (opensOnDate) {
-      events.push({
-        title,
-        start: opensOnDate,
-        end: opensOnDate.add(1, "day"),
-        allDay: true,
-        description: description
-          ? `Opens on ${opensOnDateText}. ${description}`
-          : `Opens on ${opensOnDateText}.`,
-        location: address,
-        address,
-        url: detailUrl,
-      });
-    }
-  });
-
-  return events;
 }
 
 export function extractSmithMadeEvents(
@@ -220,53 +104,6 @@ export function extractSmithMadeEvents(
   return events;
 }
 
-export function extractUncorkedWineInspiredEvents(
-  html: string,
-  config: HtmlCalendarSourceConfig,
-  sourcePage: SourcePage,
-): CalendarEvent[] {
-  // EventBook emits all-caps month names and mixes price/seat text into the
-  // date line, which is easier to normalize here than in generic selectors.
-  const $ = cheerio.load(html);
-  const events: CalendarEvent[] = [];
-
-  $(config.containerSelector).each((_, element) => {
-    const container = $(element);
-    const title = normalizeText(container.find("h2").first().text());
-    const description =
-      normalizeText(container.find("p").first().text()) || undefined;
-    const dateLine = normalizeText(
-      container
-        .find("p")
-        .toArray()
-        .map((paragraph) => $(paragraph).text())
-        .find((value) => /\bAT\s+\d{1,2}:\d{2}[AP]M/i.test(value)),
-    );
-    const start = parseUncorkedWineInspiredDateTime(dateLine, config.timeZone);
-
-    if (!title || !start) {
-      return;
-    }
-
-    const address = config.defaultAddress;
-
-    events.push({
-      title,
-      start,
-      end: start.add(config.defaultDurationMinutes ?? 120, "minute"),
-      description,
-      location: address,
-      address,
-      url: resolveOptionalUrl(
-        container.find("a.btn_info").first().attr("href"),
-        sourcePage.sourceUrl,
-      ),
-    });
-  });
-
-  return events;
-}
-
 function stripHtml(value: string): string {
   const $ = cheerio.load(value);
 
@@ -275,38 +112,6 @@ function stripHtml(value: string): string {
   $("p, div, li, h1, h2, h3, h4, h5, h6").append(" ");
 
   return normalizeText($.root().text());
-}
-
-function normalizeShowroomDateText(value: string | undefined): string {
-  return normalizeText(value).replace(/^(?:Opens on\s+|[A-Za-z]{3},\s*)/i, "");
-}
-
-function parseUncorkedWineInspiredDateTime(
-  value: string,
-  timeZone?: string,
-): Dayjs | null {
-  const match = value.match(
-    /^([A-Z]+)\s+(\d{2}),\s+(\d{4})\s+AT\s+(\d{1,2}:\d{2}[AP]M)/,
-  );
-
-  if (!match) {
-    return null;
-  }
-
-  const [, rawMonth, day, year, time] = match;
-
-  if (!rawMonth || !day || !year || !time) {
-    return null;
-  }
-
-  const month = _.startCase(rawMonth.toLowerCase());
-  const parsed = parseWithOptionalTimeZone(
-    `${month} ${day}, ${year} ${time}`,
-    "MMMM DD, YYYY h:mmA",
-    timeZone,
-  );
-
-  return parsed.isValid() ? parsed : null;
 }
 
 function parseSmithMadeDateTime(
@@ -442,22 +247,4 @@ function parseSmithMadeLocalDateTime(
   );
 
   return parsed.isValid() ? parsed : null;
-}
-
-function parseShowroomDateTime(
-  dateText: string,
-  timeText: string,
-  config: HtmlCalendarSourceConfig,
-  referenceDate: Dayjs,
-): Dayjs | null {
-  return parseDateAndTimeOrNull(
-    dateText,
-    { selector: ":self", format: ["MMM D", "MMMM D"] },
-    timeText,
-    { selector: ":self", format: ["h:mm a", "h:mma"] },
-    undefined,
-    undefined,
-    referenceDate,
-    config.timeZone,
-  );
 }

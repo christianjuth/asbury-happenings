@@ -16,10 +16,8 @@ import {
 } from "../src/calendar/calendar.service.js";
 import { getCalendarSource } from "../src/calendar/calendar.config.js";
 import dayjs from "../src/calendar/calendar.dates.js";
-import {
-  extractUncorkedWineInspiredEvents,
-  stripHtmlFromEventLocation,
-} from "../src/calendar/calendar.post-processing.js";
+import { stripHtmlFromEventLocation } from "../src/calendar/calendar.post-processing.js";
+import { extractUncorkedWineInspiredEvents } from "../src/calendar/config/uncorked-wine-inspired.js";
 
 afterEach(() => {
   clearCalendarFetchState();
