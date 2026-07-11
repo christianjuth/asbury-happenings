@@ -1336,8 +1336,10 @@ describe("extractEventsFromIcs", () => {
     });
 
     expect(event).toMatchObject({
-      location: "Press Plaza, Cookman & Emory Ave, Asbury Park, NJ 07712",
-      address: "Press Plaza, Cookman & Emory Ave, Asbury Park, NJ 07712",
+      location:
+        "Press Plaza, 100 Emory St Asbury Park, NJ  07712, United States",
+      address:
+        "Press Plaza, 100 Emory St Asbury Park, NJ  07712, United States",
       description:
         "Original location: Press Plaza Cookman & Emory Ave Asbury Park NJ 07712\n\nLive music and art vendors.",
     });
