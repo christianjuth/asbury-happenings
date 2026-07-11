@@ -15,6 +15,41 @@ const source: NixleSourceConfig = {
 };
 
 describe("nixle service", () => {
+  it("extracts full profile page wire messages without scanning unrelated page links", () => {
+    const messages = extractNixleMessages(
+      `
+        <a href="https://nixle.us/OUTSIDE">Unrelated share link</a>
+        <ol id="wire" class="clearfix">
+          <li id="pub_12454425">
+            <div class="wrapper">
+              <div class="wire_priority">
+                <span class="priority community">Community</span>
+              </div>
+              <div class="wire_content">
+                <h2 class="time">Entered: 1 month ago</h2>
+                <p class="headline_agency">PAS-1 Filing Workshop - Monday, June 15 - City Hall - 12pm to 2pm <a href="https://nixle.us/HDA9H">More&nbsp;»</a> </p>
+              </div>
+            </div>
+          </li>
+        </ol>
+      `,
+      source.url,
+      dayjs("2026-07-11T14:02:00Z"),
+    );
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatchObject({
+      title:
+        "PAS-1 Filing Workshop - Monday, June 15 - City Hall - 12pm to 2pm",
+      link: "https://nixle.us/HDA9H",
+      priority: "Community",
+      enteredText: "1 month ago",
+    });
+    expect(messages[0]?.publishedAt.toISOString()).toBe(
+      "2026-06-11T14:00:00.000Z",
+    );
+  });
+
   it("extracts widget messages and approximates entered times rounded to five minutes", () => {
     const messages = extractNixleMessages(
       `

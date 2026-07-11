@@ -39,15 +39,20 @@ export function extractNixleMessages(
   now = dayjs(),
 ): NixleMessage[] {
   const $ = cheerio.load(html);
-  const candidates = $("#message_widget ol li")
+  const fullPageCandidates = $("ol#wire > li").toArray();
+  const widgetCandidates = $("#message_widget ol li")
     .filter((_, element) => !$(element).hasClass("last"))
     .toArray();
-  const fallbackCandidates = $("li, article, .message, .message-item")
+  const fallbackCandidates = $("article, .message, .message-item")
     .filter((_, element) =>
       Boolean($(element).find("a[href*='nixle.']").length),
     )
     .toArray();
-  const elements = candidates.length ? candidates : fallbackCandidates;
+  const elements = getFirstNonEmptyList([
+    fullPageCandidates,
+    widgetCandidates,
+    fallbackCandidates,
+  ]);
   const messages: NixleMessage[] = [];
   const seenLinks = new Set<string>();
 
@@ -146,6 +151,10 @@ function normalizeEnteredText(value: string): string | undefined {
   return normalized || undefined;
 }
 
+function getFirstNonEmptyList<T>(lists: T[][]): T[] {
+  return lists.find((list) => list.length) ?? [];
+}
+
 function approximatePublishedAt(
   enteredText: string | undefined,
   now: Dayjs,
@@ -155,7 +164,7 @@ function approximatePublishedAt(
   }
 
   let publishedAt = now;
-  const pattern = /(\d+)\s+(week|day|hour|minute)s?/gi;
+  const pattern = /(\d+)\s+(year|month|week|day|hour|minute)s?/gi;
   let matched = false;
 
   for (const match of enteredText.matchAll(pattern)) {
@@ -169,7 +178,7 @@ function approximatePublishedAt(
     matched = true;
     publishedAt = publishedAt.subtract(
       amount,
-      unit as "week" | "day" | "hour" | "minute",
+      unit as "year" | "month" | "week" | "day" | "hour" | "minute",
     );
   }
 
