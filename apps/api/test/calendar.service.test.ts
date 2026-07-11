@@ -18,6 +18,7 @@ import { getCalendarSource } from "../src/calendar/calendar.config.js";
 import dayjs from "../src/calendar/calendar.dates.js";
 import { stripHtmlFromEventLocation } from "../src/calendar/calendar.post-processing.js";
 import { extractUncorkedWineInspiredEvents } from "../src/calendar/config/uncorked-wine-inspired.js";
+import { rewriteLocation } from "../src/calendar/location-transform.js";
 
 afterEach(() => {
   clearCalendarFetchState();
@@ -1290,6 +1291,79 @@ describe("extractEventsFromIcs", () => {
     expect(event.location).toBe(
       "Pine Street between Second and Third Avenues - Asbury Park NJ 07712",
     );
+  });
+
+  it("rewrites locations when all match terms appear case-insensitively", () => {
+    const rewrittenLocation = rewriteLocation(
+      "First Fridays at PRESS PLAZA, Cookman & Emory Ave, Asbury Park",
+      [
+        {
+          match: ["press plaza", "asbury park"],
+          location: "Press Plaza, Cookman & Emory Ave, Asbury Park, NJ 07712",
+        },
+      ],
+    );
+
+    expect(rewrittenLocation).toBe(
+      "Press Plaza, Cookman & Emory Ave, Asbury Park, NJ 07712",
+    );
+    expect(
+      rewriteLocation("Press Plaza, Long Branch", [
+        {
+          match: ["press plaza", "asbury park"],
+          location: "Press Plaza, Cookman & Emory Ave, Asbury Park, NJ 07712",
+        },
+      ]),
+    ).toBeUndefined();
+  });
+
+  it("rewrites Asbury Park City Press Plaza locations and preserves the original location in the description", () => {
+    const cityConfig = getCalendarSource("asbury-park-city");
+
+    if (!cityConfig?.transformEvent) {
+      throw new Error("Missing Asbury Park City calendar transform");
+    }
+
+    const event = cityConfig.transformEvent({
+      title: "First Fridays",
+      start: dayjs("2026-07-10T21:00:00Z"),
+      end: dayjs("2026-07-11T01:00:00Z"),
+      description: "Live music and art vendors.",
+      location:
+        "<p>Press Plaza<br>Cookman &amp; Emory Ave Asbury Park NJ 07712</p>",
+      address:
+        "<p>Press Plaza<br>Cookman &amp; Emory Ave Asbury Park NJ 07712</p>",
+    });
+
+    expect(event).toMatchObject({
+      location: "Press Plaza, Cookman & Emory Ave, Asbury Park, NJ 07712",
+      address: "Press Plaza, Cookman & Emory Ave, Asbury Park, NJ 07712",
+      description:
+        "Original location: Press Plaza Cookman & Emory Ave Asbury Park NJ 07712\n\nLive music and art vendors.",
+    });
+  });
+
+  it("does not prepend original location descriptions for unmatched Asbury Park City locations", () => {
+    const cityConfig = getCalendarSource("asbury-park-city");
+
+    if (!cityConfig?.transformEvent) {
+      throw new Error("Missing Asbury Park City calendar transform");
+    }
+
+    const event = cityConfig.transformEvent({
+      title: "Council Meeting",
+      start: dayjs("2026-07-10T21:00:00Z"),
+      end: dayjs("2026-07-10T22:00:00Z"),
+      description: "Agenda.",
+      location: "<p>City Hall<br>1 Municipal Plaza</p>",
+      address: "<p>City Hall<br>1 Municipal Plaza</p>",
+    });
+
+    expect(event).toMatchObject({
+      location: "City Hall 1 Municipal Plaza",
+      address: "City Hall 1 Municipal Plaza",
+      description: "Agenda.",
+    });
   });
 
   it("preserves date-only ICS entries as all-day events", () => {
