@@ -17,6 +17,7 @@ import {
 import { getCalendarSource } from "../src/calendar/calendar.config.js";
 import dayjs from "../src/calendar/calendar.dates.js";
 import { stripHtmlFromEventLocation } from "../src/calendar/calendar.post-processing.js";
+import { extractArt629Events } from "../src/calendar/config/art629.js";
 import { extractUncorkedWineInspiredEvents } from "../src/calendar/config/uncorked-wine-inspired.js";
 import { rewriteLocation } from "../src/calendar/location-transform.js";
 
@@ -909,6 +910,60 @@ describe("extractEventsFromHtml", () => {
     });
     expect(events[1]?.start.toISOString()).toBe("2026-07-12T21:00:00.000Z");
     expect(events[1]?.end.toISOString()).toBe("2026-07-13T02:00:00.000Z");
+  });
+
+  it("parses art629 rich-text class schedules into concrete events", () => {
+    const art629Config = getCalendarSource("art629");
+
+    if (!art629Config || art629Config.sourceType !== "html") {
+      throw new Error("Missing art629 calendar config");
+    }
+
+    const events = extractArt629Events(
+      `
+        <div class="wixui-rich-text">
+          <p><span>Weekly Art Classes at art629 Gallery</span></p>
+          <p><span>FIGURE DRAWING</span></p>
+          <p><span>Mondays 6-8 pm</span></p>
+          <p><span>PAINTING CLASSES</span></p>
+          <p><span>Thursdays 5:30-7:30 pm</span></p>
+          <p><span>and</span></p>
+          <p><span>Saturdays 11am-1pm</span></p>
+          <p><span>CLASS CANCELLED THURS JULY 9</span></p>
+        </div>
+      `,
+      art629Config,
+      {
+        sourceUrl: art629Config.url,
+        referenceDate: dayjs("2026-07-01T12:00:00Z"),
+      },
+    );
+
+    expect(events).toHaveLength(38);
+    expect(events[0]).toMatchObject({
+      title: "Figure Drawing",
+      description: "Mondays 6-8 pm",
+      location: "art629 Gallery, 629 Cookman Ave, Asbury Park, NJ 07712",
+      url: "https://www.art629.com/art-classes",
+    });
+    expect(events[0]?.start.toISOString()).toBe("2026-07-06T22:00:00.000Z");
+    expect(events[0]?.end.toISOString()).toBe("2026-07-07T00:00:00.000Z");
+    expect(
+      events.some(
+        (event) =>
+          event.title === "Painting Classes" &&
+          event.start.toISOString() === "2026-07-09T21:30:00.000Z",
+      ),
+    ).toBe(false);
+    expect(
+      events
+        .find(
+          (event) =>
+            event.title === "Painting Classes" &&
+            event.description === "Thursdays 5:30-7:30 pm",
+        )
+        ?.start.toISOString(),
+    ).toBe("2026-07-02T21:30:00.000Z");
   });
 
   it("parses Uncorked Wine Inspired event grid cards", () => {

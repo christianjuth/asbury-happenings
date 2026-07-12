@@ -1,5 +1,6 @@
 import type { CalendarSourceConfig } from "../calendar.types.js";
 import { AP_ROOFTOP_SOURCE } from "./ap-rooftop.js";
+import { ART629_SOURCE } from "./art629.js";
 import { ASBURY_BOOK_COOP_SOURCE } from "./asbury-book-coop.js";
 import { ASBURY_BRICKWALL_SOURCE } from "./asbury-brickwall.js";
 import { ASBURY_LANES_SOURCE } from "./asbury-lanes.js";
@@ -30,6 +31,7 @@ export const CALENDAR_SOURCES = [
   WONDER_BAR_SOURCE,
   HOUSE_OF_INDEPENDENTS_SOURCE,
   SHOWROOM_CINEMAS_SOURCE,
+  ART629_SOURCE,
   ASBURY_PARK_BREWERY_SOURCE,
   BLACK_SWAN_SOURCE,
   ASBURY_LANES_SOURCE,
