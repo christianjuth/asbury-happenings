@@ -107,6 +107,11 @@ describe("server", () => {
           path: "/calendar/showroom-cinemas.ics",
         },
         {
+          id: "art629",
+          name: "art629 Gallery",
+          path: "/calendar/art629.ics",
+        },
+        {
           id: "asbury-park-brewery",
           name: "Asbury Park Brewery",
           path: "/calendar/asbury-park-brewery.ics",
@@ -130,6 +135,11 @@ describe("server", () => {
           id: "samantha-dress",
           name: "Samantha Dress",
           path: "/calendar/samantha-dress.ics",
+        },
+        {
+          id: "status",
+          name: "Calendar Status",
+          path: "/calendar/status.ics",
         },
       ],
     });
@@ -252,6 +262,68 @@ describe("server", () => {
     expect(debugText).toContain("1. fetch stale | snapshot ");
     expect(debugText).toContain("revalidate error");
     expect(debugText).toContain("Last Good Event");
+  });
+
+  it("returns an empty status calendar when no calendar has failed", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-03T00:00:00Z"));
+    const server = await buildServer();
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/calendar/status.ics",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toContain("text/calendar");
+    expect(response.body).toContain("BEGIN:VCALENDAR");
+    expect(response.body).not.toContain("BEGIN:VEVENT");
+
+    await server.close();
+  });
+
+  it("returns a status event when a calendar source fails", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-03T00:00:00Z"));
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("Too many requests", { status: 429 }),
+    );
+    const server = await buildServer();
+    const config = getCalendarSource("tim-mcloones-supper-club");
+
+    if (!config) {
+      throw new Error("Missing test calendar config");
+    }
+
+    await warmCalendarPage(config, 0, dayjs("2026-07-03T00:00:00Z"));
+
+    const feedResponse = await server.inject({
+      method: "GET",
+      url: "/calendar/status.ics",
+    });
+    const debugResponse = await server.inject({
+      method: "GET",
+      url: "/calendar/status.ics?debug=1",
+    });
+
+    expect(feedResponse.statusCode).toBe(200);
+    expect(feedResponse.body).toContain("SUMMARY:Error: 1 calendar failing");
+    expect(feedResponse.body).toContain("DTSTART;VALUE=DATE:20260703");
+    expect(feedResponse.body).toContain("DTEND;VALUE=DATE:20260704");
+    expect(feedResponse.body).toContain("Tim McLoone's Supper Club");
+    expect(feedResponse.body).toContain("Status:");
+    expect(feedResponse.body).toContain("error");
+    expect(feedResponse.body).toContain("Error: Failed");
+    expect(feedResponse.body).toContain(
+      "to fetch https://timmcloonessupperclub.com/events.php: 429",
+    );
+    expect(debugResponse.statusCode).toBe(200);
+    expect(debugResponse.headers["content-type"]).toContain("text/plain");
+    expect(debugResponse.body).toContain("Calendar: Calendar Status");
+    expect(debugResponse.body).toContain("Events: 1");
+    expect(debugResponse.body).toContain("Status: error");
+
+    await server.close();
   });
 
   it("filters cached calendar events from repeated filter query params", async () => {

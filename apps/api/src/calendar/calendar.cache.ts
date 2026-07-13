@@ -38,6 +38,14 @@ interface CalendarSnapshot {
   ready: boolean;
 }
 
+interface CalendarFailure {
+  calendarId: string;
+  calendarName: string;
+  sourceUrl: string;
+  status: FetchStatus;
+  error?: string;
+}
+
 const PAGE_CACHE = new Map<string, CachedPage>();
 const REFRESHING_PAGES = new Set<string>();
 
@@ -74,6 +82,21 @@ export function getCachedCalendarDebugText(
     filterCalendarEvents(snapshot.events, filters, config.defaultFilters),
     snapshot.statuses,
     snapshot.debugPages,
+  );
+}
+
+export function getCachedCalendarStatusFeed(now = dayjs()): string {
+  return eventsToIcs("Calendar Status", buildCalendarStatusEvents(now));
+}
+
+export function getCachedCalendarStatusDebugText(now = dayjs()): string {
+  const events = buildCalendarStatusEvents(now);
+
+  return eventsToDebugText(
+    "Calendar Status",
+    "calendar-cache",
+    events,
+    "fetched",
   );
 }
 
@@ -335,6 +358,59 @@ function getCalendarSnapshot(
     debugPages,
     ready: cachedPages.some((page) => page && page.status !== "error"),
   };
+}
+
+function buildCalendarStatusEvents(now: Dayjs): CalendarEvent[] {
+  const failures = getCalendarFailures(now);
+
+  if (!failures.length) {
+    return [];
+  }
+
+  const start = now.startOf("day");
+
+  return [
+    {
+      title: `Error: ${failures.length} calendar${failures.length === 1 ? "" : "s"} failing`,
+      start,
+      end: start.add(1, "day"),
+      allDay: true,
+      description: formatCalendarFailureDescription(failures),
+    },
+  ];
+}
+
+function getCalendarFailures(now: Dayjs): CalendarFailure[] {
+  return CALENDAR_SOURCES.flatMap((config) => {
+    const snapshot = getCalendarSnapshot(config, now);
+
+    return snapshot.debugPages
+      .filter(
+        (page) => page.fetchStatus === "error" || page.fetchStatus === "stale",
+      )
+      .map((page) => ({
+        calendarId: config.id,
+        calendarName: config.name,
+        sourceUrl: page.sourceUrl,
+        status: page.fetchStatus,
+        error: page.error,
+      }));
+  });
+}
+
+function formatCalendarFailureDescription(failures: CalendarFailure[]): string {
+  return failures
+    .map((failure) =>
+      [
+        `${failure.calendarName} (${failure.calendarId})`,
+        `Status: ${failure.status}`,
+        `Source: ${failure.sourceUrl}`,
+        failure.error ? `Error: ${failure.error}` : undefined,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    )
+    .join("\n\n");
 }
 
 function getDebugPage(
