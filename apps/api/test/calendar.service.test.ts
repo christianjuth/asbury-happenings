@@ -1258,6 +1258,40 @@ describe("extractEventsFromJson", () => {
     expect(events[1]?.title).toBe("Happy Mondays");
     expect(events[1]?.url).toBeUndefined();
   });
+
+  it("parses PNC Bank Arts Center Live Nation events", () => {
+    const pncConfig = getCalendarSource("pnc-bank-arts-center");
+
+    if (!pncConfig || pncConfig.sourceType !== "json") {
+      throw new Error("Missing PNC Bank Arts Center calendar config");
+    }
+
+    const events = extractEventsFromJson(
+      JSON.stringify([
+        {
+          name: "Jason Aldean: Songs About Us Tour 2026",
+          url: "https://www.ticketmaster.com/jason-aldean-songs-about-us-tour-holmdel-new-jersey-07-17-2026/event/020064588C83EE2D",
+          start_datetime_utc: "2026-07-17T23:30:00Z",
+          venue: {
+            name: "PNC Bank Arts Center",
+          },
+        },
+      ]),
+      pncConfig,
+      "https://content.livenationapi.com/v1/venues/KovZpZAEAIIA/events?offset=0&limit=36",
+    );
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      title: "Jason Aldean: Songs About Us Tour 2026",
+      location: "PNC Bank Arts Center",
+      address:
+        "PNC Bank Arts Center, Exit 116, Garden State Pkwy, Holmdel, NJ 07733",
+      url: "https://www.ticketmaster.com/jason-aldean-songs-about-us-tour-holmdel-new-jersey-07-17-2026/event/020064588C83EE2D",
+    });
+    expect(events[0]?.start.toISOString()).toBe("2026-07-17T23:30:00.000Z");
+    expect(events[0]?.end.toISOString()).toBe("2026-07-18T02:30:00.000Z");
+  });
 });
 
 describe("extractEventsFromIcs", () => {

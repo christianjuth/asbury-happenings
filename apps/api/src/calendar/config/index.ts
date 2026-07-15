@@ -10,6 +10,7 @@ import { ASBURY_PARK_CITY_SOURCE } from "./asbury-park-city.js";
 import { BLACK_SWAN_SOURCE } from "./black-swan.js";
 import { HOUSE_OF_INDEPENDENTS_SOURCE } from "./house-of-independents.js";
 import { IRON_WHALE_SOURCE } from "./iron-whale.js";
+import { PNC_BANK_ARTS_CENTER_SOURCE } from "./pnc-bank-arts-center.js";
 import { R_BAR_SOURCE } from "./r-bar.js";
 import { SAMANTHA_DRESS_SOURCE } from "./samantha-dress.js";
 import { SHOWROOM_CINEMAS_SOURCE } from "./showroom-cinemas.js";
@@ -29,6 +30,7 @@ export const CALENDAR_SOURCES = [
   IRON_WHALE_SOURCE,
   R_BAR_SOURCE,
   WONDER_BAR_SOURCE,
+  PNC_BANK_ARTS_CENTER_SOURCE,
   HOUSE_OF_INDEPENDENTS_SOURCE,
   SHOWROOM_CINEMAS_SOURCE,
   ART629_SOURCE,
