@@ -85,6 +85,7 @@ export interface IcsCalendarSourceConfig extends BaseCalendarSourceConfig {
 }
 
 export interface CalendarEvent {
+  uid?: string;
   title: string;
   start: Dayjs;
   end: Dayjs;

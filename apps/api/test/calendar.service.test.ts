@@ -1309,6 +1309,7 @@ describe("extractEventsFromIcs", () => {
       [
         "BEGIN:VCALENDAR",
         "BEGIN:VEVENT",
+        "UID:city-event-1",
         "SUMMARY:Council Meeting",
         "DTSTART;TZID=America/New_York:20260706T190000",
         "DTEND;TZID=America/New_York:20260706T203000",
@@ -1325,6 +1326,7 @@ describe("extractEventsFromIcs", () => {
     expect(dayjs.isDayjs(events[0]?.start)).toBe(true);
     expect(dayjs.isDayjs(events[0]?.end)).toBe(true);
     expect(events[0]).toMatchObject({
+      uid: "city-event-1",
       title: "Council Meeting",
       description: "Agenda Public comment",
       location: "<p>City Hall<br>1 Municipal Plaza</p>",
@@ -1474,6 +1476,43 @@ describe("extractEventsFromIcs", () => {
     expect(events[0]?.allDay).toBe(true);
     expect(feed).toContain("DTSTART;VALUE=DATE:20260828");
     expect(feed).toContain("DTEND;VALUE=DATE:20260829");
+  });
+
+  it("adds Samantha Dress event URLs from UID date and title when missing", () => {
+    const samanthaDressConfig = getCalendarSource("samantha-dress");
+
+    if (!samanthaDressConfig?.transformEvent) {
+      throw new Error("Missing Samantha Dress calendar transform");
+    }
+
+    const event = samanthaDressConfig.transformEvent({
+      uid: "fe4ce34a-5cfc-422f-b811-4bbc55b1f6e1",
+      title: "The Roomies DUO @ LBI Distilling Company",
+      start: dayjs.tz("2026-07-17T20:00:00", "America/New_York"),
+      end: dayjs.tz("2026-07-17T21:00:00", "America/New_York"),
+    });
+
+    expect(event?.url).toBe(
+      "https://samanthadress.com/event?uid=fe4ce34a-5cfc-422f-b811-4bbc55b1f6e1&date=2026-07-17&title=The+Roomies+DUO+%40+LBI+Distilling+Company",
+    );
+  });
+
+  it("keeps existing Samantha Dress event URLs", () => {
+    const samanthaDressConfig = getCalendarSource("samantha-dress");
+
+    if (!samanthaDressConfig?.transformEvent) {
+      throw new Error("Missing Samantha Dress calendar transform");
+    }
+
+    const event = samanthaDressConfig.transformEvent({
+      uid: "fe4ce34a-5cfc-422f-b811-4bbc55b1f6e1",
+      title: "The Roomies DUO @ LBI Distilling Company",
+      start: dayjs.tz("2026-07-17T20:00:00", "America/New_York"),
+      end: dayjs.tz("2026-07-17T21:00:00", "America/New_York"),
+      url: "https://example.com/existing",
+    });
+
+    expect(event?.url).toBe("https://example.com/existing");
   });
 });
 

@@ -141,6 +141,7 @@ export function eventsToIcs(
 
   for (const event of events) {
     calendar.createEvent({
+      id: event.uid,
       summary: event.title,
       start: event.start,
       end: event.end,
@@ -486,6 +487,7 @@ export function extractEventsFromIcs(
         readIcsText(component, "LOCATION") ?? config.defaultAddress;
 
       return {
+        uid: readIcsText(component, "UID"),
         title,
         start: start.date,
         end: end.date,
