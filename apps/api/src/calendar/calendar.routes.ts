@@ -117,7 +117,27 @@ function applyCalendarCorsHeaders(
 ): void {
   reply.header("vary", "Origin");
 
-  if (origin && config.browserAllowedOrigins?.includes(origin)) {
+  if (origin && isOriginAllowed(origin, config.browserAllowedOrigins)) {
     reply.header("access-control-allow-origin", origin);
   }
+}
+
+function isOriginAllowed(
+  origin: string,
+  allowedOrigins: string[] | undefined,
+): boolean {
+  return (
+    allowedOrigins?.some((pattern) => originMatchesPattern(origin, pattern)) ??
+    false
+  );
+}
+
+function originMatchesPattern(origin: string, pattern: string): boolean {
+  if (!pattern.includes("*")) {
+    return origin === pattern;
+  }
+
+  const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp(`^${escaped.replace(/\\\*/g, "[^.]+")}$`);
+  return regex.test(origin);
 }

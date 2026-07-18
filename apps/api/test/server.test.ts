@@ -97,6 +97,11 @@ describe("server", () => {
           path: "/calendar/wonder-bar.ics",
         },
         {
+          id: "pnc-bank-arts-center",
+          name: "PNC Bank Arts Center",
+          path: "/calendar/pnc-bank-arts-center.ics",
+        },
+        {
           id: "house-of-independents",
           name: "House of Independents",
           path: "/calendar/house-of-independents.ics",
@@ -425,6 +430,64 @@ describe("server", () => {
     expect(response.headers["access-control-allow-methods"]).toBe(
       "GET, OPTIONS",
     );
+
+    await server.close();
+  });
+
+  it("allows Samantha Dress browser access from localhost and Cloudflare Pages branch builds", async () => {
+    const server = await buildServer();
+
+    const localhostResponse = await server.inject({
+      method: "GET",
+      url: "/calendar/samantha-dress.ics",
+      headers: {
+        origin: "http://localhost:3000",
+      },
+    });
+    const namedBranchBuildResponse = await server.inject({
+      method: "GET",
+      url: "/calendar/samantha-dress.ics",
+      headers: {
+        origin: "https://318b4aca.sams-portfolio-6ir.pages.dev",
+      },
+    });
+    const otherBranchBuildResponse = await server.inject({
+      method: "GET",
+      url: "/calendar/samantha-dress.ics",
+      headers: {
+        origin: "https://preview.sams-portfolio-6ir.pages.dev",
+      },
+    });
+    const unrelatedPagesResponse = await server.inject({
+      method: "GET",
+      url: "/calendar/samantha-dress.ics",
+      headers: {
+        origin: "https://someone-else.pages.dev",
+      },
+    });
+    const nestedSubdomainResponse = await server.inject({
+      method: "GET",
+      url: "/calendar/samantha-dress.ics",
+      headers: {
+        origin: "https://evil.318b4aca.sams-portfolio-6ir.pages.dev",
+      },
+    });
+
+    expect(localhostResponse.headers["access-control-allow-origin"]).toBe(
+      "http://localhost:3000",
+    );
+    expect(
+      namedBranchBuildResponse.headers["access-control-allow-origin"],
+    ).toBe("https://318b4aca.sams-portfolio-6ir.pages.dev");
+    expect(
+      otherBranchBuildResponse.headers["access-control-allow-origin"],
+    ).toBe("https://preview.sams-portfolio-6ir.pages.dev");
+    expect(
+      unrelatedPagesResponse.headers["access-control-allow-origin"],
+    ).toBeUndefined();
+    expect(
+      nestedSubdomainResponse.headers["access-control-allow-origin"],
+    ).toBeUndefined();
 
     await server.close();
   });

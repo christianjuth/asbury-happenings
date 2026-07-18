@@ -8,7 +8,13 @@ export const SAMANTHA_DRESS_SOURCE = {
   name: "Samantha Dress",
   sourceType: "ics",
   url: "https://calendar.google.com/calendar/ical/65138dbc87c80e90f51e1ad6850a279be725a04b3a71786550afa5e1c38d63fe%40group.calendar.google.com/public/basic.ics",
-  browserAllowedOrigins: ["https://samanthadress.com"],
+  browserAllowedOrigins: [
+    "https://samanthadress.com",
+    "http://localhost:3000",
+    // Covers every Cloudflare Pages branch build, e.g.
+    // https://318b4aca.sams-portfolio-6ir.pages.dev
+    "https://*.sams-portfolio-6ir.pages.dev",
+  ],
   timeZone: "America/New_York",
   defaultDurationMinutes: 60,
   transformEvent: addSamanthaDressEventUrl,
