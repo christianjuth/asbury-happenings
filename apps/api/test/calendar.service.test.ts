@@ -1478,7 +1478,27 @@ describe("extractEventsFromIcs", () => {
     expect(feed).toContain("DTEND;VALUE=DATE:20260829");
   });
 
-  it("adds Samantha Dress event URLs from UID date and title when missing", () => {
+  it("adds Samantha Dress event URLs with city and state parsed from the address", () => {
+    const samanthaDressConfig = getCalendarSource("samantha-dress");
+
+    if (!samanthaDressConfig?.transformEvent) {
+      throw new Error("Missing Samantha Dress calendar transform");
+    }
+
+    const event = samanthaDressConfig.transformEvent({
+      uid: "1rabr53rm6j5ml2op2l7ffcqb4@google.com",
+      title: "The Roomies DUO @ LBI Distilling Company",
+      start: dayjs.tz("2026-07-23T20:00:00", "America/New_York"),
+      end: dayjs.tz("2026-07-23T21:00:00", "America/New_York"),
+      address: "123 Main St, Long Beach Island, NJ 08008",
+    });
+
+    expect(event?.url).toBe(
+      "https://samanthadress.com/events/nj/long-beach-island/2026-07-23/1rabr53rm6j5ml2op2l7ffcqb4%40google.com",
+    );
+  });
+
+  it("falls back to default Samantha Dress city and state when the address cannot be parsed", () => {
     const samanthaDressConfig = getCalendarSource("samantha-dress");
 
     if (!samanthaDressConfig?.transformEvent) {
@@ -1493,7 +1513,7 @@ describe("extractEventsFromIcs", () => {
     });
 
     expect(event?.url).toBe(
-      "https://samanthadress.com/event?uid=fe4ce34a-5cfc-422f-b811-4bbc55b1f6e1&date=2026-07-17&title=The+Roomies+DUO+%40+LBI+Distilling+Company",
+      "https://samanthadress.com/events/nj/long-beach-island/2026-07-17/fe4ce34a-5cfc-422f-b811-4bbc55b1f6e1",
     );
   });
 

@@ -1,7 +1,11 @@
+import { parseAddress } from "addresser";
+
 import type { CalendarEvent, CalendarSourceConfig } from "../calendar.types.js";
 
-const EVENT_URL_BASE = "https://samanthadress.com/event";
+const EVENT_URL_BASE = "https://samanthadress.com/events";
 const EVENT_URL_TIME_ZONE = "America/New_York";
+const DEFAULT_EVENT_STATE = "nj";
+const DEFAULT_EVENT_CITY_SLUG = "long-beach-island";
 
 export const SAMANTHA_DRESS_SOURCE = {
   id: "samantha-dress",
@@ -32,13 +36,44 @@ function addSamanthaDressEventUrl(event: CalendarEvent): CalendarEvent {
 }
 
 function buildSamanthaDressEventUrl(event: CalendarEvent): string {
-  const params = new URLSearchParams({
-    uid: event.uid ?? "",
-    date: formatSamanthaDressEventDate(event),
-    title: event.title,
-  });
+  const { state, citySlug } = resolveEventCityAndState(
+    event.address ?? event.location,
+  );
+  const date = formatSamanthaDressEventDate(event);
+  const uid = encodeURIComponent(event.uid ?? "");
 
-  return `${EVENT_URL_BASE}?${params.toString()}`;
+  return `${EVENT_URL_BASE}/${state}/${citySlug}/${date}/${uid}`;
+}
+
+function resolveEventCityAndState(address: string | undefined): {
+  state: string;
+  citySlug: string;
+} {
+  if (address) {
+    try {
+      const parsed = parseAddress(address);
+
+      if (parsed.stateAbbreviation && parsed.placeName) {
+        return {
+          state: parsed.stateAbbreviation.toLowerCase(),
+          citySlug: slugifyCity(parsed.placeName),
+        };
+      }
+    } catch {
+      // Fall through to defaults; samanthadress.com repairs mismatched
+      // city/state values as long as the event UID resolves.
+    }
+  }
+
+  return { state: DEFAULT_EVENT_STATE, citySlug: DEFAULT_EVENT_CITY_SLUG };
+}
+
+function slugifyCity(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 function formatSamanthaDressEventDate(event: CalendarEvent): string {
