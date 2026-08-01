@@ -9,6 +9,7 @@ import {
   fetchCalendarEvents,
   renderSourceUrl,
   renderSourceUrls,
+  type CalendarEvent,
   type CalendarSourceConfig,
   type HtmlCalendarSourceConfig,
   type IcsCalendarSourceConfig,
@@ -16,8 +17,13 @@ import {
 } from "../src/calendar/calendar.service.js";
 import { getCalendarSource } from "../src/calendar/calendar.config.js";
 import dayjs from "../src/calendar/calendar.dates.js";
+import { isEventCancelled } from "../src/calendar/calendar.utils.js";
 import { stripHtmlFromEventLocation } from "../src/calendar/calendar.post-processing.js";
 import { extractArt629Events } from "../src/calendar/config/art629.js";
+import {
+  SAMANTHA_DRESS_SOURCE,
+  samanthaDressEventUrl,
+} from "../src/calendar/config/samantha-dress.js";
 import { extractUncorkedWineInspiredEvents } from "../src/calendar/config/uncorked-wine-inspired.js";
 import { rewriteLocation } from "../src/calendar/location-transform.js";
 
@@ -1337,6 +1343,75 @@ describe("extractEventsFromIcs", () => {
     expect(events[0]?.end.toISOString()).toBe("2026-07-07T00:30:00.000Z");
   });
 
+  it("parses STATUS into the event", () => {
+    const events = extractEventsFromIcs(
+      [
+        "BEGIN:VCALENDAR",
+        "BEGIN:VEVENT",
+        "UID:cancelled-event",
+        "SUMMARY:Council Meeting",
+        "DTSTART:20260706T190000Z",
+        "STATUS:CANCELLED",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:confirmed-event",
+        "SUMMARY:Council Meeting",
+        "DTSTART:20260707T190000Z",
+        "STATUS:CONFIRMED",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:unknown-status-event",
+        "SUMMARY:Council Meeting",
+        "DTSTART:20260708T190000Z",
+        "STATUS:NEEDS-ACTION",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:no-status-event",
+        "SUMMARY:Council Meeting",
+        "DTSTART:20260709T190000Z",
+        "END:VEVENT",
+        "END:VCALENDAR",
+      ].join("\r\n"),
+      icsConfig,
+    );
+
+    expect(events.map((event) => event.status)).toEqual([
+      "cancelled",
+      "confirmed",
+      undefined,
+      undefined,
+    ]);
+  });
+
+  // samanthadress.com reads STATUS off the generated feed, so a cancellation
+  // that only exists as a STATUS property has to survive the round trip.
+  it("keeps STATUS through parse and regeneration", () => {
+    const events = extractEventsFromIcs(
+      [
+        "BEGIN:VCALENDAR",
+        "BEGIN:VEVENT",
+        "UID:cancelled-event",
+        "SUMMARY:Trunk Show",
+        "DTSTART:20260917T220000Z",
+        "DTEND:20260918T000000Z",
+        "STATUS:CANCELLED",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:plain-event",
+        "SUMMARY:Sample Sale",
+        "DTSTART:20260918T220000Z",
+        "DTEND:20260919T000000Z",
+        "END:VEVENT",
+        "END:VCALENDAR",
+      ].join("\r\n"),
+      icsConfig,
+    );
+    const ics = eventsToIcs("Samantha Dress", events);
+
+    expect(ics).toContain("STATUS:CANCELLED");
+    expect(ics.match(/STATUS:/g)).toHaveLength(1);
+  });
+
   it("unfolds long lines and applies default duration", () => {
     const events = extractEventsFromIcs(
       [
@@ -1478,61 +1553,114 @@ describe("extractEventsFromIcs", () => {
     expect(feed).toContain("DTEND;VALUE=DATE:20260829");
   });
 
-  it("adds Samantha Dress event URLs with city and state parsed from the address", () => {
-    const samanthaDressConfig = getCalendarSource("samantha-dress");
-
-    if (!samanthaDressConfig?.transformEvent) {
-      throw new Error("Missing Samantha Dress calendar transform");
-    }
-
-    const event = samanthaDressConfig.transformEvent({
+  it("generates Samantha Dress event URLs from a resolved address", () => {
+    const event = samanthaDressEventUrl({
       uid: "1rabr53rm6j5ml2op2l7ffcqb4@google.com",
       title: "The Roomies DUO @ LBI Distilling Company",
       start: dayjs.tz("2026-07-23T20:00:00", "America/New_York"),
       end: dayjs.tz("2026-07-23T21:00:00", "America/New_York"),
-      address: "123 Main St, Long Beach Island, NJ 08008",
+      location: "123 Main St, Freehold, NJ 07728",
     });
 
-    expect(event?.url).toBe(
-      "https://samanthadress.com/events/nj/long-beach-island/2026-07-23/1rabr53rm6j5ml2op2l7ffcqb4%40google.com",
+    expect(event).toBe(
+      "https://samanthadress.com/events/nj/freehold/2026-07-23/1rabr53rm6j5ml2op2l7ffcqb4%40google.com",
     );
   });
 
-  it("falls back to default Samantha Dress city and state when the address cannot be parsed", () => {
-    const samanthaDressConfig = getCalendarSource("samantha-dress");
+  it("generates Samantha Dress URLs from venue locations with full state names", () => {
+    const event = samanthaDressEventUrl({
+      uid: "stone-pony",
+      title: "The Stone Pony show",
+      start: dayjs.tz("2026-07-23T20:00:00", "America/New_York"),
+      end: dayjs.tz("2026-07-23T21:00:00", "America/New_York"),
+      location: "The Stone Pony, Asbury Park, New Jersey, USA",
+    });
 
-    if (!samanthaDressConfig?.transformEvent) {
-      throw new Error("Missing Samantha Dress calendar transform");
-    }
+    expect(event).toBe(
+      "https://samanthadress.com/events/nj/asbury-park/2026-07-23/stone-pony",
+    );
+  });
 
-    const event = samanthaDressConfig.transformEvent({
+  it("does not generate a Samantha Dress URL when the address cannot be parsed", () => {
+    const event = samanthaDressEventUrl({
       uid: "fe4ce34a-5cfc-422f-b811-4bbc55b1f6e1",
       title: "The Roomies DUO @ LBI Distilling Company",
       start: dayjs.tz("2026-07-17T20:00:00", "America/New_York"),
       end: dayjs.tz("2026-07-17T21:00:00", "America/New_York"),
     });
 
-    expect(event?.url).toBe(
-      "https://samanthadress.com/events/nj/long-beach-island/2026-07-17/fe4ce34a-5cfc-422f-b811-4bbc55b1f6e1",
-    );
+    expect(event).toBeUndefined();
   });
 
-  it("keeps existing Samantha Dress event URLs", () => {
-    const samanthaDressConfig = getCalendarSource("samantha-dress");
+  it("does not add Samantha Dress URLs to the generated calendar feed", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        [
+          "BEGIN:VCALENDAR",
+          "BEGIN:VEVENT",
+          "UID:calendar-only-event",
+          "SUMMARY:Calendar Only Event",
+          "DTSTART:20260723T200000Z",
+          "LOCATION:123 Main St, Freehold, NJ 07728",
+          "END:VEVENT",
+          "END:VCALENDAR",
+        ].join("\r\n"),
+      ),
+    );
 
-    if (!samanthaDressConfig?.transformEvent) {
-      throw new Error("Missing Samantha Dress calendar transform");
-    }
+    const { events } = await fetchCalendarEvents(SAMANTHA_DRESS_SOURCE);
+    const feed = eventsToIcs("Samantha Dress", events);
 
-    const event = samanthaDressConfig.transformEvent({
-      uid: "fe4ce34a-5cfc-422f-b811-4bbc55b1f6e1",
-      title: "The Roomies DUO @ LBI Distilling Company",
-      start: dayjs.tz("2026-07-17T20:00:00", "America/New_York"),
-      end: dayjs.tz("2026-07-17T21:00:00", "America/New_York"),
-      url: "https://example.com/existing",
-    });
+    expect(feed).not.toContain("URL:");
+  });
+});
 
-    expect(event?.url).toBe("https://example.com/existing");
+// Pins the cancellation rule shared with samanthadress.com's isEventCanceled.
+// Both sides must agree, or the site renders a cancellation the backend never
+// notices.
+describe("isEventCancelled", () => {
+  function eventWith(
+    title: string,
+    status?: CalendarEvent["status"],
+  ): CalendarEvent {
+    return {
+      title,
+      start: dayjs("2026-09-17T22:00:00Z"),
+      end: dayjs("2026-09-18T00:00:00Z"),
+      status,
+    };
+  }
+
+  it("treats a cancelled STATUS as cancelled", () => {
+    expect(isEventCancelled(eventWith("Trunk Show", "cancelled"))).toBe(true);
+  });
+
+  it("treats either summary spelling as cancelled", () => {
+    expect(isEventCancelled(eventWith("Trunk Show - canceled"))).toBe(true);
+    expect(isEventCancelled(eventWith("Trunk Show - cancelled"))).toBe(true);
+  });
+
+  it("matches the summary regardless of case or position", () => {
+    expect(isEventCancelled(eventWith("CANCELED: Trunk Show"))).toBe(true);
+    expect(isEventCancelled(eventWith("Trunk Show (Cancelled)"))).toBe(true);
+    expect(isEventCancelled(eventWith("Trunk show CanCeLLeD"))).toBe(true);
+  });
+
+  it("treats a summary cancellation as cancelled even when STATUS disagrees", () => {
+    expect(
+      isEventCancelled(eventWith("Trunk Show (Canceled)", "confirmed")),
+    ).toBe(true);
+  });
+
+  it("is not cancelled without either signal", () => {
+    expect(isEventCancelled(eventWith("Trunk Show"))).toBe(false);
+    expect(isEventCancelled(eventWith("Trunk Show", "confirmed"))).toBe(false);
+    expect(isEventCancelled(eventWith("Trunk Show", "tentative"))).toBe(false);
+  });
+
+  it("does not match other words built on cancel", () => {
+    expect(isEventCancelled(eventWith("Cancellation Policy Q&A"))).toBe(false);
+    expect(isEventCancelled(eventWith("Cancel Anytime Workshop"))).toBe(false);
   });
 });
 

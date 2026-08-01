@@ -83,6 +83,7 @@ pnpm build      # compile TypeScript to dist
 pnpm start      # run compiled app
 pnpm test       # run Vitest
 pnpm lint       # typecheck
+pnpm indexnow   # manual IndexNow full reconciliation
 ```
 
 ## Calendar Endpoint
@@ -163,6 +164,191 @@ Addresses can be parsed with `address`; if no separate `location` is found, the 
 The app keeps parsed calendar pages in memory. On startup it kicks off every page for every calendar immediately, then refreshes each calendar every 30 minutes. That 30-minute scheduler cadence is the only normal upstream crawl cadence for calendar sources. Sources with `{month}` warm this month plus the next two months; sources without `{month}` have one page. Each calendar has its own scheduler queue, so failures back off with jitter for that calendar without slowing other calendars. Calendar routes return only cached data and respond with `503 Calendar cache warming` until at least one page is warm.
 
 Fly is configured with `min_machines_running = 1` so the scheduler keeps running.
+
+## IndexNow Submissions
+
+`src/index-now/index-now.service.ts` notifies [IndexNow](https://www.indexnow.org/)
+when Samantha Dress event pages materially change, so search engines recrawl
+`samanthadress.com` without waiting for their own schedule. The service owns
+request construction, key handling, URL batching, event fingerprinting, and the
+in-memory record of what has already been submitted. Nothing else in the app
+talks to IndexNow; `src/index-now/index-now.scheduler.ts` is the only wiring, and
+it hooks into the calendar cache rather than into routes or rendering.
+
+There is no database. Submitted state lives in a `Map` keyed by event UID, and
+the daily reconciliation job is the recovery path after a restart, a lost map, a
+transient IndexNow failure, or a defect in the diff logic.
+
+### Generating and configuring the key
+
+1. Generate a key: any hex string of 8–128 characters, e.g.
+   `node -e "console.log(require('crypto').randomBytes(16).toString('hex'))"`.
+   Bing's [IndexNow page](https://www.bing.com/indexnow) can also generate one.
+2. Publish the matching verification file at
+   `https://samanthadress.com/<INDEXNOW_KEY>.txt`. The file's only content is the
+   key itself. It lives in the samanthadress.com site repo (the Cloudflare Pages
+   `public/` directory), not in this service. IndexNow rejects submissions with
+   `403` when the file is missing and `422` when its contents do not match.
+3. Set `INDEXNOW_KEY` for this service:
+   - locally, in `.env` (see `.env.example`);
+   - on Fly, with `fly secrets set INDEXNOW_KEY=<key>`. Keep it out of
+     `fly.toml`, which is committed.
+
+The key is never logged in full; log lines carry a masked `key` field such as
+`"0123…"`, and any occurrence of the key in an IndexNow response body is replaced
+with `[redacted]`.
+
+### Disabling the service
+
+Leave `INDEXNOW_KEY` unset (or empty). The service disables itself, logs one
+startup line, and every later call is a no-op:
+
+```
+IndexNow disabled because INDEXNOW_KEY is not configured
+```
+
+No submissions are attempted and nothing else in the app changes. IndexNow
+failures never propagate: submissions are awaited inside the service, every
+error is caught and logged, and the calendar scheduler is not blocked on them.
+
+### Incremental submissions
+
+The Samantha Dress calendar is refreshed on the shared calendar cache cadence
+(`CACHE_REFRESH_MS` in `src/calendar/calendar.cache.ts`, currently 30 minutes —
+this is the app's only upstream crawl cadence, so IndexNow follows it instead of
+running its own 15-minute timer). After each cycle in which every page warmed
+successfully:
+
+1. The cache notifies its refresh listeners with the current snapshot.
+2. The first successful refresh after startup only **seeds** fingerprints, so a
+   restart never looks like a calendar full of changes and restart loops do not
+   produce submission bursts.
+3. Every later refresh compares each event's fingerprint against the last
+   fingerprint that IndexNow accepted.
+4. Changed and new events produce one deduplicated batch containing the event
+   detail URL, `https://samanthadress.com/events`, and the event's regional page.
+   When an event moves between regions, both the previous and the new regional
+   page are submitted.
+5. Fingerprints are updated **only** after IndexNow accepts the batch. A rejected
+   or failed batch leaves them untouched, so the next refresh retries the same
+   events.
+
+A cancellation is a material change. Cancelled events stay in the feed rather
+than disappearing, and `isEventCancelled` in `src/calendar/calendar.utils.ts`
+mirrors samanthadress.com's `isEventCanceled` so both sides agree on what counts:
+
+- `STATUS:CANCELLED` on the VEVENT, **or**
+- a summary containing `canceled` or `cancelled`, in any case.
+
+Organizers use both, sometimes only retitling the event, so a summary-only
+cancellation triggers a submission just like a status change. `test/calendar.service.test.ts`
+pins the rule; keep it in sync when the frontend definition changes.
+
+The generated ICS feed carries `STATUS` through from the source calendar, since
+the site reads it off this feed to render cancellations. Dropping it would leave
+a status-only cancellation invisible to every consumer downstream.
+
+Fingerprints are a SHA-256 over normalized `uid`, `summary`, `startDate`,
+`endDate`, `allDay`, `location`, `description`, `status` and the derived
+`cancelled` flag. Values are trimmed, whitespace-collapsed, absent values become
+`null`, dates serialize as UTC ISO strings, and the field order is fixed, so
+unrelated feed churn does not trigger submissions.
+
+### Daily reconciliation
+
+A daily job resubmits the full canonical URL set: `/events`, every upcoming event
+detail URL (including future cancelled events, which stay published), and every
+regional page those events resolve to. "Upcoming" is judged against the event day
+in `America/New_York`, not the server's zone, so an evening event drops out after
+its own local day rather than lingering nearly an extra day on a UTC host. The batch is deduplicated and sent as one
+request; afterwards the fingerprint map is rebuilt from the current calendar. At
+fewer than 20 upcoming events, resubmitting everything once a day is cheap.
+
+It runs at `07:00` UTC (roughly 3am America/New_York), anchored to the clock
+rather than counting 24 hours from boot, so a deploy does not push the next run a
+full day out. It never runs at startup, which keeps a restart loop from
+submitting in bursts.
+
+If the anchor hour arrives before the calendar cache has warmed — a restart a few
+minutes before `07:00` — the run is deferred and retried every 15 minutes until a
+successful refresh. Reconciling against a cold cache would submit a lone
+`/events` and then overwrite the fingerprint map with an empty snapshot, leaving
+the real event URLs unsubmitted for a day.
+
+This job is the recovery path for process restarts, lost in-memory state,
+transient IndexNow failures, missed incremental comparisons, downtime, and future
+defects in the diff logic.
+
+### Running a submission manually
+
+Locally, from a checkout:
+
+```bash
+INDEXNOW_KEY=<key> pnpm indexnow
+```
+
+On the deployed machine, run the compiled entry point directly:
+
+```bash
+fly ssh console -C "node /app/dist/index-now/index-now.cli.js"
+```
+
+`pnpm indexnow` does not work there: it runs through `tsx`, a devDependency the
+production image prunes, and the image ships `dist` without `src`. The Fly
+machine already has `INDEXNOW_KEY` in its environment.
+
+Either way this runs a full reconciliation in a separate process: it fetches and
+parses the calendar directly (it does not read the server's warm cache), submits
+one batch, and prints JSON log lines. It exits non-zero when `INDEXNOW_KEY` is
+missing. The long-running server keeps its own in-memory state, so a manual run
+does not affect the server's next incremental diff.
+
+A manual run is the fastest way to check a new key: `200` means IndexNow fetched
+and matched the key file, `403` means it fetched something that did not match,
+and `202` means validation is still pending and the run proves nothing on its
+own. When a submission returns `202`, verify the key file directly —
+`curl -i https://samanthadress.com/<key>.txt` must return the key as plain text
+and nothing else.
+
+### URL rules
+
+Only canonical `https://samanthadress.com` pages are submitted:
+
+- `https://samanthadress.com/events`
+- `https://samanthadress.com/events/<state>/<city>`
+- `https://samanthadress.com/events/<state>/<city>/<YYYY-MM-DD>/<uid>`
+
+Event URLs are generated only for IndexNow from the existing
+`samanthaDressEventUrl` helper in `src/calendar/config/samantha-dress.ts`, so
+calendar normalization does not rewrite the source event's `url`. The helper
+requires a parsed city and state from the event address; events whose address
+cannot be parsed are skipped entirely. Anything else is dropped before the
+request is built: search URLs, query-string or fragment variants, trailing-slash
+aliases, `http://`, other hosts, and calendar-source URLs. A regional page is
+submitted only when the same address resolves to a real city and state.
+
+### Expected log messages
+
+| Message                                                                   | Level | Meaning                                                                                                            |
+| ------------------------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------ |
+| `IndexNow disabled because INDEXNOW_KEY is not configured`                | info  | Startup, key absent. Logged once.                                                                                  |
+| `IndexNow enabled for Samantha Dress calendar refreshes`                  | info  | Startup, key present.                                                                                              |
+| `IndexNow seeded event fingerprints without submitting`                   | info  | First successful calendar refresh after startup.                                                                   |
+| `IndexNow submission accepted`                                            | info  | `200` or `202`. Includes `status`, `urlCount`, `urls`, `reason`.                                                   |
+| `IndexNow submission accepted with an unexpected response body`           | warn  | Accepted, but the response carried a body worth reading.                                                           |
+| `IndexNow submission rejected`                                            | error | `400` malformed request, `403` key not found, `422` key/URL mismatch, `429` throttled. Includes the response body. |
+| `IndexNow submission failed`                                              | error | Network error or timeout. Retried once, then left for the next cycle.                                              |
+| `IndexNow daily reconciliation deferred until the calendar cache is warm` | warn  | The anchor hour arrived before the first successful calendar refresh. Retries in 15 minutes.                       |
+
+Every submission line carries both `trigger` (`manual` from the CLI, `scheduled`
+from the server) and `reason` (`incremental` or `reconciliation`). `reason` alone
+does not identify the source, because a manual run performs the same
+reconciliation the daily job does. Submission context also includes
+`unresolvedAddressEvents`, the number of visible calendar events skipped because
+their location could not produce a valid city/state URL.
+
+Quiet cycles are silent by design: when nothing changed, no request is made and
+nothing is logged.
 
 ## Happy Hour Endpoint
 

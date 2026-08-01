@@ -1,6 +1,6 @@
 import _ from "lodash";
 
-import type { SelectorSpec } from "./calendar.types.js";
+import type { CalendarEvent, SelectorSpec } from "./calendar.types.js";
 import dayjs, { type Dayjs } from "./calendar.dates.js";
 
 const DEFAULT_DATE_FORMATS = [
@@ -34,6 +34,20 @@ const DEFAULT_TIME_FORMATS = [
 
 export function normalizeText(value: string | undefined): string {
   return value?.replace(/\s+/g, " ").trim() ?? "";
+}
+
+// Mirrors `isEventCanceled` on samanthadress.com: an event counts as cancelled
+// when iCalendar STATUS says so, or when the summary says so in either
+// spelling. Organizers do both, and the site renders a cancellation based on
+// this combined rule, so anything deriving page state must use the same one.
+export function isEventCancelled(event: CalendarEvent): boolean {
+  if (event.status === "cancelled") {
+    return true;
+  }
+
+  const summary = event.title.toLowerCase();
+
+  return summary.includes("canceled") || summary.includes("cancelled");
 }
 
 export function resolveOptionalUrl(

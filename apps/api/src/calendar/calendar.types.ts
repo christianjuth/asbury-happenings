@@ -84,6 +84,8 @@ export interface IcsCalendarSourceConfig extends BaseCalendarSourceConfig {
   extractEvents?: CalendarSourceTextExtractor<IcsCalendarSourceConfig>;
 }
 
+export type CalendarEventStatus = "confirmed" | "tentative" | "cancelled";
+
 export interface CalendarEvent {
   uid?: string;
   title: string;
@@ -94,6 +96,7 @@ export interface CalendarEvent {
   location?: string;
   address?: string;
   url?: string;
+  status?: CalendarEventStatus;
 }
 
 export type CalendarEventTransform = (

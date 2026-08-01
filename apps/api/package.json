@@ -10,6 +10,7 @@
     "dev": "tsx watch src/main.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js",
+    "indexnow": "tsx src/index-now/index-now.cli.ts",
     "prepare": "husky",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

@@ -1,11 +1,11 @@
-import { parseAddress } from "addresser";
-
 import type { CalendarEvent, CalendarSourceConfig } from "../calendar.types.js";
+import { eventCityLocation } from "../address.utils.js";
 
-const EVENT_URL_BASE = "https://samanthadress.com/events";
-const EVENT_URL_TIME_ZONE = "America/New_York";
-const DEFAULT_EVENT_STATE = "nj";
-const DEFAULT_EVENT_CITY_SLUG = "long-beach-island";
+export const SAMANTHA_DRESS_HOST = "samanthadress.com";
+export const SAMANTHA_DRESS_EVENTS_URL = `https://${SAMANTHA_DRESS_HOST}/events`;
+// The zone that decides which local day an event belongs to. Mirrors the
+// frontend's fallback zone in eventTimeZone(); every current event is in NJ.
+export const SAMANTHA_DRESS_TIME_ZONE = "America/New_York";
 
 export const SAMANTHA_DRESS_SOURCE = {
   id: "samantha-dress",
@@ -21,59 +21,45 @@ export const SAMANTHA_DRESS_SOURCE = {
   ],
   timeZone: "America/New_York",
   defaultDurationMinutes: 60,
-  transformEvent: addSamanthaDressEventUrl,
 } satisfies CalendarSourceConfig;
 
-function addSamanthaDressEventUrl(event: CalendarEvent): CalendarEvent {
-  if (event.url || !event.uid) {
-    return event;
+// Canonical event deep link, e.g.
+// https://samanthadress.com/events/nj/monmouth-county/2026-09-17/<uid>
+export function samanthaDressEventUrl(
+  event: CalendarEvent,
+): string | undefined {
+  if (!event.uid) {
+    return undefined;
   }
 
-  return {
-    ...event,
-    url: buildSamanthaDressEventUrl(event),
-  };
-}
+  const location = eventCityLocation(event.location ?? event.address);
 
-function buildSamanthaDressEventUrl(event: CalendarEvent): string {
-  const { state, citySlug } = resolveEventCityAndState(
-    event.address ?? event.location,
-  );
+  if (!location) {
+    return undefined;
+  }
+
+  const { state, city: citySlug } = location;
   const date = formatSamanthaDressEventDate(event);
-  const uid = encodeURIComponent(event.uid ?? "");
+  const uid = encodeURIComponent(event.uid);
 
-  return `${EVENT_URL_BASE}/${state}/${citySlug}/${date}/${uid}`;
+  return `${SAMANTHA_DRESS_EVENTS_URL}/${state}/${citySlug}/${date}/${uid}`;
 }
 
-function resolveEventCityAndState(address: string | undefined): {
-  state: string;
-  citySlug: string;
-} {
-  if (address) {
-    try {
-      const parsed = parseAddress(address);
+// Canonical regional listing page for an event, e.g.
+// https://samanthadress.com/events/nj/monmouth-county. Returns undefined when
+// the address does not resolve to a real city/state.
+export function samanthaDressRegionalUrl(
+  event: CalendarEvent,
+): string | undefined {
+  const location = eventCityLocation(event.location ?? event.address);
 
-      if (parsed.stateAbbreviation && parsed.placeName) {
-        return {
-          state: parsed.stateAbbreviation.toLowerCase(),
-          citySlug: slugifyCity(parsed.placeName),
-        };
-      }
-    } catch {
-      // Fall through to defaults; samanthadress.com repairs mismatched
-      // city/state values as long as the event UID resolves.
-    }
+  if (!location) {
+    return undefined;
   }
 
-  return { state: DEFAULT_EVENT_STATE, citySlug: DEFAULT_EVENT_CITY_SLUG };
-}
+  const { state, city: citySlug } = location;
 
-function slugifyCity(value: string): string {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  return `${SAMANTHA_DRESS_EVENTS_URL}/${state}/${citySlug}`;
 }
 
 function formatSamanthaDressEventDate(event: CalendarEvent): string {
@@ -81,5 +67,5 @@ function formatSamanthaDressEventDate(event: CalendarEvent): string {
     return event.start.utc().format("YYYY-MM-DD");
   }
 
-  return event.start.tz(EVENT_URL_TIME_ZONE).format("YYYY-MM-DD");
+  return event.start.tz(SAMANTHA_DRESS_TIME_ZONE).format("YYYY-MM-DD");
 }

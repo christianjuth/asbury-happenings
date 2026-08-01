@@ -46,8 +46,14 @@ interface CalendarFailure {
   error?: string;
 }
 
+type CalendarRefreshListener = (
+  config: CalendarSourceConfig,
+  events: CalendarEvent[],
+) => void;
+
 const PAGE_CACHE = new Map<string, CachedPage>();
 const REFRESHING_PAGES = new Set<string>();
+const REFRESH_LISTENERS = new Set<CalendarRefreshListener>();
 
 const CACHE_WORKERS = new Map<string, CalendarCacheWorker>();
 const SOURCE_HOST_LIMITERS = new Map<string, Bottleneck>();
@@ -83,6 +89,25 @@ export function getCachedCalendarDebugText(
     snapshot.statuses,
     snapshot.debugPages,
   );
+}
+
+export function getCachedCalendarEvents(
+  config: CalendarSourceConfig,
+  now = dayjs(),
+): CalendarEvent[] {
+  return getCalendarSnapshot(config, now).events;
+}
+
+// Lets side effects such as IndexNow submissions react to a completed warm
+// without the cache having to know about them.
+export function onCalendarRefresh(
+  listener: CalendarRefreshListener,
+): () => void {
+  REFRESH_LISTENERS.add(listener);
+
+  return () => {
+    REFRESH_LISTENERS.delete(listener);
+  };
 }
 
 export function getCachedCalendarStatusFeed(now = dayjs()): string {
@@ -218,6 +243,10 @@ class CalendarCacheWorker {
       return;
     }
 
+    if (!pendingPages.length) {
+      notifyCalendarRefreshed(this.config, this.logger);
+    }
+
     const delay = this.getNextDelay(pendingPages);
 
     this.refreshTimer = setTimeout(() => this.runCycle(), delay);
@@ -326,6 +355,28 @@ async function warmCalendarSourcePage(
     return false;
   } finally {
     REFRESHING_PAGES.delete(key);
+  }
+}
+
+function notifyCalendarRefreshed(
+  config: CalendarSourceConfig,
+  logger: FastifyBaseLogger,
+): void {
+  if (!REFRESH_LISTENERS.size) {
+    return;
+  }
+
+  const events = getCalendarSnapshot(config, dayjs()).events;
+
+  for (const listener of REFRESH_LISTENERS) {
+    try {
+      listener(config, events);
+    } catch (error) {
+      logger.error(
+        { calendarId: config.id, ...getErrorDetails(error) },
+        "Calendar refresh listener failed",
+      );
+    }
   }
 }
 

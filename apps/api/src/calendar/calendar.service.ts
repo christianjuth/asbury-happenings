@@ -1,9 +1,10 @@
 import * as cheerio from "cheerio";
-import ical from "ical-generator";
+import ical, { ICalEventStatus } from "ical-generator";
 import _ from "lodash";
 
 import type {
   CalendarEvent,
+  CalendarEventStatus,
   CalendarEventTransform,
   CalendarSourceConfig,
   EventFilterInput,
@@ -46,6 +47,12 @@ class SourceFetchError extends Error {
     this.name = "SourceFetchError";
   }
 }
+
+const ICS_EVENT_STATUS: Record<CalendarEventStatus, ICalEventStatus> = {
+  confirmed: ICalEventStatus.CONFIRMED,
+  tentative: ICalEventStatus.TENTATIVE,
+  cancelled: ICalEventStatus.CANCELLED,
+};
 
 const PENDING_FETCHES = new Map<string, Promise<string>>();
 const COOKIE_JAR = new Map<string, Map<string, string>>();
@@ -149,6 +156,9 @@ export function eventsToIcs(
       description: event.description,
       location: event.location,
       url: event.url,
+      // samanthadress.com reads STATUS off this feed to render cancellations,
+      // so a cancelled source event has to stay cancelled downstream.
+      status: event.status ? ICS_EVENT_STATUS[event.status] : undefined,
     });
   }
 
@@ -496,6 +506,7 @@ export function extractEventsFromIcs(
         location,
         address: location,
         url: readIcsText(component, "URL"),
+        status: readIcsStatus(component),
       };
     }),
   );
@@ -788,6 +799,21 @@ function readIcsText(
   const value = component.find((line) => line.name === name)?.value;
 
   return value ? normalizeText(unescapeIcsText(value)) || undefined : undefined;
+}
+
+// Cancelled events stay in the feed, so keep STATUS on the event instead of
+// dropping it. Downstream consumers use it to tell a cancellation apart from
+// an unchanged event.
+function readIcsStatus(
+  component: IcsContentLine[],
+): CalendarEventStatus | undefined {
+  const value = readIcsText(component, "STATUS")?.toLowerCase();
+
+  if (value === "confirmed" || value === "tentative" || value === "cancelled") {
+    return value;
+  }
+
+  return undefined;
 }
 
 function readIcsDate(
