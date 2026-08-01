@@ -35,6 +35,62 @@ describe("server", () => {
     await server.close();
   });
 
+  it("reports IndexNow and Samantha Dress calendar warm status", async () => {
+    const server = await buildServer();
+
+    const coldResponse = await server.inject({
+      method: "GET",
+      url: "/debug/index-now",
+    });
+
+    expect(coldResponse.statusCode).toBe(200);
+    expect(coldResponse.json()).toEqual({
+      service: "index-now",
+      enabled: false,
+      calendar: {
+        id: "samantha-dress",
+        warm: false,
+        eventCount: 0,
+      },
+    });
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        [
+          "BEGIN:VCALENDAR",
+          "BEGIN:VEVENT",
+          "UID:status-event",
+          "SUMMARY:Status Event",
+          "DTSTART:20260706T190000Z",
+          "END:VEVENT",
+          "END:VCALENDAR",
+        ].join("\r\n"),
+      ),
+    );
+    const config = getCalendarSource("samantha-dress");
+
+    if (!config) {
+      throw new Error("Missing Samantha Dress calendar config");
+    }
+
+    await warmCalendarPage(config, 0, dayjs("2026-07-03T00:00:00Z"));
+
+    const warmResponse = await server.inject({
+      method: "GET",
+      url: "/debug/index-now",
+    });
+
+    expect(warmResponse.json()).toMatchObject({
+      calendar: {
+        id: "samantha-dress",
+        warm: true,
+        eventCount: 1,
+      },
+    });
+
+    await server.close();
+  });
+
   it("lists configured calendars", async () => {
     const server = await buildServer();
 

@@ -6,6 +6,7 @@ import { ENV } from "./env.js";
 import { startHappyHourCacheScheduler } from "./happy-hour/happy-hour.cache.js";
 import { registerHappyHourRoutes } from "./happy-hour/happy-hour.routes.js";
 import { startIndexNowScheduler } from "./index-now/index-now.scheduler.js";
+import { registerIndexNowRoutes } from "./index-now/index-now.routes.js";
 import { registerNixleRoutes } from "./nixle/nixle.routes.js";
 
 export async function buildServer() {
@@ -37,6 +38,7 @@ export async function buildServer() {
 
   await registerCalendarRoutes(server);
   await registerHappyHourRoutes(server);
+  await registerIndexNowRoutes(server);
   await registerNixleRoutes(server);
 
   return server;

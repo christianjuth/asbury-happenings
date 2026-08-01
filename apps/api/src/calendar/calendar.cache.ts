@@ -38,6 +38,11 @@ interface CalendarSnapshot {
   ready: boolean;
 }
 
+interface CachedCalendarStatus {
+  warm: boolean;
+  eventCount: number;
+}
+
 interface CalendarFailure {
   calendarId: string;
   calendarName: string;
@@ -96,6 +101,18 @@ export function getCachedCalendarEvents(
   now = dayjs(),
 ): CalendarEvent[] {
   return getCalendarSnapshot(config, now).events;
+}
+
+export function getCachedCalendarStatus(
+  config: CalendarSourceConfig,
+  now = dayjs(),
+): CachedCalendarStatus {
+  const snapshot = getCalendarSnapshot(config, now);
+
+  return {
+    warm: snapshot.ready,
+    eventCount: snapshot.events.length,
+  };
 }
 
 // Lets side effects such as IndexNow submissions react to a completed warm

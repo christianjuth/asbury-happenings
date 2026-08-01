@@ -20,6 +20,15 @@ Health check:
 curl http://localhost:3000/health
 ```
 
+IndexNow debug status:
+
+```bash
+curl http://localhost:3000/debug/index-now
+```
+
+The response reports whether IndexNow is enabled and whether the Samantha Dress
+calendar cache is warm.
+
 List configured calendars:
 
 ```bash
