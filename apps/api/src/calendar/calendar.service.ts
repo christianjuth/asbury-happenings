@@ -492,6 +492,10 @@ export function extractEventsFromIcs(
       const end = readIcsDate(component, "DTEND", config) ?? {
         date: start.date.add(config.defaultDurationMinutes ?? 60, "minute"),
         allDay: start.allDay,
+        // Inherits DTSTART's zone: a synthesized end is the same wall clock as
+        // the start it was derived from, so leaving this unset would let the two
+        // ends of one event be labelled in different zones.
+        timeZone: start.timeZone,
       };
       const location =
         readIcsText(component, "LOCATION") ?? config.defaultAddress;
@@ -507,6 +511,8 @@ export function extractEventsFromIcs(
         address: location,
         url: readIcsText(component, "URL"),
         status: readIcsStatus(component),
+        startTimeZone: start.timeZone,
+        endTimeZone: end.timeZone,
       };
     }),
   );
@@ -699,6 +705,10 @@ interface IcsContentLine {
 interface IcsDateValue {
   date: Dayjs;
   allDay: boolean;
+  // The explicit TZID from the content line, when the source carried a valid
+  // one. Absent for UTC (`Z`-suffixed), all-day and floating values, where the
+  // feed never says which local zone to display the time in.
+  timeZone?: string;
 }
 
 function readIcsEventComponents(icsText: string): IcsContentLine[][] {
@@ -854,13 +864,16 @@ function parseIcsDateOrNull(
   }
 
   if (/^\d{8}T\d{6}$/.test(normalizedValue)) {
+    const explicitTimeZone = readIcsTimeZone(params["TZID"]);
     const parsed = parseWithOptionalTimeZone(
       normalizedValue,
       "YYYYMMDDTHHmmss",
-      normalizeIcsTimeZone(params["TZID"], fallbackTimeZone),
+      explicitTimeZone ?? fallbackTimeZone,
     );
 
-    return parsed.isValid() ? { date: parsed, allDay: false } : null;
+    return parsed.isValid()
+      ? { date: parsed, allDay: false, timeZone: explicitTimeZone }
+      : null;
   }
 
   const parsed = dayjs(normalizedValue);
@@ -868,15 +881,8 @@ function parseIcsDateOrNull(
   return parsed.isValid() ? { date: parsed, allDay: false } : null;
 }
 
-function normalizeIcsTimeZone(
-  tzid: string | undefined,
-  fallbackTimeZone: string | undefined,
-): string | undefined {
-  if (tzid && isValidTimeZone(tzid)) {
-    return tzid;
-  }
-
-  return fallbackTimeZone;
+function readIcsTimeZone(tzid: string | undefined): string | undefined {
+  return tzid && isValidTimeZone(tzid) ? tzid : undefined;
 }
 
 function isValidTimeZone(timeZone: string): boolean {

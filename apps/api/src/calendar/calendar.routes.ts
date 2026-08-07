@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyReply } from "fastify";
+import type { FastifyInstance } from "fastify";
 import {
   getCachedCalendarDebugText,
   getCachedCalendarFeed,
@@ -6,7 +6,10 @@ import {
   getCachedCalendarStatusFeed,
 } from "./calendar.cache.js";
 import { CALENDAR_SOURCES, getCalendarSource } from "./calendar.config.js";
-import type { CalendarSourceConfig } from "./calendar.service.js";
+import {
+  applyCalendarCorsHeaders,
+  applyCalendarPreflightHeaders,
+} from "./calendar.cors.js";
 
 const STATUS_CALENDAR_ID = "status";
 const STATUS_CALENDAR = {
@@ -79,65 +82,21 @@ export async function registerCalendarRoutes(server: FastifyInstance) {
   server.options<{ Params: { calendarId: string } }>(
     "/calendar/:calendarId.ics",
     async (request, reply) => {
-      if (request.params.calendarId === STATUS_CALENDAR_ID) {
-        return reply
-          .header("access-control-allow-methods", "GET, OPTIONS")
-          .header("access-control-allow-headers", "accept, content-type")
-          .header("access-control-max-age", "3600")
-          .code(204)
-          .send();
+      if (request.params.calendarId !== STATUS_CALENDAR_ID) {
+        const config = getCalendarSource(request.params.calendarId);
+
+        if (!config) {
+          throw server.httpErrors.notFound("Unknown calendar");
+        }
+
+        applyCalendarCorsHeaders(request.headers.origin, config, reply);
       }
 
-      const config = getCalendarSource(request.params.calendarId);
-
-      if (!config) {
-        throw server.httpErrors.notFound("Unknown calendar");
-      }
-
-      applyCalendarCorsHeaders(request.headers.origin, config, reply);
-
-      return reply
-        .header("access-control-allow-methods", "GET, OPTIONS")
-        .header("access-control-allow-headers", "accept, content-type")
-        .header("access-control-max-age", "3600")
-        .code(204)
-        .send();
+      return applyCalendarPreflightHeaders(reply).code(204).send();
     },
   );
 }
 
 function isDebugRequest(value: string | undefined): boolean {
   return value === "1" || value === "true" || value === "text";
-}
-
-function applyCalendarCorsHeaders(
-  origin: string | undefined,
-  config: CalendarSourceConfig,
-  reply: FastifyReply,
-): void {
-  reply.header("vary", "Origin");
-
-  if (origin && isOriginAllowed(origin, config.browserAllowedOrigins)) {
-    reply.header("access-control-allow-origin", origin);
-  }
-}
-
-function isOriginAllowed(
-  origin: string,
-  allowedOrigins: string[] | undefined,
-): boolean {
-  return (
-    allowedOrigins?.some((pattern) => originMatchesPattern(origin, pattern)) ??
-    false
-  );
-}
-
-function originMatchesPattern(origin: string, pattern: string): boolean {
-  if (!pattern.includes("*")) {
-    return origin === pattern;
-  }
-
-  const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const regex = new RegExp(`^${escaped.replace(/\\\*/g, "[^.]+")}$`);
-  return regex.test(origin);
 }

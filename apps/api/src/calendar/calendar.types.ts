@@ -97,6 +97,13 @@ export interface CalendarEvent {
   address?: string;
   url?: string;
   status?: CalendarEventStatus;
+  // Set only when the source carried an explicit, valid TZID for that date.
+  // A missing value means the feed did not say which zone the wall-clock time
+  // belongs to, so the JSON snapshot has to infer a display zone and label it as
+  // inferred. Never backfilled from a config default; that would erase the
+  // difference between a certain zone and a guess.
+  startTimeZone?: string;
+  endTimeZone?: string;
 }
 
 export type CalendarEventTransform = (

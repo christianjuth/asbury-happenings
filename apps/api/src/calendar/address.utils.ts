@@ -58,16 +58,13 @@ const STATE_SLUGS: Record<string, string> = {
 };
 const STATE_CODES = new Set(Object.values(STATE_SLUGS));
 
-interface EventCityLocation {
+export interface EventCityLocation {
   state: string;
   city: string;
 }
 
 export function normalizeGeocodeQuery(location: string): string {
-  const segments = location
-    .split(",")
-    .map((segment) => segment.trim())
-    .filter(Boolean);
+  const segments = splitLocationSegments(location);
 
   const startIndex = segments.findIndex((segment) =>
     HOUSE_NUMBER_SEGMENT.test(segment),
@@ -83,10 +80,7 @@ export function cityStateFromLocation(
     return null;
   }
 
-  const segments = normalizeGeocodeQuery(location)
-    .split(",")
-    .map((segment) => segment.trim())
-    .filter(Boolean);
+  const segments = splitLocationSegments(normalizeGeocodeQuery(location));
 
   try {
     const parsed = parseAddress(segments.join(", "));
@@ -122,6 +116,46 @@ export function cityStateFromLocation(
   return null;
 }
 
+// The leading comma-segments that `normalizeGeocodeQuery` strips before asking
+// the geocoder, i.e. the venue name. Returns null when the LOCATION opens with a
+// house number (no venue name to take) or is only a city and state.
+export function venueFromLocation(
+  location: string | null | undefined,
+): string | null {
+  if (!location) {
+    return null;
+  }
+
+  const segments = splitLocationSegments(location);
+  const houseNumberIndex = segments.findIndex((segment) =>
+    HOUSE_NUMBER_SEGMENT.test(segment),
+  );
+
+  if (houseNumberIndex > 0) {
+    return segments.slice(0, houseNumberIndex).join(", ") || null;
+  }
+
+  if (houseNumberIndex === 0) {
+    return null;
+  }
+
+  // No street address anywhere: the first segment is a venue name only when it
+  // is not already the city, so "Ship Bottom, NJ" reports no venue while
+  // "The Stone Pony, Asbury Park, NJ" reports one.
+  const city = cityStateFromLocation(location)?.split(",")[0]?.trim();
+  const firstSegment = segments[0];
+
+  if (
+    !city ||
+    !firstSegment ||
+    firstSegment.toLowerCase() === city.toLowerCase()
+  ) {
+    return null;
+  }
+
+  return firstSegment;
+}
+
 export function eventCityLocation(
   location: string | null | undefined,
 ): EventCityLocation | undefined {
@@ -145,17 +179,26 @@ export function eventCityLocation(
   };
 }
 
-function normalizeStateSlug(value: string): string | undefined {
+// Accepts either a two-letter code or a full state name, so it also normalizes
+// whatever a geocoder returns for comparison against the expected state.
+export function normalizeStateSlug(value: string): string | undefined {
   const normalized = value.trim().toLowerCase().replace(/-/g, " ");
   const stateSlug = STATE_SLUGS[normalized] ?? normalized;
 
   return STATE_CODES.has(stateSlug) ? stateSlug : undefined;
 }
 
-function slugifyPathSegment(value: string): string {
+export function slugifyPathSegment(value: string): string {
   return value
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function splitLocationSegments(location: string): string[] {
+  return location
+    .split(",")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
 }

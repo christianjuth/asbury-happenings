@@ -1,5 +1,7 @@
 import type { FastifyBaseLogger } from "fastify";
 import Bottleneck from "bottleneck";
+import _ from "lodash";
+import { getErrorDetails } from "../logging.js";
 import { CALENDAR_SOURCES } from "./calendar.config.js";
 import dayjs, { type Dayjs } from "./calendar.dates.js";
 import { eventsToDebugText, type CalendarDebugPage } from "./calendar.debug.js";
@@ -25,6 +27,10 @@ const SOURCE_HOST_MIN_TIME_MS = 1_000;
 interface CachedPage {
   events: CalendarEvent[];
   fetchedAt: Dayjs;
+  // Only ever set by a successful fetch, so it keeps pointing at the last known
+  // good read while later refreshes fail. `fetchedAt` cannot stand in for this:
+  // a repeated failure moves it forward with no new upstream data behind it.
+  lastSuccessAt?: Dayjs;
   sourcePage: SourcePage;
   status: FetchStatus;
   error?: string;
@@ -36,11 +42,17 @@ interface CalendarSnapshot {
   statuses: FetchStatus[];
   debugPages: CalendarDebugPage[];
   ready: boolean;
+  sourceFetchedAt?: Dayjs;
 }
 
 interface CachedCalendarStatus {
   warm: boolean;
   eventCount: number;
+}
+
+interface CachedCalendarEventSnapshot {
+  events: CalendarEvent[];
+  sourceFetchedAt?: Dayjs;
 }
 
 interface CalendarFailure {
@@ -101,6 +113,28 @@ export function getCachedCalendarEvents(
   now = dayjs(),
 ): CalendarEvent[] {
   return getCalendarSnapshot(config, now).events;
+}
+
+// The cached events plus when upstream was last read successfully. Always
+// answerable, unlike the ICS feed: a cold cache is an empty event list rather
+// than a 503, and an upstream outage keeps serving the last known good events
+// behind a `sourceFetchedAt` that has stopped moving. Callers that publish this
+// decide what to do with a stale read; the cache does not editorialize.
+export function getCachedCalendarEventSnapshot(
+  config: CalendarSourceConfig,
+  filters?: EventFilterInput,
+  now = dayjs(),
+): CachedCalendarEventSnapshot {
+  const snapshot = getCalendarSnapshot(config, now);
+
+  return {
+    events: filterCalendarEvents(
+      snapshot.events,
+      filters,
+      config.defaultFilters,
+    ),
+    sourceFetchedAt: snapshot.sourceFetchedAt,
+  };
 }
 
 export function getCachedCalendarStatus(
@@ -330,9 +364,12 @@ async function warmCalendarSourcePage(
       sourcePage,
     );
 
+    const fetchedAt = dayjs();
+
     PAGE_CACHE.set(key, {
       events,
-      fetchedAt: dayjs(),
+      fetchedAt,
+      lastSuccessAt: fetchedAt,
       sourcePage,
       status: fetchStatus,
     });
@@ -354,6 +391,7 @@ async function warmCalendarSourcePage(
     PAGE_CACHE.set(key, {
       events: existing?.events ?? [],
       fetchedAt: dayjs(),
+      lastSuccessAt: existing?.lastSuccessAt,
       sourcePage,
       status: "error",
       error: message,
@@ -425,6 +463,14 @@ function getCalendarSnapshot(
     statuses,
     debugPages,
     ready: cachedPages.some((page) => page && page.status !== "error"),
+    // The oldest successful read across the source's pages, not the newest. A
+    // multi-page source whose first page refreshes while a later one has been
+    // failing for a day is stale, and reporting the fresh page's timestamp would
+    // hide exactly the partial outage this field exists to expose.
+    sourceFetchedAt: _.minBy(
+      _.compact(cachedPages.map((page) => page?.lastSuccessAt)),
+      (fetchedAt) => fetchedAt.valueOf(),
+    ),
   };
 }
 
@@ -565,27 +611,4 @@ function getSourceHostLimiter(sourceUrlTemplate: string): Bottleneck {
 
   SOURCE_HOST_LIMITERS.set(hostname, limiter);
   return limiter;
-}
-
-// Keep structured log context small and JSON-safe instead of passing raw errors.
-function getErrorDetails(error: unknown): Record<string, unknown> {
-  if (!(error instanceof Error)) {
-    return {
-      errorMessage: String(error),
-    };
-  }
-
-  const cause = error.cause;
-  const causeCode =
-    cause && typeof cause === "object" && "code" in cause
-      ? cause.code
-      : undefined;
-
-  return {
-    errorName: error.name,
-    errorMessage: error.message,
-    causeName: cause instanceof Error ? cause.name : undefined,
-    causeMessage: cause instanceof Error ? cause.message : undefined,
-    causeCode,
-  };
 }

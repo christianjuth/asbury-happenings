@@ -43,6 +43,18 @@ curl http://localhost:3000/calendar/tim-mcloones-supper-club.ics
 curl http://localhost:3000/happy-hours/asbury-park.ics
 ```
 
+The Samantha Dress events service, which is what samanthadress.com reads:
+
+```bash
+curl http://localhost:3000/samantha-dress/events
+```
+
+Geocoding status, including every venue that failed to resolve:
+
+```bash
+curl http://localhost:3000/debug/geocode
+```
+
 Plain-text debug output:
 
 ```bash
@@ -100,6 +112,11 @@ pnpm indexnow   # manual IndexNow full reconciliation
 `GET /calendar/:calendarId.ics`
 
 `GET /calendar/:calendarId.ics?debug=1`
+
+Every calendar source is served as ICS here and nothing else. Samantha Dress
+additionally has its own JSON service — see
+[Samantha Dress Events Service](#samantha-dress-events-service) — which no other
+calendar gets.
 
 Calendar sources are configured in `src/calendar/calendar.config.ts`. Each source defines:
 
@@ -173,6 +190,272 @@ Addresses can be parsed with `address`; if no separate `location` is found, the 
 The app keeps parsed calendar pages in memory. On startup it kicks off every page for every calendar immediately, then refreshes each calendar every 30 minutes. That 30-minute scheduler cadence is the only normal upstream crawl cadence for calendar sources. Sources with `{month}` warm this month plus the next two months; sources without `{month}` have one page. Each calendar has its own scheduler queue, so failures back off with jitter for that calendar without slowing other calendars. Calendar routes return only cached data and respond with `503 Calendar cache warming` until at least one page is warm.
 
 Fly is configured with `min_machines_running = 1` so the scheduler keeps running.
+
+## Samantha Dress Events Service
+
+`GET /samantha-dress/events`
+
+The transport `samanthadress.com` consumes, served by `src/samantha-dress/`. It
+carries the same events as the ICS feed plus fields iCalendar has nowhere to put:
+resolved coordinates, their resolution status, a parsed city and state, and
+whether an event's time zone came from the feed or was inferred by us.
+
+This is scoped to the one calendar on purpose. It lives on its own route rather
+than under `/calendar/` because it is meant to outlive
+`/calendar/samantha-dress.ics`, which stays for backwards compatibility and is
+the one eventually up for deprecation. The other ICS calendars are not following:
+they keep the calendar routes as they are, get no JSON transport, and no
+coordinate decoration.
+
+```jsonc
+{
+  "generatedAt": "2026-08-02T21:15:00.000Z",
+  // When the upstream feed was last read successfully. Null before the first
+  // successful read. Drifting far behind generatedAt means upstream is failing
+  // and this is last-known-good data.
+  "sourceFetchedAt": "2026-08-02T21:14:58.000Z",
+  "events": [
+    {
+      "uid": "abc-123@samanthadress.com",
+      "title": "Sunset Set at Ship Bottom",
+      "description": "Free show, all ages.",
+      "status": "confirmed", // "confirmed" | "cancelled" | "tentative"
+      "allDay": false,
+      "start": {
+        "iso": "2026-07-23T19:00:00-04:00",
+        "timeZone": "America/New_York",
+        "timeZoneSource": "tzid", // "tzid" | "state" | "default"
+      },
+      "end": {
+        "iso": "2026-07-23T22:00:00-04:00",
+        "timeZone": "America/New_York",
+        "timeZoneSource": "tzid",
+      },
+      "location": {
+        "raw": "The Boardwalk, 100 Ocean Ave, Ship Bottom, NJ",
+        "venue": "The Boardwalk",
+        "city": "Ship Bottom",
+        "state": "NJ",
+        "coordinates": { "lat": 39.6423, "lon": -74.1815 },
+        "coordinatesStatus": "resolved",
+      },
+    },
+  ],
+}
+```
+
+Field notes:
+
+- **`location.raw` is verbatim.** Directions deep links pass it straight to
+  Google/Apple/Waze, which search better with the venue name included. The
+  normalization the geocoder needs never reaches this field.
+- **`coordinates` is nullable and null is expected.** Never a city centroid or any
+  other approximation; absent beats wrong.
+- **`coordinatesStatus`** is `resolved`, `pending` (queued, not yet attempted),
+  `unresolvable` (attempted, no acceptable result), `rejected` (got a result that
+  failed validation) or `skipped_past` (past event, deliberately not geocoded).
+  All five render the same on the site — no map — but they mean different things
+  operationally.
+- **`timeZoneSource` is load-bearing, not metadata.** `tzid` means the feed stated
+  the zone and it is certain. `state` means we inferred it from the event's state
+  and the UI has to label it as a guess. `default` means the source's configured
+  zone was the last resort. All-day events are date-only and report `UTC` /
+  `default`.
+- **`status` carries `STATUS:CANCELLED` through.** Cancelled events stay in the
+  document; the site renders them struck through.
+- All events are returned, past and upcoming, sorted ascending by the moment they
+  start, with all-day events placed on their own date rather than at the UTC
+  midnight they parse as. The site filters per surface and needs past events for
+  detail pages. Do not re-sort on `start.iso` — it is a wall-clock string whose
+  UTC offset varies per event, so string order is not chronological order.
+- `allDay` is present so the site can rebuild an accurate `.ics` for its "Add to
+  calendar" button. On an all-day event `end` is the iCalendar **exclusive** end,
+  so a one-day event on the 6th reports the 7th; subtract a day before rendering
+  it as a date range.
+
+Unlike the ICS route, this one never returns `503`. A cold cache is
+`{"sourceFetchedAt": null, "events": []}`, which is the empty state the site
+already degrades to, and an upstream outage serves the last known good events
+behind a `sourceFetchedAt` that has stopped moving. An outage must not blank the
+site's event listings.
+
+### Deliberate differences from the ICS feed
+
+This runs alongside `/calendar/samantha-dress.ics` rather than replacing it yet,
+so the two are otherwise expected to describe the same events. Three intentional
+divergences:
+
+- **No `?filter=` search and no `?debug=1`.** The site reads the whole document
+  and filters per surface. The source's own `defaultFilters` still apply, so both
+  feeds agree on which events exist.
+- **No upstream `URL` property.** The ICS feed still publishes it; this service
+  masks it, so the Google Calendar link stays behind an endpoint the site
+  controls.
+- **No `503` while warming**, as above.
+
+There is no auth: the data is fully public and the read path stays simple. Browser
+access is governed by the same `browserAllowedOrigins` list as the ICS route.
+
+## Coordinate Decoration
+
+`src/geocode/` resolves venue coordinates ahead of time so the website never
+geocodes anything at request time. Previously the site asked a geocoder once per
+event on every page render, with unbounded concurrency against a service whose
+published ceiling is 1 request/second, and trusted the first hit with no
+validation — which could put a confident pin in the wrong town.
+
+### How it runs
+
+The job is triggered by `onCalendarRefresh` after each 30-minute calendar cycle
+completes, and only for the Samantha Dress calendar — every other source is
+ignored. It is **not** part of the fetch path: events land in the cache first and
+unchanged, and the run is never awaited, so a slow or rate-limited geocoder can
+only delay pins, never event freshness.
+
+Each run:
+
+1. Collects distinct address strings across the cached events, deduplicated by the
+   **normalized** query (`normalizeGeocodeQuery` in
+   `src/calendar/address.utils.ts`, which strips the leading venue name up to the
+   first segment beginning with a US house number).
+2. Drops addresses whose events have all ended. An in-progress show still counts.
+3. Skips every address already in the coordinate store. A `resolved` record is
+   never re-queried for the life of the process — addresses do not move.
+4. Orders the remainder by soonest upcoming event, so an interrupted cold backfill
+   leaves the next show and the ones behind it with pins rather than a random
+   subset.
+5. Queries sequentially, at least a second apart, recording each answer the moment
+   it arrives.
+
+Steady state is **zero requests**. Only a new or changed address string is work,
+and because the store is keyed by the normalized query, a cosmetic venue rename
+("The Sand Bar" to "Sand Bar") is a cache hit rather than a pointless re-geocode.
+
+Two runs never overlap: if a backfill is still going when the next refresh
+completes, the new run is skipped rather than stacked.
+
+### Provider and request discipline
+
+[Nominatim](https://nominatim.org/) (OpenStreetMap): no API key, and storage of
+results is explicitly permitted with attribution, which the site already displays.
+Google and Mapbox both restrict permanent caching, which is fatal for this design
+regardless of cost.
+
+Nominatim's terms shape the implementation:
+
+- Requests are serialized through one queue with a hard **1 second minimum**
+  between them. Nothing fans out.
+- Every request carries a descriptive `User-Agent` with a contact address
+  (`NOMINATIM_USER_AGENT` in `src/geocode/nominatim.ts`), which their policy
+  requires.
+- Every failure is classified before it is acted on, because "should I ask again
+  in a moment?" and "has this address been ruled out?" are different questions:
+  - **transient** (`429`, `5xx`, timeout, transport error) — retried with
+    exponential backoff, never cached.
+  - **provider** (`403`, `401`, any other unexpected status, a body that is not
+    the JSON we asked for) — not retried, and still never cached. `403` is what
+    Nominatim returns for a blocked IP; recording that against an address would
+    blank every venue for a week over a block that may lift in minutes.
+  - **address** (`400` only) — the query string is malformed and will be on every
+    future attempt, so this one _is_ cached and takes the weekly retry. We build
+    every part of the URL except the query, so nothing else can implicate the
+    address.
+- Two consecutive transient or provider failures abort the run rather than
+  working down the queue collecting the same refusal. An address-scoped failure
+  does not abort: one venue with a bad address string must not cost every venue
+  behind it in the queue.
+- Bulk/systematic geocoding is prohibited. A backfill of a few dozen venues at
+  <=1 req/s, once per release, is ordinary use — the prohibition is aimed at
+  geocoding whole datasets, not at a set of venues small enough to enumerate.
+
+The multiplier to watch is **deploy frequency**, not event count, since each
+release starts from an empty store (see below). A normal release cadence is fine;
+a redeploy loop is what would start to look systematic. Uptime costs nothing: a
+process that runs for months makes no requests at all once its venues resolve.
+
+If the distinct venue count ever passes ~100–200, revisit: self-hosted Nominatim
+or Photon are the escape hatches.
+
+### Validation
+
+A result is stored only if it is verifiably in the right place:
+
+1. The expected city and state are parsed from the `LOCATION` string itself. If
+   they cannot be parsed there is nothing to validate against, so the address is
+   recorded `unresolvable` **without spending a request**.
+2. The query is constrained to the US, and the result must come back in the
+   expected state and in a locality matching the expected city. Nominatim spreads
+   the locality across `city`/`town`/`village`/`hamlet`/`municipality`/`suburb`/
+   `neighbourhood`/`county`, and a mailing city is often not the administrative one
+   (Manahawkin addresses return under Stafford Township), so a match on any of
+   them counts.
+3. A result that fails is stored as `rejected` with null coordinates.
+
+The only broadening is the documented normalized-then-raw retry. Nothing widens a
+query further to force a hit: a null is a correct answer, and each broadening step
+trades precision for a result.
+
+There is no admin UI and no override file, by design — an unresolvable venue simply
+has no coordinates and the site hides its map. But nothing is silent: every
+rejection logs a `Coordinates unavailable for a venue` warning, and
+`GET /debug/geocode` lists every address in a non-`resolved` state with its reason.
+
+```bash
+curl http://localhost:3000/debug/geocode
+```
+
+### The coordinate store is deliberately in-memory
+
+A `Map` keyed by normalized address, holding tens of rows. It is **not** persisted,
+so every deploy starts cold and backfills again.
+
+That is a deliberate trade, not an oversight. Addresses dedupe hard — the same
+rooms come back week after week — so the distinct venue count is a fraction of the
+event count, and a cold backfill is a couple of minutes at one request per second.
+Buying permanence meant a Fly volume, which costs little in dollars but pins the
+app to a single machine in a single region and adds a `fly volumes create` step
+before the first deploy. Two minutes of `coordinatesStatus: "pending"` after a
+release was the cheaper side of that trade.
+
+While the backfill runs, events serve normally with `coordinates: null` and the
+site hides the map. Nothing 503s and nothing waits on the geocoder.
+
+**This assumes one machine.** The store and the 1 req/s limiter are both
+per-process, so scaling past `min_machines_running = 1` would give each machine
+its own copy of both and put the aggregate rate over Nominatim's ceiling. Scaling
+out means moving the store and the rate limit somewhere shared first.
+
+What the store still buys, and why it is not just a bare lookup: a **negative** is
+remembered for the life of the process. Without that, a failing address would
+re-enter the queue every 30 minutes forever at two round trips each. Negatives go
+stale after a week and are retried then: the process may run for months without a
+restart, so a failure must age out on its own — a venue OSM did not know about
+last week can be mapped by next week, and nothing should have to be redeployed for
+that to be picked up.
+
+If this ever needs to survive deploys, the better argument for a volume is IndexNow
+fingerprints rather than coordinates: a deploy shortly after a calendar change
+means that change is only ever seeded, never submitted.
+
+### Past events
+
+Past events are not geocoded and their coordinates may be null. If a venue with
+past-only events picks up a new upcoming date it re-enters the queue normally. A
+past event at an address that was resolved for some other date still reports its
+coordinates.
+
+### If it needs to stop
+
+There is no toggle: geocoding always runs. The job is bounded by design — one
+request a second, at most two per address, nothing at all once the venues
+resolve, and a run that aborts itself the moment the provider starts refusing —
+so there is nothing for a switch to protect against that the job does not
+already handle.
+
+If it ever does need stopping, that is a code change and a deploy. Coordinates
+are the least important field in the document, so removing the call site is a
+safe edit: events keep serving with `coordinates: null` and maps disappear from
+the site. A geocoding problem must never take events down with it.
 
 ## IndexNow Submissions
 

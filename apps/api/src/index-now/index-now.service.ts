@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
 import _ from "lodash";
 
 import dayjs, { type Dayjs } from "../calendar/calendar.dates.js";
+import { getErrorDetails } from "../logging.js";
 import type { CalendarEvent } from "../calendar/calendar.types.js";
 import { isEventCancelled, normalizeText } from "../calendar/calendar.utils.js";
 import {
@@ -540,22 +542,4 @@ function maskKey(key: string): string {
 
 function redactKey(value: string, key: string): string {
   return value.replaceAll(key, "[redacted]");
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
-// Keep structured log context small and JSON-safe instead of passing raw errors.
-function getErrorDetails(error: unknown): Record<string, unknown> {
-  if (!(error instanceof Error)) {
-    return { errorMessage: String(error) };
-  }
-
-  return {
-    errorName: error.name,
-    errorMessage: error.message,
-  };
 }

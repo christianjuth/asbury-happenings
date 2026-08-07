@@ -7,12 +7,14 @@ import {
 import { getCalendarSource } from "../src/calendar/calendar.config.js";
 import dayjs from "../src/calendar/calendar.dates.js";
 import { clearCalendarFetchState } from "../src/calendar/calendar.service.js";
+import { clearCoordinateStore } from "../src/geocode/geocode.store.js";
 import { clearNixleRssCache } from "../src/nixle/nixle.cache.js";
 import { buildServer } from "../src/server.js";
 
 afterEach(() => {
   clearCalendarPageCache();
   clearCalendarFetchState();
+  clearCoordinateStore();
   clearNixleRssCache();
   vi.restoreAllMocks();
   vi.useRealTimers();
@@ -544,6 +546,185 @@ describe("server", () => {
     expect(
       nestedSubdomainResponse.headers["access-control-allow-origin"],
     ).toBeUndefined();
+
+    await server.close();
+  });
+
+  // The JSON transport the website consumes instead of parsing ICS.
+  it("serves Samantha Dress events as JSON from the warm cache", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        [
+          "BEGIN:VCALENDAR",
+          "BEGIN:VEVENT",
+          "UID:json-event",
+          "SUMMARY:Sunset Set",
+          "DTSTART:20260910T230000Z",
+          "DTEND:20260911T020000Z",
+          "LOCATION:The Boardwalk\\, 100 Ocean Ave\\, Ship Bottom\\, NJ",
+          "END:VEVENT",
+          "END:VCALENDAR",
+        ].join("\r\n"),
+      ),
+    );
+
+    const server = await buildServer();
+    const config = getCalendarSource("samantha-dress");
+
+    if (!config) {
+      throw new Error("Missing Samantha Dress calendar config");
+    }
+
+    await warmCalendarPage(config, 0, dayjs("2026-08-03T00:00:00Z"));
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/samantha-dress/events",
+      headers: { origin: "https://samanthadress.com" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toContain("application/json");
+    expect(response.headers["access-control-allow-origin"]).toBe(
+      "https://samanthadress.com",
+    );
+    expect(response.json()).toMatchObject({
+      events: [
+        {
+          uid: "json-event",
+          title: "Sunset Set",
+          status: "confirmed",
+          start: {
+            iso: "2026-09-10T19:00:00-04:00",
+            timeZone: "America/New_York",
+            timeZoneSource: "state",
+          },
+          location: {
+            raw: "The Boardwalk, 100 Ocean Ave, Ship Bottom, NJ",
+            venue: "The Boardwalk",
+            city: "Ship Bottom",
+            state: "NJ",
+            coordinates: null,
+            coordinatesStatus: "pending",
+          },
+        },
+      ],
+    });
+    expect(
+      response.json<{ sourceFetchedAt: string }>().sourceFetchedAt,
+    ).toEqual(expect.any(String));
+
+    await server.close();
+  });
+
+  // Unlike the ICS feed, which 503s while warming. An empty list is what the
+  // site already degrades to, so a cold cache must not be an error.
+  it("serves an empty JSON event list while the calendar cache is cold", async () => {
+    const server = await buildServer();
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/samantha-dress/events",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      sourceFetchedAt: null,
+      events: [],
+    });
+
+    await server.close();
+  });
+
+  // The JSON service is meant to replace this one eventually, but not yet:
+  // existing subscribers hold the .ics URL and it has to keep working.
+  it("keeps serving the Samantha Dress ICS feed alongside the JSON service", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        [
+          "BEGIN:VCALENDAR",
+          "BEGIN:VEVENT",
+          "UID:ics-event",
+          "SUMMARY:Sunset Set",
+          "DTSTART:20260910T230000Z",
+          "DTEND:20260911T020000Z",
+          "LOCATION:The Boardwalk\\, 100 Ocean Ave\\, Ship Bottom\\, NJ",
+          "END:VEVENT",
+          "END:VCALENDAR",
+        ].join("\r\n"),
+      ),
+    );
+
+    const server = await buildServer();
+    const config = getCalendarSource("samantha-dress");
+
+    if (!config) {
+      throw new Error("Missing Samantha Dress calendar config");
+    }
+
+    await warmCalendarPage(config, 0, dayjs("2026-08-03T00:00:00Z"));
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/calendar/samantha-dress.ics",
+      headers: { origin: "https://samanthadress.com" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toContain("text/calendar");
+    expect(response.headers["access-control-allow-origin"]).toBe(
+      "https://samanthadress.com",
+    );
+    expect(response.body).toContain("SUMMARY:Sunset Set");
+
+    await server.close();
+  });
+
+  // Samantha Dress is the only calendar getting the JSON upgrade. The rest stay
+  // on ICS, so nothing may advertise or serve a JSON transport for them.
+  it("does not extend the JSON service to the other calendars", async () => {
+    const server = await buildServer();
+
+    const index = await server.inject({ method: "GET", url: "/calendar" });
+
+    expect(index.statusCode).toBe(200);
+
+    const { calendars } = index.json<{
+      calendars: Record<string, unknown>[];
+    }>();
+
+    expect(calendars.length).toBeGreaterThan(1);
+    // Assert the key set per entry rather than searching the payload for a
+    // substring: a future `jsonPath` fails this, and a calendar id that merely
+    // contains "json" does not.
+    for (const calendar of calendars) {
+      expect(Object.keys(calendar).sort()).toEqual(["id", "name", "path"]);
+      expect(calendar["path"]).toMatch(/\.ics$/);
+    }
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/calendar/stone-pony.json",
+    });
+
+    expect(response.statusCode).toBe(404);
+
+    await server.close();
+  });
+
+  it("reports unresolved geocoding addresses without an admin UI", async () => {
+    const server = await buildServer();
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/debug/geocode",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      service: "geocode",
+      unresolved: [],
+    });
 
     await server.close();
   });

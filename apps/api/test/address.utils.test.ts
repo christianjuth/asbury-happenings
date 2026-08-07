@@ -4,6 +4,7 @@ import {
   cityStateFromLocation,
   eventCityLocation,
   normalizeGeocodeQuery,
+  venueFromLocation,
 } from "../src/calendar/address.utils.js";
 
 describe("address utils", () => {
@@ -67,6 +68,23 @@ describe("address utils", () => {
     it("returns null when there is no city and state information", () => {
       expect(cityStateFromLocation("TBD")).toBeNull();
       expect(cityStateFromLocation(undefined)).toBeNull();
+    });
+  });
+
+  describe("venueFromLocation", () => {
+    it.each([
+      ["The Boardwalk, 100 Ocean Ave, Ship Bottom, NJ", "The Boardwalk"],
+      ["Bird & Betty's, 20th St, Beach Haven, NJ", "Bird & Betty's"],
+      // No street address, so the leading segment is the venue only when it is
+      // not the city itself.
+      ["The Stone Pony, Asbury Park, NJ", "The Stone Pony"],
+      ["Ship Bottom, NJ", null],
+      // Already starts with a house number: there is no venue name to take.
+      ["123 Main St, Freehold, NJ 07728", null],
+      ["TBD", null],
+      [undefined, null],
+    ])("reads the venue name out of %s", (location, expected) => {
+      expect(venueFromLocation(location)).toBe(expected);
     });
   });
 
