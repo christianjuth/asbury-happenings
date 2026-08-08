@@ -87,5 +87,21 @@ describe("geocode validation", () => {
         ),
       ).toEqual({ ok: true });
     });
+
+    it("accepts a mailing city when OSM returns its containing township", () => {
+      expect(
+        validateGeocodeResult(
+          {
+            village: "Long Beach Township",
+            neighbourhood: "Brant Beach",
+            county: "Ocean County",
+            state: "New Jersey",
+            "ISO3166-2-lvl4": "US-NJ",
+            country_code: "us",
+          },
+          { city: "long-beach", state: "nj" },
+        ),
+      ).toEqual({ ok: true });
+    });
   });
 });

@@ -9,6 +9,10 @@ import { getCachedCalendarEventSnapshot } from "../calendar/calendar.cache.js";
 // prototype. This module imports the configured instance rather than raw dayjs so
 // it does not depend on some other importer having installed the plugin first.
 import dayjs, { type Dayjs } from "../calendar/calendar.dates.js";
+import {
+  eventEndDate,
+  eventEndInTimeZone,
+} from "../calendar/calendar.utils.js";
 import type {
   CalendarEvent,
   CalendarEventStatus,
@@ -25,16 +29,49 @@ import type {
   Coordinates,
   CoordinatesStatus,
 } from "../geocode/geocode.types.js";
+import {
+  cancelledFromTitle,
+  timeUnknownFromTitle,
+} from "./samantha-dress.title.js";
 
 // Whether the zone is certain or inferred. An explicit TZID is certain; a zone
 // derived from the event's state is a guess the UI has to label as one, and the
 // site cannot make that call without being told which it got.
 type TimeZoneSource = "tzid" | "state" | "default";
 
-interface SamanthaDressDateTime {
+// An all-day event is a calendar date and a timed event is an instant. They are
+// different kinds of value, so they are published as different shapes rather
+// than as one shape where a date is written as midnight in some zone and the
+// consumer is trusted never to convert it. `allDay` says which to expect.
+export type SamanthaDressDateTime = SamanthaDressDate | SamanthaDressInstant;
+
+interface SamanthaDressDate {
+  // The day itself. No instant, so there is nothing here to convert and nothing
+  // to convert wrongly.
+  date: string;
+  // The venue's zone, for the one question a date cannot answer on its own:
+  // when the day starts and ends. "Is this event over?" needs a boundary, and
+  // without this the consumer has to pick some zone of its own — which retires
+  // an all-day show at a Pacific venue three hours early on its last day.
+  //
+  // Never for rendering. `date` is what gets displayed; this only turns the day
+  // into an interval. Inferred like any other zone (the venue's state, or the
+  // calendar's own zone when the address parses to no state), and deliberately
+  // published without `timeZoneSource` or `timeZoneAmbiguous`: an hour of
+  // uncertainty does not matter when the question is which midnight.
+  timeZone: string;
+}
+
+interface SamanthaDressInstant {
   iso: string;
   timeZone: string;
   timeZoneSource: TimeZoneSource;
+  // Whether this zone could be the wrong one for the venue. False when the feed
+  // stated the zone; true when it was inferred from a state that has more than
+  // one, or when nothing about the location was parseable and the source's own
+  // zone was the fallback. The site uses it to decide whether to caption a time
+  // with the zone it is shown in.
+  timeZoneAmbiguous: boolean;
 }
 
 interface SamanthaDressLocation {
@@ -61,8 +98,13 @@ interface SamanthaDressEvent {
   description: string | null;
   status: CalendarEventStatus;
   // Not in the original schema sketch, but the site rebuilds a downloadable .ics
-  // from this document and an all-day event has to stay all-day in it.
+  // from this document and an all-day event has to stay all-day in it. Also the
+  // discriminant for `start`/`end`: true means both carry a `date`.
   allDay: boolean;
+  // The title says the start time has not been announced yet, so the instants
+  // below are the calendar's placeholder rather than a real time. Render the
+  // date without a clock and do not count down to it.
+  timeUnknown: boolean;
   start: SamanthaDressDateTime;
   // When `allDay` is true this is the iCalendar *exclusive* end: a one-day event
   // on the 6th ends at the 7th. That is what the .ics rebuild needs, but it means
@@ -86,6 +128,12 @@ interface SamanthaDressSnapshot {
 // meant to outlive `/calendar/samantha-dress.ics` rather than generalize to a
 // JSON transport for all of them.
 export function getSamanthaDressSnapshot(now = dayjs()): SamanthaDressSnapshot {
+  return buildSamanthaDressSnapshot(readSnapshotOptions(now));
+}
+
+// Shared by the published document and its debug view so both describe the same
+// read of the cache.
+export function readSnapshotOptions(now: Dayjs): SamanthaDressSnapshotOptions {
   // No `filter` querystring, unlike the ICS route: the site reads the whole
   // document and filters per surface. The source's own `defaultFilters` still
   // apply, so the two feeds agree on which events exist.
@@ -95,57 +143,75 @@ export function getSamanthaDressSnapshot(now = dayjs()): SamanthaDressSnapshot {
     now,
   );
 
-  return buildSamanthaDressSnapshot({
+  return {
     config: SAMANTHA_DRESS_SOURCE,
     events,
     sourceFetchedAt,
     store: getCoordinateStore(),
     now,
-  });
+  };
 }
 
-export function buildSamanthaDressSnapshot(options: {
+export interface SamanthaDressSnapshotOptions {
   config: CalendarSourceConfig;
   events: readonly CalendarEvent[];
   sourceFetchedAt: Dayjs | undefined;
   store: CoordinateStore;
   now: Dayjs;
-}): SamanthaDressSnapshot {
-  const { config, events, sourceFetchedAt, store, now } = options;
+}
 
+export function buildSamanthaDressSnapshot(
+  options: SamanthaDressSnapshotOptions,
+): SamanthaDressSnapshot {
   return {
-    generatedAt: now.toISOString(),
-    sourceFetchedAt: sourceFetchedAt?.toISOString() ?? null,
-    // Every event, past and upcoming: the site filters per surface and needs the
-    // past ones for detail pages and performance history.
-    //
-    // Sorted before rendering. Sorting on the rendered `iso` would compare
-    // wall-clock strings carrying different UTC offsets, so a 20:00 show in
-    // California would sort ahead of a 22:00 show in New Jersey that starts an
-    // hour earlier.
-    events: _.sortBy(events, [
-      (event) => sortInstant(event, config),
-      (event) => event.title,
-    ]).map((event) => buildSnapshotEvent(event, config, store, now)),
+    generatedAt: options.now.toISOString(),
+    sourceFetchedAt: options.sourceFetchedAt?.toISOString() ?? null,
+    events: buildSnapshotEvents(options).map((event) => event.published),
   };
 }
 
-// A timed event has a real instant. An all-day value does not: it is a floating
-// date parsed as UTC midnight, which on the east coast is 20:00 the evening
-// before — early enough to sort an all-day event ahead of the previous night's
-// shows. Anchoring it to midnight in the calendar's own zone puts it back inside
-// its own day without giving up instant ordering for everything else.
-function sortInstant(
-  event: CalendarEvent,
-  config: CalendarSourceConfig,
-): number {
-  if (!event.allDay) {
-    return event.start.valueOf();
-  }
+// The source event alongside what got published for it. The debug view reads
+// these pairs so it reports the document the site actually receives rather than
+// a second rendering of it that could disagree.
+interface SamanthaDressSnapshotEvent {
+  source: CalendarEvent;
+  published: SamanthaDressEvent;
+}
 
-  return dayjs
-    .tz(event.start.utc().format("YYYY-MM-DD"), config.timeZone ?? "UTC")
-    .valueOf();
+export function buildSnapshotEvents(
+  options: SamanthaDressSnapshotOptions,
+): SamanthaDressSnapshotEvent[] {
+  const { config, events, store, now } = options;
+
+  // Every event, past and upcoming: the site filters per surface and needs the
+  // past ones for detail pages and performance history.
+  //
+  // Built before sorting, so ordering reads the same day boundary the document
+  // publishes rather than deriving a second one.
+  return _.sortBy(
+    events.map((event) => ({
+      source: event,
+      published: buildSnapshotEvent(event, config, store, now),
+    })),
+    [sortInstant, (entry) => entry.published.title],
+  );
+}
+
+// Sorting on the rendered `iso` would compare wall-clock strings carrying
+// different UTC offsets, so a 20:00 show in California would sort ahead of a
+// 22:00 show in New Jersey that starts an hour earlier — hence a real instant
+// per event.
+//
+// An all-day event has no instant. Read as the UTC midnight it parsed as, it
+// would land at 20:00 the evening before on the east coast, early enough to sort
+// ahead of the previous night's shows. Midnight at its own venue puts it back
+// inside its own day.
+function sortInstant(entry: SamanthaDressSnapshotEvent): number {
+  const { start } = entry.published;
+
+  return "date" in start
+    ? dayjs.tz(start.date, start.timeZone).valueOf()
+    : entry.source.start.valueOf();
 }
 
 function buildSnapshotEvent(
@@ -161,15 +227,19 @@ function buildSnapshotEvent(
   // point of this service is to stop paying per-request address costs.
   const [city, state] = splitCityState(raw);
   const inferredTimeZone = inferTimeZone(state, config);
+  const end = allDay ? dayjs.utc(eventEndDate(event)) : event.end;
 
   return {
     uid: event.uid ?? null,
     title: event.title,
     description: event.description ?? null,
     // Cancelled events stay in the document — the site renders them struck
-    // through — so this has to carry STATUS rather than filter on it.
-    status: event.status ?? "confirmed",
+    // through — so this has to carry STATUS rather than filter on it. A title
+    // carrying the cancellation instead is folded in here, so the site reads one
+    // field; `?debug=1` shows which of the two answered.
+    status: buildSnapshotStatus(event),
     allDay,
+    timeUnknown: timeUnknownFromTitle(event.title),
     start: buildSnapshotDateTime(
       event.start,
       event.startTimeZone,
@@ -177,7 +247,7 @@ function buildSnapshotEvent(
       allDay,
     ),
     end: buildSnapshotDateTime(
-      event.end,
+      end,
       event.endTimeZone,
       inferredTimeZone,
       allDay,
@@ -187,7 +257,7 @@ function buildSnapshotEvent(
       city,
       state,
       store,
-      event.end.isBefore(now),
+      eventEndInTimeZone(event, config.timeZone ?? "UTC").isBefore(now),
     ),
   };
 }
@@ -211,20 +281,29 @@ function buildSnapshotLocation(
   };
 }
 
+// STATUS is the calendar's own answer and wins when it has one. The title check
+// is our reading of a convention the calendar has nowhere else to put.
+function buildSnapshotStatus(event: CalendarEvent): CalendarEventStatus {
+  if (event.status) {
+    return event.status;
+  }
+
+  return cancelledFromTitle(event.title) ? "cancelled" : "confirmed";
+}
+
 function buildSnapshotDateTime(
   value: Dayjs,
   explicitTimeZone: string | undefined,
-  inferredTimeZone: { timeZone: string; source: TimeZoneSource },
+  inferredTimeZone: InferredTimeZone,
   allDay: boolean,
 ): SamanthaDressDateTime {
-  // An all-day value is a floating date. Rendering it in a local zone would move
-  // it onto the previous evening, so it stays the UTC midnight it was parsed as
-  // and the consumer reads `allDay` to know it is date-only.
+  // The date the source calendar wrote, with no instant built out of it. It was
+  // parsed as UTC midnight, so it is read back in UTC and nowhere else. An ICS
+  // DATE value carries no TZID, so the venue's zone is always the inferred one.
   if (allDay) {
     return {
-      iso: value.utc().format(),
-      timeZone: "UTC",
-      timeZoneSource: "default",
+      date: value.utc().format("YYYY-MM-DD"),
+      timeZone: inferredTimeZone.timeZone,
     };
   }
 
@@ -233,6 +312,7 @@ function buildSnapshotDateTime(
       iso: value.tz(explicitTimeZone).format(),
       timeZone: explicitTimeZone,
       timeZoneSource: "tzid",
+      timeZoneAmbiguous: false,
     };
   }
 
@@ -240,7 +320,14 @@ function buildSnapshotDateTime(
     iso: value.tz(inferredTimeZone.timeZone).format(),
     timeZone: inferredTimeZone.timeZone,
     timeZoneSource: inferredTimeZone.source,
+    timeZoneAmbiguous: inferredTimeZone.ambiguous,
   };
+}
+
+interface InferredTimeZone {
+  timeZone: string;
+  source: TimeZoneSource;
+  ambiguous: boolean;
 }
 
 // Google Calendar publishes UTC instants with no TZID, so the instant is exact
@@ -250,14 +337,25 @@ function buildSnapshotDateTime(
 function inferTimeZone(
   state: string | null,
   config: CalendarSourceConfig,
-): { timeZone: string; source: TimeZoneSource } {
+): InferredTimeZone {
   const stateTimeZone = timeZoneForState(state ?? undefined);
 
   if (stateTimeZone) {
-    return { timeZone: stateTimeZone, source: "state" };
+    return {
+      timeZone: stateTimeZone.timeZone,
+      source: "state",
+      ambiguous: stateTimeZone.ambiguous,
+    };
   }
 
-  return { timeZone: config.timeZone ?? "UTC", source: "default" };
+  // Nothing about the location parsed, so this zone rests on the calendar being
+  // a New Jersey calendar and not on the event at all. Always ambiguous: an
+  // event that got here is exactly the one whose offset might be baked wrong.
+  return {
+    timeZone: config.timeZone ?? "UTC",
+    source: "default",
+    ambiguous: true,
+  };
 }
 
 // Parsed once here rather than re-derived per request on the website.

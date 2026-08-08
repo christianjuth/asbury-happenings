@@ -6,6 +6,7 @@ import type {
   CalendarEvent,
   CalendarEventStatus,
   CalendarEventTransform,
+  CalendarTimeSource,
   CalendarSourceConfig,
   EventFilterInput,
   FetchStatus,
@@ -496,6 +497,7 @@ export function extractEventsFromIcs(
         // the start it was derived from, so leaving this unset would let the two
         // ends of one event be labelled in different zones.
         timeZone: start.timeZone,
+        timeSource: start.timeSource,
       };
       const location =
         readIcsText(component, "LOCATION") ?? config.defaultAddress;
@@ -513,6 +515,8 @@ export function extractEventsFromIcs(
         status: readIcsStatus(component),
         startTimeZone: start.timeZone,
         endTimeZone: end.timeZone,
+        startTimeSource: start.timeSource,
+        endTimeSource: end.timeSource,
       };
     }),
   );
@@ -709,6 +713,10 @@ interface IcsDateValue {
   // one. Absent for UTC (`Z`-suffixed), all-day and floating values, where the
   // feed never says which local zone to display the time in.
   timeZone?: string;
+  // Which of those four forms the content line used. Kept because a floating
+  // value is indistinguishable from a UTC one once parsed, and only the floating
+  // one has a guessed zone baked into its instant.
+  timeSource?: CalendarTimeSource;
 }
 
 function readIcsEventComponents(icsText: string): IcsContentLine[][] {
@@ -854,13 +862,17 @@ function parseIcsDateOrNull(
   if (params["VALUE"] === "DATE" || /^\d{8}$/.test(normalizedValue)) {
     const parsed = dayjs.utc(normalizedValue, "YYYYMMDD", true);
 
-    return parsed.isValid() ? { date: parsed, allDay: true } : null;
+    return parsed.isValid()
+      ? { date: parsed, allDay: true, timeSource: "date" }
+      : null;
   }
 
   if (/^\d{8}T\d{6}Z$/.test(normalizedValue)) {
     const parsed = dayjs.utc(normalizedValue, "YYYYMMDDTHHmmss[Z]", true);
 
-    return parsed.isValid() ? { date: parsed, allDay: false } : null;
+    return parsed.isValid()
+      ? { date: parsed, allDay: false, timeSource: "utc" }
+      : null;
   }
 
   if (/^\d{8}T\d{6}$/.test(normalizedValue)) {
@@ -872,7 +884,14 @@ function parseIcsDateOrNull(
     );
 
     return parsed.isValid()
-      ? { date: parsed, allDay: false, timeZone: explicitTimeZone }
+      ? {
+          date: parsed,
+          allDay: false,
+          timeZone: explicitTimeZone,
+          // No TZID: the instant above only exists because the source's
+          // configured zone stood in for the one the feed never gave.
+          timeSource: explicitTimeZone ? "tzid" : "floating",
+        }
       : null;
   }
 

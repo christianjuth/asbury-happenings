@@ -207,6 +207,13 @@ the one eventually up for deprecation. The other ICS calendars are not following
 they keep the calendar routes as they are, get no JSON transport, and no
 coordinate decoration.
 
+**This endpoint is pre-release and its shape is still free to change.** Until it
+is declared released, the right fix for an awkward field is to change it rather
+than to add a second field beside it — carrying a compatibility shim for a
+consumer that has not shipped yet is debt bought for nothing. `samanthadress.com`
+is the only consumer and moves with it. `/calendar/samantha-dress.ics` is the
+opposite case: it has subscribers holding the URL, so it does not change.
+
 ```jsonc
 {
   "generatedAt": "2026-08-02T21:15:00.000Z",
@@ -221,15 +228,18 @@ coordinate decoration.
       "description": "Free show, all ages.",
       "status": "confirmed", // "confirmed" | "cancelled" | "tentative"
       "allDay": false,
+      "timeUnknown": false,
       "start": {
         "iso": "2026-07-23T19:00:00-04:00",
         "timeZone": "America/New_York",
         "timeZoneSource": "tzid", // "tzid" | "state" | "default"
+        "timeZoneAmbiguous": false,
       },
       "end": {
         "iso": "2026-07-23T22:00:00-04:00",
         "timeZone": "America/New_York",
         "timeZoneSource": "tzid",
+        "timeZoneAmbiguous": false,
       },
       "location": {
         "raw": "The Boardwalk, 100 Ocean Ave, Ship Bottom, NJ",
@@ -241,6 +251,19 @@ coordinate decoration.
       },
     },
   ],
+}
+```
+
+`allDay` picks which shape `start` and `end` take. An all-day event is a calendar
+date, so it carries no instant at all — just the day, and the venue's zone to say
+when that day begins and ends:
+
+```jsonc
+{
+  "allDay": true,
+  "start": { "date": "2026-09-26", "timeZone": "America/Los_Angeles" },
+  // Exclusive, as iCalendar DTEND is. One day, not two.
+  "end": { "date": "2026-09-27", "timeZone": "America/Los_Angeles" },
 }
 ```
 
@@ -259,19 +282,59 @@ Field notes:
 - **`timeZoneSource` is load-bearing, not metadata.** `tzid` means the feed stated
   the zone and it is certain. `state` means we inferred it from the event's state
   and the UI has to label it as a guess. `default` means the source's configured
-  zone was the last resort. All-day events are date-only and report `UTC` /
-  `default`.
+  zone was the last resort. Absent on an all-day event, which has no time to
+  place in a zone.
+- **`timeZoneAmbiguous` answers "could this zone be the wrong one for the venue?"**
+  so the site does not need its own state-to-zones table to decide whether to
+  caption a time with the zone it is shown in. False for `tzid`, since the feed
+  stated the zone, and for a `state` in a state with exactly one zone — inferring
+  New Jersey's zone is as good as being told it. True for a state whose
+  representative zone may be wrong for a venue (`ak az fl id in ks ky mi nd ne
+ nv or sd tn tx`); Arizona is included because the Navajo Nation observes DST
+  while `America/Phoenix` does not. It is also **true for every `default`**: a
+  location that parsed to no state at all gives the zone nothing to rest on but
+  the calendar being a New Jersey calendar, which is exactly the case where the
+  offset may already be baked wrong. Territories all have one zone and no DST,
+  so they report false.
+- **`timeUnknown` means the start time has not been announced**, so the instants
+  are the calendar's placeholder rather than a real time: render the date without
+  a clock and do not count down to it. Google Calendar makes you pick a time even
+  when the time is the unannounced thing, so this is read out of the title — a
+  whole-word `TBD`/`TBA` or "to be determined/announced/confirmed" that is either
+  attached to the word "time" or attached to no noun at all. A marker scoped to
+  something else keeps its clock, so `*TBD TIME & ADDRESS*` sets the flag and
+  `*ADDRESS TBD*` does not. Deliberately one-sided: reading a real time as unknown
+  only hides a clock, while missing an unknown one runs a countdown to a
+  placeholder.
 - **`status` carries `STATUS:CANCELLED` through.** Cancelled events stay in the
-  document; the site renders them struck through.
+  document; the site renders them struck through. When the calendar carried no
+  `STATUS` at all, a cancellation in the title counts as one — matched whole-word,
+  so `UNCANCELLED - back on!` is not one. An explicit `STATUS` always wins: it is
+  the calendar's own answer, and the title check is our reading of a convention.
+  `?debug=1` shows which of the two answered.
 - All events are returned, past and upcoming, sorted ascending by the moment they
-  start, with all-day events placed on their own date rather than at the UTC
-  midnight they parse as. The site filters per surface and needs past events for
-  detail pages. Do not re-sort on `start.iso` — it is a wall-clock string whose
-  UTC offset varies per event, so string order is not chronological order.
-- `allDay` is present so the site can rebuild an accurate `.ics` for its "Add to
-  calendar" button. On an all-day event `end` is the iCalendar **exclusive** end,
-  so a one-day event on the 6th reports the 7th; subtract a day before rendering
-  it as a date range.
+  start, with all-day events placed at midnight in their own venue's zone rather
+  than at the UTC midnight they parse as. The site filters per surface and needs
+  past events for detail pages. Do not re-sort on `start.iso` — it is a
+  wall-clock string whose UTC offset varies per event, so string order is not
+  chronological order.
+- **An all-day event has no instant, by design.** A calendar date is not a moment,
+  and writing one as midnight-somewhere is what makes a Sep 26 festival render as
+  Sep 25 in a Pacific venue and take its URL with it. `start`/`end` carry `date`,
+  so there is nothing to convert. `allDay` is the discriminant, and is also what
+  the site needs to rebuild an accurate `.ics` for its "Add to calendar" button.
+  `end` is the iCalendar **exclusive** end, so a one-day event on the 26th
+  reports the 27th; subtract a day before rendering a date range.
+- **`timeZone` on an all-day bound is for the day's edges, not for rendering.**
+  `date` is what gets displayed. The zone exists because a date alone cannot
+  answer "is this event over?" — that needs a boundary, and the venue's midnight
+  is the right one. Without it a consumer has to pick a zone of its own, which
+  retires an all-day show at a Pacific venue three hours early on its last day.
+  It is inferred the same way any other zone is (the venue's state, or this
+  calendar's zone when the address parses to no state) and carries no
+  `timeZoneSource` or `timeZoneAmbiguous`: an hour of uncertainty does not change
+  which midnight. The same boundary orders the document, so sort position and
+  "is it over?" cannot disagree.
 
 Unlike the ICS route, this one never returns `503`. A cold cache is
 `{"sourceFetchedAt": null, "events": []}`, which is the empty state the site
@@ -285,9 +348,9 @@ This runs alongside `/calendar/samantha-dress.ics` rather than replacing it yet,
 so the two are otherwise expected to describe the same events. Three intentional
 divergences:
 
-- **No `?filter=` search and no `?debug=1`.** The site reads the whole document
-  and filters per surface. The source's own `defaultFilters` still apply, so both
-  feeds agree on which events exist.
+- **No `?filter=` search.** The site reads the whole document and filters per
+  surface. The source's own `defaultFilters` still apply, so both feeds agree on
+  which events exist.
 - **No upstream `URL` property.** The ICS feed still publishes it; this service
   masks it, so the Google Calendar link stays behind an endpoint the site
   controls.
@@ -295,6 +358,68 @@ divergences:
 
 There is no auth: the data is fully public and the read path stays simple. Browser
 access is governed by the same `browserAllowedOrigins` list as the ICS route.
+
+### `GET /samantha-dress/events?debug=1`
+
+The published document carries conclusions: an offset, a zone, a city. That is
+what the site needs, but it means a zone this service **guessed** is
+indistinguishable from one the calendar **stated**, and once a guessed zone is
+baked into an offset no consumer can detect or correct it. This view is the same
+read of the same cache with the pre-resolution values kept, so the guesses can be
+checked from outside the service. It is served `no-store` and is a diagnostic, not
+a second transport — the shape is free to change.
+
+```jsonc
+{
+  "generatedAt": "2026-08-02T21:15:00.000Z",
+  "sourceFetchedAt": "2026-08-02T21:14:58.000Z",
+  // The zone an event falls back to when its location parses to no state.
+  "defaultTimeZone": "America/New_York",
+  "events": [
+    {
+      "uid": "abc-123@samanthadress.com",
+      "title": "Sunset Set at Ship Bottom",
+      "allDay": false,
+      "start": {
+        "sourceInstant": "2026-09-10T23:00:00.000Z",
+        // The digits the source calendar carried, before any zone was applied.
+        "sourceWallClock": "2026-09-10T23:00:00",
+        // "utc" | "tzid" | "floating" | "date"
+        "sourceTimeSource": "utc",
+        "sourceTimeZone": null, // the TZID, when the source carried one
+        // "all-day" means no zone was resolved at all, because the feed
+        // published a date.
+        "resolver": "state", // "tzid" | "state" | "default" | "all-day"
+        "resolved": {/* exactly what the feed published for this event */},
+      },
+      "end": {/* same shape */},
+      "location": {
+        "raw": "The Boardwalk, 100 Ocean Ave, Ship Bottom, NJ",
+        // The key the coordinate store is read by, i.e. `raw` with the venue
+        // name removed. An address that never resolves usually shows up here.
+        "geocodeQuery": "100 Ocean Ave, Ship Bottom, NJ",
+        "venue": "The Boardwalk",
+        "city": "Ship Bottom",
+        "state": "NJ",
+        "coordinatesStatus": "pending",
+      },
+      // Where the published `timeUnknown` comes from, and — when the calendar
+      // carried no STATUS — the published `status` too. The one place a signal
+      // read out of a title stays distinguishable from a calendar field.
+      "titleSignals": { "timeUnknown": false, "cancelled": false },
+    },
+  ],
+}
+```
+
+`sourceTimeSource: "floating"` is the one to watch. `utc` and `tzid` both pin a
+real moment, and `date` has no time in it, but a floating value is a wall clock
+the source attached no zone to — so the offset in `resolved.iso` came from this
+service, and `sourceWallClock` is reported in `defaultTimeZone` (the zone that
+produced the instant) rather than in the resolved zone, which would show digits
+the source never had. Google Calendar publishes UTC instants, so nothing in this
+feed is floating today; the field exists so that if that ever changes it is
+visible rather than silent.
 
 ## Coordinate Decoration
 
@@ -387,9 +512,18 @@ A result is stored only if it is verifiably in the right place:
    expected state and in a locality matching the expected city. Nominatim spreads
    the locality across `city`/`town`/`village`/`hamlet`/`municipality`/`suburb`/
    `neighbourhood`/`county`, and a mailing city is often not the administrative one
-   (Manahawkin addresses return under Stafford Township), so a match on any of
-   them counts.
+   (Manahawkin addresses return under Stafford Township). Explicit administrative
+   suffixes such as `Township` are also folded for comparison, so a Long Beach
+   address returned under Long Beach Township still counts.
 3. A result that fails is stored as `rejected` with null coordinates.
+
+US territories address like states and carry their own ISO country code, and OSM
+models some of them as a country in their own right rather than as a US
+subdivision. A result whose country code is `pr`/`vi`/`gu`/`as`/`mp` therefore
+passes the country check, but **only** when the address itself parsed as that same
+territory — which cannot widen what counts as a match for any of the fifty states.
+This has not been exercised against the live provider; if a territory venue lands
+in `rejected`, `GET /debug/geocode` carries the reason Nominatim gave.
 
 The only broadening is the documented normalized-then-raw retry. Nothing widens a
 query further to force a hit: a null is a correct answer, and each broadening step
@@ -618,6 +752,11 @@ cannot be parsed are skipped entirely. Anything else is dropped before the
 request is built: search URLs, query-string or fragment variants, trailing-slash
 aliases, `http://`, other hosts, and calendar-source URLs. A regional page is
 submitted only when the same address resolves to a real city and state.
+
+`<state>` includes the territory codes `pr`, `vi`, `gu`, `as` and `mp`. Addresses
+in them used to parse to no state and were skipped here entirely, so these are
+new URLs rather than changed ones — but they are new indexed paths, and the site
+needs a route for them before this submits any.
 
 ### Expected log messages
 

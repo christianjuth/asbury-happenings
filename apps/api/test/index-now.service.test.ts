@@ -359,6 +359,28 @@ describe("submitCalendarDiff", () => {
     expect(await submitAt("2026-09-18T23:00:00Z")).toBe(0);
   });
 
+  it("uses the venue zone for an all-day visibility cutoff", async () => {
+    const allDayEvent = buildEvent({
+      allDay: true,
+      start: dayjs("2026-09-26T00:00:00Z"),
+      end: dayjs("2026-09-27T00:00:00Z"),
+      location: "The Fillmore, 1805 Geary Blvd, San Francisco, CA",
+      address: "The Fillmore, 1805 Geary Blvd, San Francisco, CA",
+    });
+    const submitAt = async (nowIso: string) => {
+      const { service, fetchImpl } = createHarness([], { key: KEY }, nowIso);
+
+      await service.submitCalendarDiff([allDayEvent]);
+
+      return fetchImpl.mock.calls.length;
+    };
+
+    // 8pm Pacific on the event day: still published.
+    expect(await submitAt("2026-09-27T03:00:00Z")).toBe(1);
+    // Midnight Pacific: the venue day is over.
+    expect(await submitAt("2026-09-27T07:00:00Z")).toBe(0);
+  });
+
   it("ignores events that already ended", async () => {
     const { service, fetchImpl } = createHarness();
 

@@ -25,13 +25,14 @@ function buildSnapshot(
   events: readonly CalendarEvent[],
   store: CoordinateStore = createStore(),
   sourceFetchedAt = dayjs("2026-08-03T11:59:58Z"),
+  now = NOW,
 ) {
   return buildSamanthaDressSnapshot({
     config: SAMANTHA_DRESS_SOURCE,
     events,
     sourceFetchedAt,
     store,
-    now: NOW,
+    now,
   });
 }
 
@@ -80,15 +81,18 @@ describe("Samantha Dress snapshot", () => {
           description: "Free show, all ages.",
           status: "confirmed",
           allDay: false,
+          timeUnknown: false,
           start: {
             iso: "2026-09-10T19:00:00-04:00",
             timeZone: "America/New_York",
             timeZoneSource: "tzid",
+            timeZoneAmbiguous: false,
           },
           end: {
             iso: "2026-09-10T22:00:00-04:00",
             timeZone: "America/New_York",
             timeZoneSource: "tzid",
+            timeZoneAmbiguous: false,
           },
           location: {
             raw: SHIP_BOTTOM,
@@ -122,6 +126,8 @@ describe("Samantha Dress snapshot", () => {
       iso: "2026-09-10T19:00:00-04:00",
       timeZone: "America/New_York",
       timeZoneSource: "state",
+      // New Jersey has one zone, so inferring from it is as good as being told.
+      timeZoneAmbiguous: false,
     });
   });
 
@@ -141,28 +147,313 @@ describe("Samantha Dress snapshot", () => {
     expect(snapshot.events[0]?.start.timeZone).toBe("America/New_York");
   });
 
-  // Rendering a date-only value in a local zone would move it onto the previous
-  // evening.
-  it("keeps an all-day event on its own date", () => {
-    const snapshot = buildSnapshot(
-      icsEvents(
-        "BEGIN:VEVENT",
-        "UID:all-day",
-        "SUMMARY:Festival",
-        "DTSTART;VALUE=DATE:20260910",
-        "DTEND;VALUE=DATE:20260911",
-        `LOCATION:The Boardwalk\\, 100 Ocean Ave\\, Ship Bottom\\, NJ`,
-        "END:VEVENT",
-      ),
-    );
+  // An all-day event is a calendar date, not a moment. Written as an instant it
+  // would have to be midnight somewhere, and converting that into a Pacific
+  // venue moves the event onto the previous day — so no instant is published for
+  // one at all.
+  describe("all-day dates", () => {
+    function allDaySnapshot() {
+      return buildSnapshot(
+        icsEvents(
+          "BEGIN:VEVENT",
+          "UID:all-day",
+          "SUMMARY:Festival",
+          "DTSTART;VALUE=DATE:20260926",
+          "DTEND;VALUE=DATE:20260927",
+          `LOCATION:The Boardwalk\\, 100 Ocean Ave\\, Ship Bottom\\, NJ`,
+          "END:VEVENT",
+        ),
+      );
+    }
 
-    expect(snapshot.events[0]).toMatchObject({
-      allDay: true,
-      start: {
-        iso: "2026-09-10T00:00:00Z",
-        timeZone: "UTC",
+    it("publishes a bare date and the venue's zone", () => {
+      expect(allDaySnapshot().events[0]).toMatchObject({
+        allDay: true,
+        // No `iso` and no ambiguity: there is no instant here to convert and so
+        // nothing to get wrong.
+        start: { date: "2026-09-26", timeZone: "America/New_York" },
+        // Exclusive, as iCalendar DTEND is: a one-day event on the 26th ends on
+        // the 27th.
+        end: { date: "2026-09-27", timeZone: "America/New_York" },
+      });
+    });
+
+    it("carries no instant on a date", () => {
+      expect(Object.keys(allDaySnapshot().events[0]?.start ?? {})).toEqual([
+        "date",
+        "timeZone",
+      ]);
+    });
+
+    it("publishes a one-day end when the source omits all-day DTEND", () => {
+      const snapshot = buildSnapshot(
+        icsEvents(
+          "BEGIN:VEVENT",
+          "UID:all-day-without-end",
+          "SUMMARY:Festival",
+          "DTSTART;VALUE=DATE:20260926",
+          `LOCATION:The Boardwalk\\, 100 Ocean Ave\\, Ship Bottom\\, NJ`,
+          "END:VEVENT",
+        ),
+      );
+
+      expect(snapshot.events[0]?.start).toMatchObject({
+        date: "2026-09-26",
+        timeZone: "America/New_York",
+      });
+      expect(snapshot.events[0]?.end).toMatchObject({
+        date: "2026-09-27",
+        timeZone: "America/New_York",
+      });
+    });
+
+    // The zone is what turns the day into an interval, so "is this over?" ends
+    // the day where the venue does. Anchored to the calendar's own zone instead,
+    // a Pacific all-day show would retire three hours early on its last day.
+    it("reports the venue's zone, not the calendar's, on an out-of-state date", () => {
+      const snapshot = buildSnapshot(
+        icsEvents(
+          "BEGIN:VEVENT",
+          "UID:west-coast-festival",
+          "SUMMARY:Festival",
+          "DTSTART;VALUE=DATE:20260926",
+          "DTEND;VALUE=DATE:20260927",
+          "LOCATION:The Fillmore\\, 1805 Geary Blvd\\, San Francisco\\, CA",
+          "END:VEVENT",
+        ),
+      );
+
+      expect(snapshot.events[0]?.start).toEqual({
+        date: "2026-09-26",
+        timeZone: "America/Los_Angeles",
+      });
+    });
+
+    it("keeps coordinates eligible through the venue-local event day", () => {
+      const snapshot = buildSnapshot(
+        icsEvents(
+          "BEGIN:VEVENT",
+          "UID:west-coast-festival",
+          "SUMMARY:Festival",
+          "DTSTART;VALUE=DATE:20260926",
+          "DTEND;VALUE=DATE:20260927",
+          "LOCATION:The Fillmore\\, 1805 Geary Blvd\\, San Francisco\\, CA",
+          "END:VEVENT",
+        ),
+        createStore(),
+        dayjs("2026-09-26T00:00:00Z"),
+        // 8 PM Pacific on the event day. The local boundary is still seven
+        // hours away, even though the raw DTEND is already in the past.
+        dayjs("2026-09-27T03:00:00Z"),
+      );
+
+      expect(snapshot.events[0]?.location.coordinatesStatus).toBe("pending");
+    });
+
+    it("publishes an instant and no date on a timed event", () => {
+      const snapshot = buildSnapshot([event("timed", "2026-08-05T23:00:00Z")]);
+
+      expect(snapshot.events[0]?.start).toEqual({
+        iso: "2026-08-05T19:00:00-04:00",
+        timeZone: "America/New_York",
+        timeZoneSource: "state",
+        timeZoneAmbiguous: false,
+      });
+    });
+  });
+
+  // The bug the site could not work around: Puerto Rico is AST year-round, and
+  // America/New_York only shares its offset while the mainland is on EDT.
+  describe("territories", () => {
+    const RINCON =
+      "The Beach House Rincón, PR-413 Km 2.8, Rincón, 00677, Puerto Rico";
+
+    it("resolves Puerto Rico to its own zone rather than the default branch", () => {
+      // January, i.e. outside the window where EST and AST happen to agree. A
+      // 6 PM AST show read as America/New_York renders 5 PM EST.
+      const snapshot = buildSnapshot(
+        icsEvents(
+          "BEGIN:VEVENT",
+          "UID:rincon",
+          "SUMMARY:SOLO GIG @ The Beach House Rincón",
+          "DTSTART:20260115T220000Z",
+          "DTEND:20260116T010000Z",
+          `LOCATION:The Beach House Rincón\\, PR-413 Km 2.8\\, Rincón\\, 00677\\, Puerto Rico`,
+          "END:VEVENT",
+        ),
+      );
+
+      expect(snapshot.events[0]?.start).toEqual({
+        iso: "2026-01-15T18:00:00-04:00",
+        timeZone: "America/Puerto_Rico",
+        timeZoneSource: "state",
+        // One zone, no DST: derived from the territory, but not a risky guess.
+        timeZoneAmbiguous: false,
+      });
+    });
+
+    it("gives a Puerto Rico event the city and state its URL needs", () => {
+      const snapshot = buildSnapshot([
+        event("rincon", "2026-01-15T22:00:00Z", RINCON),
+      ]);
+
+      expect(snapshot.events[0]?.location).toMatchObject({
+        raw: RINCON,
+        venue: "The Beach House Rincón",
+        city: "Rincón",
+        state: "PR",
+      });
+    });
+
+    it.each([
+      ["Emancipation Garden, Charlotte Amalie, VI", "America/St_Thomas"],
+      ["Two Lovers Point, Tamuning, Guam", "Pacific/Guam"],
+      ["Utulei Beach, Pago Pago, American Samoa", "Pacific/Pago_Pago"],
+    ])("resolves %s to %s", (location, timeZone) => {
+      const snapshot = buildSnapshot([
+        event("territory", "2026-01-15T22:00:00Z", location),
+      ]);
+
+      expect(snapshot.events[0]?.start).toMatchObject({
+        timeZone,
+        timeZoneSource: "state",
+      });
+    });
+  });
+
+  // Replaces the 55-entry state-to-zones table the site was carrying purely to
+  // answer "should I caption this time with its zone?".
+  describe("timeZoneAmbiguous", () => {
+    it("flags a state that spans more than one zone", () => {
+      const snapshot = buildSnapshot([
+        event(
+          "texas",
+          "2026-08-09T00:00:00Z",
+          "The Continental Club, 1315 S Congress Ave, Austin, TX",
+        ),
+      ]);
+
+      expect(snapshot.events[0]?.start).toMatchObject({
+        timeZone: "America/Chicago",
+        timeZoneSource: "state",
+        timeZoneAmbiguous: true,
+      });
+    });
+
+    it("does not flag a state that has only one", () => {
+      const snapshot = buildSnapshot([event("nj", "2026-08-09T00:00:00Z")]);
+
+      expect(snapshot.events[0]?.start.timeZoneAmbiguous).toBe(false);
+    });
+
+    it("flags Arizona because the Navajo Nation observes a different DST rule", () => {
+      const snapshot = buildSnapshot([
+        event("arizona", "2026-08-09T00:00:00Z", "Venue, Chinle, AZ"),
+      ]);
+
+      expect(snapshot.events[0]?.start).toMatchObject({
+        timeZone: "America/Phoenix",
+        timeZoneSource: "state",
+        timeZoneAmbiguous: true,
+      });
+    });
+
+    it("does not flag a zone the feed stated outright", () => {
+      const snapshot = buildSnapshot(
+        icsEvents(
+          "BEGIN:VEVENT",
+          "UID:tzid-texas",
+          "SUMMARY:Austin show",
+          "DTSTART;TZID=America/Chicago:20260808T190000",
+          "LOCATION:The Continental Club\\, 1315 S Congress Ave\\, Austin\\, TX",
+          "END:VEVENT",
+        ),
+      );
+
+      expect(snapshot.events[0]?.start).toMatchObject({
+        timeZoneSource: "tzid",
+        timeZoneAmbiguous: false,
+      });
+    });
+
+    // Nothing about the location parsed, so the zone rests on this being a New
+    // Jersey calendar and not on the event. That is exactly the case where the
+    // offset may already be baked wrong.
+    it("flags a zone that fell through to the source's default", () => {
+      const snapshot = buildSnapshot([
+        event("unparseable", "2026-08-09T00:00:00Z", "TBD"),
+      ]);
+
+      expect(snapshot.events[0]?.start).toMatchObject({
         timeZoneSource: "default",
-      },
+        timeZoneAmbiguous: true,
+      });
+    });
+  });
+
+  describe("timeUnknown", () => {
+    it.each([
+      [
+        "Samantha Dress Collective @ Asbury Park Porchfest *TBD TIME & ADDRESS*",
+        true,
+      ],
+      ["Summer Kickoff *TIME TBD*", true],
+      ["Summer Kickoff (time to be announced)", true],
+      // A bare marker with no noun attached: read as the time, which is what the
+      // site did before this moved server-side.
+      ["Summer Kickoff *TBD*", true],
+      // Scoped to something that is not the time, so the clock stands.
+      ["Summer Kickoff *ADDRESS TBD*", false],
+      ["Summer Kickoff — lineup TBA", false],
+      ["Sunset Set at Ship Bottom", false],
+    ])("reads %s as timeUnknown %s", (title, expected) => {
+      const snapshot = buildSnapshot([
+        { ...event("uid", "2026-08-05T23:00:00Z"), title },
+      ]);
+
+      expect(snapshot.events[0]?.timeUnknown).toBe(expected);
+    });
+  });
+
+  // The site used to word-match the title itself because the calendar sometimes
+  // carries the cancellation there instead of in STATUS. Folded in here so there
+  // is one answer rather than two that can disagree.
+  describe("cancellations in the title", () => {
+    it("reads a cancellation the calendar only put in the title", () => {
+      const snapshot = buildSnapshot([
+        { ...event("uid", "2026-08-05T23:00:00Z"), title: "CANCELLED - rain" },
+      ]);
+
+      expect(snapshot.events[0]?.status).toBe("cancelled");
+    });
+
+    // Whole-word, so the word that contains "cancelled" is not one.
+    it("does not read an uncancellation as a cancellation", () => {
+      const snapshot = buildSnapshot([
+        {
+          ...event("uid", "2026-08-05T23:00:00Z"),
+          title: "UNCANCELLED - back on!",
+        },
+      ]);
+
+      expect(snapshot.events[0]?.status).toBe("confirmed");
+    });
+
+    // STATUS is the calendar's own answer and the title is our reading of a
+    // convention, so a calendar that says CONFIRMED is not overridden by a word.
+    it("lets an explicit STATUS win over the title", () => {
+      const snapshot = buildSnapshot(
+        icsEvents(
+          "BEGIN:VEVENT",
+          "UID:confirmed-event",
+          "SUMMARY:Cancelled last year\\, on this year",
+          "DTSTART:20260910T230000Z",
+          "STATUS:CONFIRMED",
+          "END:VEVENT",
+        ),
+      );
+
+      expect(snapshot.events[0]?.status).toBe("confirmed");
     });
   });
 
@@ -194,6 +485,37 @@ describe("Samantha Dress snapshot", () => {
       "past",
       "soon",
       "later",
+    ]);
+  });
+
+  // Ordering now reads the same day boundary the document publishes, so an
+  // all-day event at a Pacific venue sorts by its own midnight rather than the
+  // calendar's — three hours later, and after a Jersey show that same evening.
+  it("orders an all-day date by its own venue's midnight", () => {
+    const snapshot = buildSnapshot(
+      icsEvents(
+        "BEGIN:VEVENT",
+        "UID:west-coast-all-day",
+        "SUMMARY:Festival",
+        "DTSTART;VALUE=DATE:20260926",
+        "DTEND;VALUE=DATE:20260927",
+        "LOCATION:The Fillmore\\, 1805 Geary Blvd\\, San Francisco\\, CA",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:new-jersey-evening",
+        "SUMMARY:Evening show",
+        // 21:00 on Sep 25 in New Jersey, i.e. after midnight on the 26th in NJ
+        // but still before midnight on the 26th in California.
+        "DTSTART:20260926T010000Z",
+        "DTEND:20260926T030000Z",
+        "LOCATION:The Stone Pony\\, 913 Ocean Ave\\, Asbury Park\\, NJ",
+        "END:VEVENT",
+      ),
+    );
+
+    expect(snapshot.events.map((jsonEvent) => jsonEvent.uid)).toEqual([
+      "new-jersey-evening",
+      "west-coast-all-day",
     ]);
   });
 

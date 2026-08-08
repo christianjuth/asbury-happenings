@@ -5,7 +5,12 @@ import _ from "lodash";
 import dayjs, { type Dayjs } from "../calendar/calendar.dates.js";
 import { getErrorDetails } from "../logging.js";
 import type { CalendarEvent } from "../calendar/calendar.types.js";
-import { isEventCancelled, normalizeText } from "../calendar/calendar.utils.js";
+import {
+  eventEndInTimeZone,
+  eventTimeZone,
+  isEventCancelled,
+  normalizeText,
+} from "../calendar/calendar.utils.js";
 import {
   SAMANTHA_DRESS_EVENTS_URL,
   SAMANTHA_DRESS_HOST,
@@ -447,11 +452,15 @@ class SamanthaDressIndexNowService implements IndexNowService {
 }
 
 // Events stay published through the end of their day, cancelled ones included.
-// The cutoff is the event day in Samantha Dress's zone, not the server's: on a
-// UTC host, midnight UTC is 8pm the previous day in New York, which kept an
+// The cutoff is the event day in the event's display zone, not the server's: on
+// a UTC host, midnight UTC is 8pm the previous day in New York, which kept an
 // evening event eligible for nearly an extra day.
 function isPubliclyVisible(event: CalendarEvent, now: Dayjs): boolean {
-  return !event.end.isBefore(now.tz(SAMANTHA_DRESS_TIME_ZONE).startOf("day"));
+  const timeZone = eventTimeZone(event, SAMANTHA_DRESS_TIME_ZONE);
+
+  return eventEndInTimeZone(event, SAMANTHA_DRESS_TIME_ZONE).isAfter(
+    now.tz(timeZone).startOf("day"),
+  );
 }
 
 // Only canonical samanthadress.com event pages are submittable. This rejects

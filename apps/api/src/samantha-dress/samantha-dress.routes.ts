@@ -5,6 +5,7 @@ import {
   applyCalendarPreflightHeaders,
 } from "../calendar/calendar.cors.js";
 import { SAMANTHA_DRESS_SOURCE } from "../calendar/config/samantha-dress.js";
+import { getSamanthaDressDebugSnapshot } from "./samantha-dress.debug.js";
 import { getSamanthaDressSnapshot } from "./samantha-dress.service.js";
 
 const EVENTS_PATH = "/samantha-dress/events";
@@ -15,18 +16,33 @@ const EVENTS_PATH = "/samantha-dress/events";
 // The other ICS calendars are not following — they keep the calendar routes as
 // they are and get no JSON transport.
 export async function registerSamanthaDressRoutes(server: FastifyInstance) {
-  server.get(EVENTS_PATH, async (request, reply) => {
-    applyCalendarCorsHeaders(
-      request.headers.origin,
-      SAMANTHA_DRESS_SOURCE,
-      reply,
-    );
+  server.get<{ Querystring: { debug?: string } }>(
+    EVENTS_PATH,
+    async (request, reply) => {
+      applyCalendarCorsHeaders(
+        request.headers.origin,
+        SAMANTHA_DRESS_SOURCE,
+        reply,
+      );
 
-    return reply
-      .header("cache-control", "public, max-age=300")
-      .type("application/json; charset=utf-8")
-      .send(getSamanthaDressSnapshot());
-  });
+      // Provenance for everything the published document resolved: the wall
+      // clock the source carried, whether it was floating, and which zone
+      // resolver branch fired. The published document carries conclusions only,
+      // so without this a baked-in zone guess is invisible from the outside.
+      // Uncached, because it exists to be read against the live feed.
+      if (isDebugRequest(request.query.debug)) {
+        return reply
+          .header("cache-control", "no-store")
+          .type("application/json; charset=utf-8")
+          .send(getSamanthaDressDebugSnapshot());
+      }
+
+      return reply
+        .header("cache-control", "public, max-age=300")
+        .type("application/json; charset=utf-8")
+        .send(getSamanthaDressSnapshot());
+    },
+  );
 
   server.options(EVENTS_PATH, async (request, reply) => {
     applyCalendarCorsHeaders(
@@ -37,4 +53,9 @@ export async function registerSamanthaDressRoutes(server: FastifyInstance) {
 
     return applyCalendarPreflightHeaders(reply).code(204).send();
   });
+}
+
+// Matches the calendar routes' debug flag so one habit works on both.
+function isDebugRequest(value: string | undefined): boolean {
+  return value === "1" || value === "true";
 }

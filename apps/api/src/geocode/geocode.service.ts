@@ -5,6 +5,7 @@ import {
   normalizeGeocodeQuery,
 } from "../calendar/address.utils.js";
 import dayjs, { type Dayjs } from "../calendar/calendar.dates.js";
+import { eventEndInTimeZone } from "../calendar/calendar.utils.js";
 import type { CalendarEvent } from "../calendar/calendar.types.js";
 import {
   buildCoordinateRecord,
@@ -62,6 +63,7 @@ interface GeocodeDecorationJobOptions {
   geocoder?: NominatimGeocoder;
   now?: () => Dayjs;
   negativeRetryMs?: number;
+  fallbackTimeZone?: string;
 }
 
 // Step 1 through 6 of the decoration algorithm: dedupe by address, drop
@@ -70,6 +72,7 @@ interface GeocodeDecorationJobOptions {
 export function collectGeocodeTargets(
   events: readonly CalendarEvent[],
   now: Dayjs,
+  fallbackTimeZone = "UTC",
 ): GeocodeTarget[] {
   const byKey = new Map<string, GeocodeTarget>();
 
@@ -79,7 +82,7 @@ export function collectGeocodeTargets(
     // `end` rather than `start`, so a show that is on right now still counts as
     // needing a pin. Its start is in the past, which sorts it first — correct,
     // since it is the soonest thing a visitor could be looking for.
-    if (!raw || event.end.isBefore(now)) {
+    if (!raw || eventEndInTimeZone(event, fallbackTimeZone).isBefore(now)) {
       continue;
     }
 
@@ -119,6 +122,7 @@ class NominatimDecorationJob implements GeocodeDecorationJob {
   private readonly geocoder: NominatimGeocoder;
   private readonly now: () => Dayjs;
   private readonly negativeRetryMs: number;
+  private readonly fallbackTimeZone: string;
   private running = false;
 
   constructor(options: GeocodeDecorationJobOptions) {
@@ -128,10 +132,15 @@ class NominatimDecorationJob implements GeocodeDecorationJob {
       options.geocoder ?? createNominatimGeocoder({ logger: options.logger });
     this.now = options.now ?? (() => dayjs());
     this.negativeRetryMs = options.negativeRetryMs ?? NEGATIVE_RETRY_MS;
+    this.fallbackTimeZone = options.fallbackTimeZone ?? "UTC";
   }
 
   async run(events: readonly CalendarEvent[]): Promise<GeocodeRunSummary> {
-    const targets = collectGeocodeTargets(events, this.now());
+    const targets = collectGeocodeTargets(
+      events,
+      this.now(),
+      this.fallbackTimeZone,
+    );
     const summary: GeocodeRunSummary = {
       addresses: targets.length,
       queued: 0,

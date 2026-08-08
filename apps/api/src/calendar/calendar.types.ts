@@ -86,6 +86,13 @@ export interface IcsCalendarSourceConfig extends BaseCalendarSourceConfig {
 
 export type CalendarEventStatus = "confirmed" | "tentative" | "cancelled";
 
+// How the source expressed the time, which is not recoverable from the parsed
+// instant afterwards. `utc` and `tzid` both pin a real moment; `floating` is a
+// wall clock with no zone attached, which parsing had to place in *some* zone to
+// produce an instant at all — the one case where a wrong zone is baked in
+// unrecoverably, so it must stay visible. Set by the ICS reader only.
+export type CalendarTimeSource = "utc" | "tzid" | "floating" | "date";
+
 export interface CalendarEvent {
   uid?: string;
   title: string;
@@ -104,6 +111,8 @@ export interface CalendarEvent {
   // difference between a certain zone and a guess.
   startTimeZone?: string;
   endTimeZone?: string;
+  startTimeSource?: CalendarTimeSource;
+  endTimeSource?: CalendarTimeSource;
 }
 
 export type CalendarEventTransform = (

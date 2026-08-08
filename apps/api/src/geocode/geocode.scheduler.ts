@@ -14,7 +14,11 @@ export function startGeocodeScheduler(
   logger: FastifyBaseLogger,
 ): () => Promise<void> {
   const store = getCoordinateStore();
-  const job = createGeocodeDecorationJob({ logger, store });
+  const job = createGeocodeDecorationJob({
+    logger,
+    store,
+    fallbackTimeZone: SAMANTHA_DRESS_SOURCE.timeZone,
+  });
 
   const stopListening = onCalendarRefresh((config, events) => {
     if (config.id !== SAMANTHA_DRESS_SOURCE.id) {

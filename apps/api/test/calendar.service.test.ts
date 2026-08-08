@@ -1581,6 +1581,34 @@ describe("extractEventsFromIcs", () => {
     );
   });
 
+  it("uses the venue zone for an event URL date", () => {
+    const event = samanthaDressEventUrl({
+      uid: "west-coast-event",
+      title: "Late show",
+      start: dayjs("2026-09-10T06:00:00Z"),
+      end: dayjs("2026-09-10T08:00:00Z"),
+      location: "The Fillmore, 1805 Geary Blvd, San Francisco, CA",
+    });
+
+    expect(event).toBe(
+      "https://samanthadress.com/events/ca/san-francisco/2026-09-09/west-coast-event",
+    );
+  });
+
+  it("keeps a territory event URL date aligned with its feed date", () => {
+    const event = samanthaDressEventUrl({
+      uid: "puerto-rico-event",
+      title: "San Juan show",
+      start: dayjs("2026-01-10T04:30:00Z"),
+      end: dayjs("2026-01-10T06:30:00Z"),
+      location: "1 Main St, San Juan, PR, 00901, Puerto Rico",
+    });
+
+    expect(event).toBe(
+      "https://samanthadress.com/events/pr/san-juan/2026-01-10/puerto-rico-event",
+    );
+  });
+
   it("does not generate a Samantha Dress URL when the address cannot be parsed", () => {
     const event = samanthaDressEventUrl({
       uid: "fe4ce34a-5cfc-422f-b811-4bbc55b1f6e1",

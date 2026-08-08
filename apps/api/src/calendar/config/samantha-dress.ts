@@ -1,5 +1,6 @@
 import type { CalendarEvent, CalendarSourceConfig } from "../calendar.types.js";
 import { eventCityLocation } from "../address.utils.js";
+import { eventTimeZone } from "../calendar.utils.js";
 
 export const SAMANTHA_DRESS_HOST = "samanthadress.com";
 export const SAMANTHA_DRESS_EVENTS_URL = `https://${SAMANTHA_DRESS_HOST}/events`;
@@ -67,5 +68,7 @@ function formatSamanthaDressEventDate(event: CalendarEvent): string {
     return event.start.utc().format("YYYY-MM-DD");
   }
 
-  return event.start.tz(SAMANTHA_DRESS_TIME_ZONE).format("YYYY-MM-DD");
+  return event.start
+    .tz(eventTimeZone(event, SAMANTHA_DRESS_TIME_ZONE))
+    .format("YYYY-MM-DD");
 }

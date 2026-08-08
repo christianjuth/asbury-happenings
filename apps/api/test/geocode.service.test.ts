@@ -153,6 +153,21 @@ describe("collectGeocodeTargets", () => {
       ),
     ).toEqual([]);
   });
+
+  it("keeps an all-day venue queued through its local event day", () => {
+    const targets = collectGeocodeTargets(
+      [
+        createEvent(SHIP_BOTTOM, "2026-08-03T00:00:00Z", {
+          allDay: true,
+          end: dayjs("2026-08-04T00:00:00Z"),
+        }),
+      ],
+      dayjs("2026-08-04T00:30:00Z"),
+      "America/New_York",
+    );
+
+    expect(targets).toHaveLength(1);
+  });
 });
 
 describe("coordinate decoration job", () => {

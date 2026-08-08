@@ -617,6 +617,65 @@ describe("server", () => {
     await server.close();
   });
 
+  // The published document carries conclusions only, so a zone that was guessed
+  // is indistinguishable from one the feed stated. This is the view that makes
+  // the guess checkable without access to the running service.
+  it("serves resolver provenance from the same route under ?debug=1", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        [
+          "BEGIN:VCALENDAR",
+          "BEGIN:VEVENT",
+          "UID:json-event",
+          "SUMMARY:Sunset Set",
+          "DTSTART:20260910T230000Z",
+          "DTEND:20260911T020000Z",
+          "LOCATION:The Boardwalk\\, 100 Ocean Ave\\, Ship Bottom\\, NJ",
+          "END:VEVENT",
+          "END:VCALENDAR",
+        ].join("\r\n"),
+      ),
+    );
+
+    const server = await buildServer();
+    const config = getCalendarSource("samantha-dress");
+
+    if (!config) {
+      throw new Error("Missing Samantha Dress calendar config");
+    }
+
+    await warmCalendarPage(config, 0, dayjs("2026-08-03T00:00:00Z"));
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/samantha-dress/events?debug=1",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toContain("application/json");
+    // Read against the live feed, so it must never be served from a cache.
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.json()).toMatchObject({
+      defaultTimeZone: "America/New_York",
+      events: [
+        {
+          uid: "json-event",
+          start: {
+            sourceWallClock: "2026-09-10T23:00:00",
+            sourceTimeSource: "utc",
+            sourceTimeZone: null,
+            resolver: "state",
+            resolved: { timeZone: "America/New_York" },
+          },
+          location: { geocodeQuery: "100 Ocean Ave, Ship Bottom, NJ" },
+          titleSignals: { timeUnknown: false, cancelled: false },
+        },
+      ],
+    });
+
+    await server.close();
+  });
+
   // Unlike the ICS feed, which 503s while warming. An empty list is what the
   // site already degrades to, so a cold cache must not be an error.
   it("serves an empty JSON event list while the calendar cache is cold", async () => {
