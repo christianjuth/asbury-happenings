@@ -80,7 +80,7 @@ describe("startGeocodeScheduler", () => {
     await geocodeRequested;
 
     // The geocoder has not answered yet, and the event is already served.
-    expect(cache.getCachedCalendarEvents(source)).toHaveLength(1);
+    expect(cache.getCachedCalendarEventSnapshot(source).events).toHaveLength(1);
     expect(
       samanthaDress.getSamanthaDressSnapshot().events[0]?.location,
     ).toMatchObject({ coordinates: null, coordinatesStatus: "pending" });
@@ -134,7 +134,7 @@ describe("startGeocodeScheduler", () => {
     const source = requireSamanthaDress(config);
 
     await vi.waitUntil(
-      () => cache.getCachedCalendarEvents(source).length === 1,
+      () => cache.getCachedCalendarEventSnapshot(source).events.length === 1,
       { timeout: 10_000 },
     );
 

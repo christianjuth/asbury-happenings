@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from "vitest";
 import dayjs from "../src/calendar/calendar.dates.js";
 import type { CalendarEvent } from "../src/calendar/calendar.types.js";
 import { isEventCancelled } from "../src/calendar/calendar.utils.js";
-import { msUntilNextReconciliation } from "../src/index-now/index-now.scheduler.js";
 import {
   buildEventFingerprint,
   createIndexNowService,
@@ -431,68 +430,6 @@ describe("submitCalendarDiff", () => {
   });
 });
 
-describe("submitDailyReconciliation", () => {
-  it("submits the index page, event pages and qualifying regional pages", async () => {
-    const { service, fetchImpl } = createHarness();
-
-    await service.submitDailyReconciliation([
-      buildEvent(),
-      buildSecondEvent(),
-      buildSecondEvent({
-        uid: "third@samanthadress.com",
-        location: LONG_BRANCH_ADDRESS,
-        address: LONG_BRANCH_ADDRESS,
-      }),
-    ]);
-
-    expect(submittedUrls(fetchImpl).sort()).toEqual(
-      [
-        EVENTS_URL,
-        FREEHOLD_URL,
-        FIRST_EVENT_URL,
-        SECOND_EVENT_URL,
-        LONG_BRANCH_URL,
-        `${LONG_BRANCH_URL}/2026-09-18/third%40samanthadress.com`,
-      ].sort(),
-    );
-  });
-
-  it("includes future cancelled events and excludes past ones", async () => {
-    const { service, fetchImpl } = createHarness();
-
-    await service.submitDailyReconciliation([
-      buildEvent({ status: "cancelled" }),
-      buildSecondEvent({
-        status: "cancelled",
-        start: dayjs("2026-08-20T22:00:00Z"),
-        end: dayjs("2026-08-21T00:00:00Z"),
-      }),
-    ]);
-
-    expect(submittedUrls(fetchImpl).sort()).toEqual(
-      [EVENTS_URL, FREEHOLD_URL, FIRST_EVENT_URL].sort(),
-    );
-  });
-
-  it("refreshes stored fingerprints so the next diff submits nothing", async () => {
-    const { service, fetchImpl } = createHarness();
-
-    await service.submitDailyReconciliation([buildEvent()]);
-    await service.submitCalendarDiff([buildEvent()]);
-
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
-  });
-
-  it("leaves stored fingerprints untouched when the batch is rejected", async () => {
-    const { service, fetchImpl } = createHarness([respondWith(422)]);
-
-    await service.submitDailyReconciliation([buildEvent()]);
-    await service.submitCalendarDiff([buildEvent()]);
-
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
-  });
-});
-
 describe("IndexNow response handling", () => {
   it.each([200, 202])("treats %i as accepted", async (status) => {
     const { service, fetchImpl, logger } = createHarness([respondWith(status)]);
@@ -525,41 +462,6 @@ describe("IndexNow response handling", () => {
       );
     },
   );
-
-  // The CLI runs the same reconciliation the daily job does, so the logs have
-  // to say which one submitted a batch.
-  it("labels submissions as scheduled unless told otherwise", async () => {
-    const { service, logger } = createHarness();
-
-    await service.submitCalendarDiff([buildEvent()]);
-
-    expect(logger.info).toHaveBeenCalledWith(
-      expect.objectContaining({ trigger: "scheduled", reason: "incremental" }),
-      "IndexNow submission accepted",
-    );
-  });
-
-  it("labels manual submissions as manual", async () => {
-    const { logger } = createHarness();
-    const fetchImpl = vi.fn(async () => new Response("", { status: 200 }));
-    const service = createIndexNowService({
-      key: KEY,
-      logger,
-      trigger: "manual",
-      fetchImpl: fetchImpl as unknown as typeof fetch,
-      now: () => NOW,
-    });
-
-    await service.submitDailyReconciliation([buildEvent()]);
-
-    expect(logger.info).toHaveBeenCalledWith(
-      expect.objectContaining({
-        trigger: "manual",
-        reason: "reconciliation",
-      }),
-      "IndexNow submission accepted",
-    );
-  });
 
   it("logs an unexpected body on an accepted response", async () => {
     const { service, logger } = createHarness([
@@ -629,34 +531,6 @@ describe("IndexNow response handling", () => {
   });
 });
 
-describe("msUntilNextReconciliation", () => {
-  it("waits for today's anchor hour when it is still ahead", () => {
-    expect(msUntilNextReconciliation(dayjs("2026-09-01T05:30:00Z"))).toBe(
-      90 * 60_000,
-    );
-  });
-
-  it("rolls over to the next day once the anchor hour has passed", () => {
-    expect(msUntilNextReconciliation(dayjs("2026-09-01T07:00:00Z"))).toBe(
-      24 * 60 * 60_000,
-    );
-    expect(msUntilNextReconciliation(dayjs("2026-09-01T23:00:00Z"))).toBe(
-      8 * 60 * 60_000,
-    );
-  });
-
-  it("never returns a delay outside one day", () => {
-    for (let hour = 0; hour < 24; hour += 1) {
-      const delay = msUntilNextReconciliation(
-        dayjs(`2026-09-01T${String(hour).padStart(2, "0")}:17:00Z`),
-      );
-
-      expect(delay).toBeGreaterThan(0);
-      expect(delay).toBeLessThanOrEqual(24 * 60 * 60_000);
-    }
-  });
-});
-
 describe("disabled IndexNow service", () => {
   it("skips every submission when no key is configured", async () => {
     const { service, fetchImpl, logger } = createHarness([], {
@@ -667,7 +541,6 @@ describe("disabled IndexNow service", () => {
 
     service.seed([buildEvent()]);
     await service.submitCalendarDiff([buildEvent()]);
-    await service.submitDailyReconciliation([buildEvent()]);
 
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(logger.info).not.toHaveBeenCalled();

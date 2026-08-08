@@ -108,13 +108,6 @@ export function getCachedCalendarDebugText(
   );
 }
 
-export function getCachedCalendarEvents(
-  config: CalendarSourceConfig,
-  now = dayjs(),
-): CalendarEvent[] {
-  return getCalendarSnapshot(config, now).events;
-}
-
 // The cached events plus when upstream was last read successfully. Always
 // answerable, unlike the ICS feed: a cold cache is an empty event list rather
 // than a 503, and an upstream outage keeps serving the last known good events

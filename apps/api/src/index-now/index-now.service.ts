@@ -46,19 +46,14 @@ interface SubmittedEventState {
 export interface IndexNowService {
   readonly enabled: boolean;
   seed(events: readonly CalendarEvent[]): void;
+  // Callers must seed the initial snapshot first; otherwise every known event
+  // is correctly treated as new because there is no prior state to compare.
   submitCalendarDiff(events: readonly CalendarEvent[]): Promise<void>;
-  submitDailyReconciliation(events: readonly CalendarEvent[]): Promise<void>;
 }
-
-// Who invoked the submission. `reason` alone cannot answer this: the CLI runs
-// the same reconciliation the daily job does, so without this the two are
-// indistinguishable in the logs.
-type IndexNowTrigger = "manual" | "scheduled";
 
 interface IndexNowServiceOptions {
   key: string | undefined;
   logger: IndexNowLogger;
-  trigger?: IndexNowTrigger;
   fetchImpl?: typeof fetch;
   now?: () => Dayjs;
   timeoutMs?: number;
@@ -74,7 +69,7 @@ interface IndexNowEvent {
 }
 
 interface SubmissionContext {
-  reason: "incremental" | "reconciliation";
+  reason: "incremental";
   changedEvents?: number;
   unresolvedAddressEvents: number;
 }
@@ -120,7 +115,6 @@ class SamanthaDressIndexNowService implements IndexNowService {
 
   private readonly key: string | undefined;
   private readonly logger: IndexNowLogger;
-  private readonly trigger: IndexNowTrigger;
   private readonly fetchImpl: typeof fetch;
   private readonly now: () => Dayjs;
   private readonly timeoutMs: number;
@@ -130,15 +124,13 @@ class SamanthaDressIndexNowService implements IndexNowService {
     string,
     SubmittedEventState
   >();
-  // Serializes submissions so an incremental diff and the daily reconciliation
-  // never race on the fingerprint map. Calendar fetching stays unblocked.
+  // Serializes submissions so refreshes never race on the fingerprint map.
   private queue: Promise<void> = Promise.resolve();
 
   constructor(options: IndexNowServiceOptions) {
     this.key = normalizeText(options.key) || undefined;
     this.enabled = Boolean(this.key);
     this.logger = options.logger;
-    this.trigger = options.trigger ?? "scheduled";
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch;
     this.now = options.now ?? (() => dayjs());
     this.timeoutMs = options.timeoutMs ?? INDEXNOW_TIMEOUT_MS;
@@ -198,28 +190,6 @@ class SamanthaDressIndexNowService implements IndexNowService {
     });
   }
 
-  async submitDailyReconciliation(
-    events: readonly CalendarEvent[],
-  ): Promise<void> {
-    if (!this.enabled) {
-      return;
-    }
-
-    await this.runExclusive(async () => {
-      const { events: indexNowEvents, unresolvedAddressEvents } =
-        this.normalizeEvents(events);
-      const urls = this.buildReconciliationUrls(indexNowEvents);
-      const accepted = await this.submitUrls(urls, {
-        reason: "reconciliation",
-        unresolvedAddressEvents,
-      });
-
-      if (accepted) {
-        this.replaceSubmittedState(indexNowEvents);
-      }
-    });
-  }
-
   private buildChangedUrls(changedEvents: IndexNowEvent[]): string[] {
     const urls = new Set<string>([SAMANTHA_DRESS_EVENTS_URL]);
 
@@ -238,20 +208,6 @@ class SamanthaDressIndexNowService implements IndexNowService {
 
       if (previousRegionalUrl) {
         urls.add(previousRegionalUrl);
-      }
-    }
-
-    return [...urls];
-  }
-
-  private buildReconciliationUrls(indexNowEvents: IndexNowEvent[]): string[] {
-    const urls = new Set<string>([SAMANTHA_DRESS_EVENTS_URL]);
-
-    for (const event of indexNowEvents) {
-      urls.add(event.eventUrl);
-
-      if (event.regionalUrl) {
-        urls.add(event.regionalUrl);
       }
     }
 
@@ -379,7 +335,6 @@ class SamanthaDressIndexNowService implements IndexNowService {
     }
 
     const logContext = {
-      trigger: this.trigger,
       ...context,
       urlCount: urls.length,
       attempt,

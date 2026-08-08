@@ -104,7 +104,6 @@ pnpm build      # compile TypeScript to dist
 pnpm start      # run compiled app
 pnpm test       # run Vitest
 pnpm lint       # typecheck
-pnpm indexnow   # manual IndexNow full reconciliation
 ```
 
 ## Calendar Endpoint
@@ -601,9 +600,9 @@ in-memory record of what has already been submitted. Nothing else in the app
 talks to IndexNow; `src/index-now/index-now.scheduler.ts` is the only wiring, and
 it hooks into the calendar cache rather than into routes or rendering.
 
-There is no database. Submitted state lives in a `Map` keyed by event UID, and
-the daily reconciliation job is the recovery path after a restart, a lost map, a
-transient IndexNow failure, or a defect in the diff logic.
+There is no database. Submitted state lives in a `Map` keyed by event UID. The
+first successful refresh after a restart only seeds that map, so a restart does
+not submit every event currently in the calendar.
 
 ### Generating and configuring the key
 
@@ -640,9 +639,8 @@ error is caught and logged, and the calendar scheduler is not blocked on them.
 ### Incremental submissions
 
 The Samantha Dress calendar is refreshed on the shared calendar cache cadence
-(`CACHE_REFRESH_MS` in `src/calendar/calendar.cache.ts`, currently 30 minutes —
-this is the app's only upstream crawl cadence, so IndexNow follows it instead of
-running its own 15-minute timer). After each cycle in which every page warmed
+(`CACHE_REFRESH_MS` in `src/calendar/calendar.cache.ts`, currently 30 minutes).
+IndexNow has no independent timer. After each cycle in which every page warmed
 successfully:
 
 1. The cache notifies its refresh listeners with the current snapshot.
@@ -680,62 +678,6 @@ Fingerprints are a SHA-256 over normalized `uid`, `summary`, `startDate`,
 `null`, dates serialize as UTC ISO strings, and the field order is fixed, so
 unrelated feed churn does not trigger submissions.
 
-### Daily reconciliation
-
-A daily job resubmits the full canonical URL set: `/events`, every upcoming event
-detail URL (including future cancelled events, which stay published), and every
-regional page those events resolve to. "Upcoming" is judged against the event day
-in `America/New_York`, not the server's zone, so an evening event drops out after
-its own local day rather than lingering nearly an extra day on a UTC host. The batch is deduplicated and sent as one
-request; afterwards the fingerprint map is rebuilt from the current calendar. At
-fewer than 20 upcoming events, resubmitting everything once a day is cheap.
-
-It runs at `07:00` UTC (roughly 3am America/New_York), anchored to the clock
-rather than counting 24 hours from boot, so a deploy does not push the next run a
-full day out. It never runs at startup, which keeps a restart loop from
-submitting in bursts.
-
-If the anchor hour arrives before the calendar cache has warmed — a restart a few
-minutes before `07:00` — the run is deferred and retried every 15 minutes until a
-successful refresh. Reconciling against a cold cache would submit a lone
-`/events` and then overwrite the fingerprint map with an empty snapshot, leaving
-the real event URLs unsubmitted for a day.
-
-This job is the recovery path for process restarts, lost in-memory state,
-transient IndexNow failures, missed incremental comparisons, downtime, and future
-defects in the diff logic.
-
-### Running a submission manually
-
-Locally, from a checkout:
-
-```bash
-INDEXNOW_KEY=<key> pnpm indexnow
-```
-
-On the deployed machine, run the compiled entry point directly:
-
-```bash
-fly ssh console -C "node /app/dist/index-now/index-now.cli.js"
-```
-
-`pnpm indexnow` does not work there: it runs through `tsx`, a devDependency the
-production image prunes, and the image ships `dist` without `src`. The Fly
-machine already has `INDEXNOW_KEY` in its environment.
-
-Either way this runs a full reconciliation in a separate process: it fetches and
-parses the calendar directly (it does not read the server's warm cache), submits
-one batch, and prints JSON log lines. It exits non-zero when `INDEXNOW_KEY` is
-missing. The long-running server keeps its own in-memory state, so a manual run
-does not affect the server's next incremental diff.
-
-A manual run is the fastest way to check a new key: `200` means IndexNow fetched
-and matched the key file, `403` means it fetched something that did not match,
-and `202` means validation is still pending and the run proves nothing on its
-own. When a submission returns `202`, verify the key file directly —
-`curl -i https://samanthadress.com/<key>.txt` must return the key as plain text
-and nothing else.
-
 ### URL rules
 
 Only canonical `https://samanthadress.com` pages are submitted:
@@ -760,21 +702,17 @@ needs a route for them before this submits any.
 
 ### Expected log messages
 
-| Message                                                                   | Level | Meaning                                                                                                            |
-| ------------------------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------ |
-| `IndexNow disabled because INDEXNOW_KEY is not configured`                | info  | Startup, key absent. Logged once.                                                                                  |
-| `IndexNow enabled for Samantha Dress calendar refreshes`                  | info  | Startup, key present.                                                                                              |
-| `IndexNow seeded event fingerprints without submitting`                   | info  | First successful calendar refresh after startup.                                                                   |
-| `IndexNow submission accepted`                                            | info  | `200` or `202`. Includes `status`, `urlCount`, `urls`, `reason`.                                                   |
-| `IndexNow submission accepted with an unexpected response body`           | warn  | Accepted, but the response carried a body worth reading.                                                           |
-| `IndexNow submission rejected`                                            | error | `400` malformed request, `403` key not found, `422` key/URL mismatch, `429` throttled. Includes the response body. |
-| `IndexNow submission failed`                                              | error | Network error or timeout. Retried once, then left for the next cycle.                                              |
-| `IndexNow daily reconciliation deferred until the calendar cache is warm` | warn  | The anchor hour arrived before the first successful calendar refresh. Retries in 15 minutes.                       |
+| Message                                                         | Level | Meaning                                                                                                            |
+| --------------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------ |
+| `IndexNow disabled because INDEXNOW_KEY is not configured`      | info  | Startup, key absent. Logged once.                                                                                  |
+| `IndexNow enabled for Samantha Dress calendar refreshes`        | info  | Startup, key present.                                                                                              |
+| `IndexNow seeded event fingerprints without submitting`         | info  | First successful calendar refresh after startup.                                                                   |
+| `IndexNow submission accepted`                                  | info  | `200` or `202`. Includes `status`, `urlCount`, `urls`, `reason`.                                                   |
+| `IndexNow submission accepted with an unexpected response body` | warn  | Accepted, but the response carried a body worth reading.                                                           |
+| `IndexNow submission rejected`                                  | error | `400` malformed request, `403` key not found, `422` key/URL mismatch, `429` throttled. Includes the response body. |
+| `IndexNow submission failed`                                    | error | Network error or timeout. Retried once, then left for the next cycle.                                              |
 
-Every submission line carries both `trigger` (`manual` from the CLI, `scheduled`
-from the server) and `reason` (`incremental` or `reconciliation`). `reason` alone
-does not identify the source, because a manual run performs the same
-reconciliation the daily job does. Submission context also includes
+Every submission line carries `reason: "incremental"` and
 `unresolvedAddressEvents`, the number of visible calendar events skipped because
 their location could not produce a valid city/state URL.
 
