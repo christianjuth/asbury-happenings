@@ -134,6 +134,7 @@ describe("Samantha Dress debug snapshot", () => {
       city: "Ship Bottom",
       state: "NJ",
       coordinatesStatus: "pending",
+      coordinatesManual: false,
     });
   });
 

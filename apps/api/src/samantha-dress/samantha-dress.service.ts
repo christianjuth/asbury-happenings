@@ -86,6 +86,12 @@ interface SamanthaDressLocation {
   // city centroid or any other approximation: absent beats wrong.
   coordinates: Coordinates | null;
   coordinatesStatus: CoordinatesStatus;
+  // True when `coordinates` was set by hand in the override table rather than
+  // geocoded. Always false when there are no coordinates to have set. The two
+  // pins render identically; this is what tells an operator which addresses we
+  // are maintaining ourselves, and which ones stop being maintained the day the
+  // row is deleted.
+  coordinatesManual: boolean;
 }
 
 // Note the absence of the upstream URL property. The ICS feed still publishes it;
@@ -265,7 +271,9 @@ function buildSnapshotLocation(
   store: CoordinateStore,
   past: boolean,
 ): SamanthaDressLocation {
-  const { coordinates, status } = lookupCoordinates(store, raw, { past });
+  const { coordinates, status, manual } = lookupCoordinates(store, raw, {
+    past,
+  });
 
   return {
     raw: raw ?? null,
@@ -274,6 +282,7 @@ function buildSnapshotLocation(
     state,
     coordinates,
     coordinatesStatus: status,
+    coordinatesManual: manual,
   };
 }
 

@@ -61,6 +61,10 @@ interface SamanthaDressDebugEvent {
     city: string | null;
     state: string | null;
     coordinatesStatus: string;
+    // `resolved` covers both a geocoded pin and one set by hand, so without this
+    // there is no way to tell from here which events the override table is
+    // answering for.
+    coordinatesManual: boolean;
   };
   titleSignals: SamanthaDressTitleSignals;
 }
@@ -111,6 +115,7 @@ export function buildSamanthaDressDebugSnapshot(
         city: published.location.city,
         state: published.location.state,
         coordinatesStatus: published.location.coordinatesStatus,
+        coordinatesManual: published.location.coordinatesManual,
       },
       titleSignals: {
         timeUnknown: timeUnknownFromTitle(source.title),

@@ -261,6 +261,7 @@ opposite case: it has subscribers holding the URL, so it does not change.
         "state": "NJ",
         "coordinates": { "lat": 39.6423, "lon": -74.1815 },
         "coordinatesStatus": "resolved",
+        "coordinatesManual": false,
       },
     },
   ],
@@ -287,11 +288,18 @@ Field notes:
   normalization the geocoder needs never reaches this field.
 - **`coordinates` is nullable and null is expected.** Never a city centroid or any
   other approximation; absent beats wrong.
-- **`coordinatesStatus`** is `resolved`, `pending` (queued, not yet attempted),
-  `unresolvable` (attempted, no acceptable result), `rejected` (got a result that
-  failed validation) or `skipped_past` (past event, deliberately not geocoded).
-  All five render the same on the site — no map — but they mean different things
-  operationally.
+- **`coordinatesStatus`** is `resolved` (geocoded, or pinned by hand — see
+  [Manual coordinate overrides](#manual-coordinate-overrides)), `pending` (queued,
+  not yet attempted), `unresolvable` (attempted, no acceptable result), `rejected`
+  (got a result that failed validation) or `skipped_past` (past event, deliberately
+  not geocoded). All five render the same on the site — no map — but they mean
+  different things operationally.
+- **`coordinatesManual`** is true when `coordinates` came from the override table
+  rather than the geocoder, and false whenever there are no coordinates at all. It
+  is provenance, not quality: a hand-set pin is `resolved` like any other and the
+  site renders it identically. It exists because `resolved` cannot distinguish an
+  address we maintain ourselves — and stop maintaining the day the row is deleted
+  — from one the geocoder answers for.
 - **`timeZoneSource` is load-bearing, not metadata.** `tzid` means the feed stated
   the zone and it is certain. `state` means we inferred it from the event's state
   and the UI has to label it as a guess. `default` means the source's configured
@@ -417,6 +425,7 @@ a second transport — the shape is free to change.
         "city": "Ship Bottom",
         "state": "NJ",
         "coordinatesStatus": "pending",
+        "coordinatesManual": false,
       },
       // Where the published `timeUnknown` comes from, and — when the calendar
       // carried no STATUS — the published `status` too. The one place a signal
@@ -459,8 +468,10 @@ Each run:
    `src/calendar/address.utils.ts`, which strips the leading venue name up to the
    first segment beginning with a US house number).
 2. Drops addresses whose events have all ended. An in-progress show still counts.
-3. Skips every address already in the coordinate store. A `resolved` record is
-   never re-queried for the life of the process — addresses do not move.
+3. Skips every address already in the coordinate store, and every address pinned
+   by hand (see [Manual coordinate overrides](#manual-coordinate-overrides)). A
+   `resolved` record is never re-queried for the life of the process — addresses
+   do not move.
 4. Orders the remainder by soonest upcoming event, so an interrupted cold backfill
    leaves the next show and the ones behind it with pins rather than a random
    subset.
@@ -544,14 +555,60 @@ The only broadening is the documented normalized-then-raw retry. Nothing widens 
 query further to force a hit: a null is a correct answer, and each broadening step
 trades precision for a result.
 
-There is no admin UI and no override file, by design — an unresolvable venue simply
-has no coordinates and the site hides its map. But nothing is silent: every
+There is no admin UI, and an unresolvable venue with no row in the override table
+simply has no coordinates and the site hides its map. But nothing is silent: every
 rejection logs a `Coordinates unavailable for a venue` warning, and
 `GET /debug/geocode` lists every address in a non-`resolved` state with its reason.
 
 ```bash
 curl http://localhost:3000/debug/geocode
 ```
+
+### Manual coordinate overrides
+
+`COORDINATE_OVERRIDES` in `src/geocode/geocode.overrides.ts` maps an address to
+coordinates set by hand. It is the escape hatch for a problematic address: one the
+geocoder cannot find, or — the case validation cannot catch — one it answers
+confidently and wrongly.
+
+```ts
+{
+  address: "6805 Long Beach Blvd, Long Beach, NJ 08008, USA",
+  coordinates: { lat: 39.61583, lon: -74.19869 },
+  reason: "…",
+}
+```
+
+Coordinates are decimal degrees, **south and west negative** — 39.61583° N,
+74.19869° W is `{ lat: 39.61583, lon: -74.19869 }`. A `reason` is required: a row
+outlives the problem that justified it without saying so, since OSM fixes its own
+data eventually and nothing here notices when it does.
+
+- **Rows are read before the store and win over it.** An address is listed
+  precisely because the geocoder's answer is wrong, and a wrong answer that passed
+  validation is stored `resolved` like any other — so consulting the store first
+  would hand back the pin the row exists to replace. Adding a row takes effect for
+  an address already resolved in a running process.
+- **The job never queues an overridden address**, so a row costs no request, and
+  nothing is written to the store. The table is configuration; a cached copy of it
+  would be one more thing that can disagree with it.
+- **Rows apply to past events too**, which are never geocoded.
+- **Every event a row answers for publishes `location.coordinatesManual: true`**,
+  in both `/samantha-dress/events` and `/debug/samantha-dress`. That is the only
+  thing distinguishing a hand-set pin from a geocoded one downstream — both are
+  `resolved` and both render the same.
+- **Matching is on the same normalized address the store is keyed by** — the venue
+  name is stripped, so a rename does not drop the pin — plus case, inner spacing,
+  and a trailing `USA`/`United States` segment, which Google Calendar appends to
+  some addresses and not others. Nothing else is folded: a row for one town on a
+  boulevard must not answer for the next town along it, so a near-miss address
+  falls through to the geocoder rather than borrowing a hand-set pin.
+- **Every row is listed by `GET /debug/geocode`** under `overrides`, keyed as it is
+  actually matched. A row that matches no event does nothing and says so there,
+  which is the only place a typo'd address is visible at runtime.
+
+`test/geocode.overrides.test.ts` checks each row is in range and reachable by its
+own address, which also catches two rows normalizing onto one key.
 
 ### The coordinate store is deliberately in-memory
 

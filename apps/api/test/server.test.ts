@@ -792,6 +792,26 @@ describe("server", () => {
     await server.close();
   });
 
+  // The manual pins never reach the job, so this route is the only place they are
+  // visible at runtime — including a row that matches no event and does nothing.
+  it("reports hand-set coordinate overrides", async () => {
+    const server = await buildServer();
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/debug/geocode",
+    });
+
+    expect(response.json().overrides).toContainEqual(
+      expect.objectContaining({
+        address: "6805 long beach blvd, long beach, nj 08008",
+        coordinates: { lat: 39.61583, lon: -74.19869 },
+      }),
+    );
+
+    await server.close();
+  });
+
   it("lists configured Nixle RSS feeds", async () => {
     const server = await buildServer();
 

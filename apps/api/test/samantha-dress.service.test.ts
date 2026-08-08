@@ -101,6 +101,7 @@ describe("Samantha Dress snapshot", () => {
             state: "NJ",
             coordinates: { lat: 39.6423, lon: -74.1815 },
             coordinatesStatus: "resolved",
+            coordinatesManual: false,
           },
         },
       ],
@@ -666,6 +667,61 @@ describe("Samantha Dress snapshot", () => {
         state: null,
         coordinates: null,
         coordinatesStatus: "unresolvable",
+        coordinatesManual: false,
+      });
+    });
+  });
+
+  describe("coordinatesManual", () => {
+    // A row in the override table is the only thing that sets this. Both pins are
+    // `resolved` and render the same, so the flag is the only way to tell an
+    // address we maintain by hand from one the geocoder answers for.
+    it("marks an address pinned by the override table", () => {
+      const snapshot = buildSnapshot([
+        event(
+          "overridden",
+          "2026-08-05T23:00:00Z",
+          "6805 Long Beach Blvd, Long Beach, NJ 08008, USA",
+        ),
+      ]);
+
+      expect(snapshot.events[0]?.location).toMatchObject({
+        coordinates: { lat: 39.61583, lon: -74.19869 },
+        coordinatesStatus: "resolved",
+        coordinatesManual: true,
+      });
+    });
+
+    it("leaves a geocoded pin unmarked", () => {
+      const store = createStore();
+
+      store.set(
+        "100 Ocean Ave, Ship Bottom, NJ",
+        buildCoordinateRecord({
+          status: "resolved",
+          coordinates: { lat: 39.6423, lon: -74.1815 },
+          attemptedAt: "2026-08-02T21:14:58.000Z",
+        }),
+      );
+
+      const snapshot = buildSnapshot(
+        [event("geocoded", "2026-08-05T23:00:00Z")],
+        store,
+      );
+
+      expect(snapshot.events[0]?.location).toMatchObject({
+        coordinatesStatus: "resolved",
+        coordinatesManual: false,
+      });
+    });
+
+    it("stays false when there are no coordinates to have set", () => {
+      const snapshot = buildSnapshot([event("soon", "2026-08-05T23:00:00Z")]);
+
+      expect(snapshot.events[0]?.location).toMatchObject({
+        coordinates: null,
+        coordinatesStatus: "pending",
+        coordinatesManual: false,
       });
     });
   });

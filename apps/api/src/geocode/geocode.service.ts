@@ -7,6 +7,7 @@ import {
 import dayjs, { type Dayjs } from "../calendar/calendar.dates.js";
 import { eventEndInTimeZone } from "../calendar/calendar.utils.js";
 import type { CalendarEvent } from "../calendar/calendar.types.js";
+import { findCoordinateOverride } from "./geocode.overrides.js";
 import {
   buildCoordinateRecord,
   getCoordinateStore,
@@ -223,6 +224,14 @@ class NominatimDecorationJob implements GeocodeDecorationJob {
   }
 
   private needsGeocode(target: GeocodeTarget): boolean {
+    // Pinned by hand, so there is nothing to ask and no answer that could change
+    // anything: the read path takes the override over whatever the store holds.
+    // Nothing is written to the store either — the table is configuration, and a
+    // cached copy of it would only be another thing that can disagree with it.
+    if (findCoordinateOverride(target.key)) {
+      return false;
+    }
+
     const record = this.store.get(target.key);
 
     if (!record) {
