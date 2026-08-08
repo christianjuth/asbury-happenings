@@ -5,12 +5,7 @@ import dayjs from "../src/calendar/calendar.dates.js";
 import type { CalendarEvent } from "../src/calendar/calendar.types.js";
 
 const KEY = "0123456789abcdef0123456789abcdef";
-const SAMANTHA_DRESS_CONFIG = { id: "samantha-dress" };
-
-type RefreshListener = (
-  config: { id: string },
-  events: CalendarEvent[],
-) => void;
+type RefreshListener = (events: CalendarEvent[]) => void;
 
 function createLogger() {
   return {
@@ -33,7 +28,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllEnvs();
-  vi.doUnmock("../src/calendar/calendar.cache.js");
+  vi.doUnmock("../src/samantha-dress/samantha-dress.cache.js");
   vi.restoreAllMocks();
 });
 
@@ -62,8 +57,8 @@ describe("startIndexNowScheduler", () => {
     vi.stubEnv("INDEXNOW_KEY", KEY);
 
     let refreshListener: RefreshListener | undefined;
-    vi.doMock("../src/calendar/calendar.cache.js", () => ({
-      onCalendarRefresh: (listener: RefreshListener) => {
+    vi.doMock("../src/samantha-dress/samantha-dress.cache.js", () => ({
+      onSamanthaDressRefresh: (listener: RefreshListener) => {
         refreshListener = listener;
         return () => {};
       },
@@ -85,14 +80,12 @@ describe("startIndexNowScheduler", () => {
     };
 
     expect(refreshListener).toBeDefined();
-    refreshListener?.(SAMANTHA_DRESS_CONFIG, [event]);
-    refreshListener?.(SAMANTHA_DRESS_CONFIG, [event]);
+    refreshListener?.([event]);
+    refreshListener?.([event]);
 
     expect(fetchMock).not.toHaveBeenCalled();
 
-    refreshListener?.(SAMANTHA_DRESS_CONFIG, [
-      { ...event, title: "Fall Trunk Show (New Time)" },
-    ]);
+    refreshListener?.([{ ...event, title: "Fall Trunk Show (New Time)" }]);
 
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
 

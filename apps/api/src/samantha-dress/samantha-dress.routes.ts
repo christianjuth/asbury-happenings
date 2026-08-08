@@ -4,8 +4,8 @@ import {
   applyCalendarCorsHeaders,
   applyCalendarPreflightHeaders,
 } from "../calendar/calendar.cors.js";
-import { SAMANTHA_DRESS_SOURCE } from "../calendar/config/samantha-dress.js";
 import { getSamanthaDressDebugSnapshot } from "./samantha-dress.debug.js";
+import { SAMANTHA_DRESS_SOURCE } from "./samantha-dress.config.js";
 import { getSamanthaDressSnapshot } from "./samantha-dress.service.js";
 
 const EVENTS_PATH = "/samantha-dress/events";

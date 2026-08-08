@@ -1,12 +1,13 @@
 import type { FastifyBaseLogger } from "fastify";
 
-import { onCalendarRefresh } from "../calendar/calendar.cache.js";
-import { SAMANTHA_DRESS_SOURCE } from "../calendar/config/samantha-dress.js";
 import { ENV } from "../env.js";
+import { onSamanthaDressRefresh } from "../samantha-dress/samantha-dress.cache.js";
+import { SAMANTHA_DRESS_SOURCE } from "../samantha-dress/samantha-dress.config.js";
 import { createIndexNowService } from "./index-now.service.js";
 
-// Wires the IndexNow service to the calendar cache. The first successful warm
-// only seeds fingerprints; every later warm submits only its changed events.
+// Wires the IndexNow service to the dedicated Samantha Dress source. The first
+// successful refresh only seeds fingerprints; every later refresh submits only
+// its changed events.
 export function startIndexNowScheduler(logger: FastifyBaseLogger): () => void {
   const service = createIndexNowService({
     key: ENV.INDEXNOW_KEY,
@@ -23,11 +24,7 @@ export function startIndexNowScheduler(logger: FastifyBaseLogger): () => void {
   }
 
   let seeded = false;
-  const stopListening = onCalendarRefresh((config, events) => {
-    if (config.id !== SAMANTHA_DRESS_SOURCE.id) {
-      return;
-    }
-
+  const stopListening = onSamanthaDressRefresh((events) => {
     if (!seeded) {
       seeded = true;
       service.seed(events);

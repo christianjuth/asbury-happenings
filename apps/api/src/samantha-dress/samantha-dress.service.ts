@@ -4,7 +4,6 @@ import {
   cityStateFromLocation,
   venueFromLocation,
 } from "../calendar/address.utils.js";
-import { getCachedCalendarEventSnapshot } from "../calendar/calendar.cache.js";
 // Rendering an ISO string with a zone offset needs dayjs's timezone plugin on the
 // prototype. This module imports the configured instance rather than raw dayjs so
 // it does not depend on some other importer having installed the plugin first.
@@ -18,7 +17,6 @@ import type {
   CalendarEventStatus,
   CalendarSourceConfig,
 } from "../calendar/calendar.types.js";
-import { SAMANTHA_DRESS_SOURCE } from "../calendar/config/samantha-dress.js";
 import { timeZoneForState } from "../calendar/state-time-zones.js";
 import { lookupCoordinates } from "../geocode/geocode.lookup.js";
 import {
@@ -33,6 +31,8 @@ import {
   cancelledFromTitle,
   timeUnknownFromTitle,
 } from "./samantha-dress.title.js";
+import { getSamanthaDressEventSnapshot } from "./samantha-dress.cache.js";
+import { SAMANTHA_DRESS_SOURCE } from "./samantha-dress.config.js";
 
 // Whether the zone is certain or inferred. An explicit TZID is certain; a zone
 // derived from the event's state is a guess the UI has to label as one, and the
@@ -134,14 +134,10 @@ export function getSamanthaDressSnapshot(now = dayjs()): SamanthaDressSnapshot {
 // Shared by the published document and its debug view so both describe the same
 // read of the cache.
 export function readSnapshotOptions(now: Dayjs): SamanthaDressSnapshotOptions {
-  // No `filter` querystring, unlike the ICS route: the site reads the whole
-  // document and filters per surface. The source's own `defaultFilters` still
-  // apply, so the two feeds agree on which events exist.
-  const { events, sourceFetchedAt } = getCachedCalendarEventSnapshot(
-    SAMANTHA_DRESS_SOURCE,
-    undefined,
-    now,
-  );
+  // Unlike the generic calendar read path, v2 publishes the parsed VEVENTs
+  // directly: no query/default filters, transforms or calendar-level dedupe.
+  // The site filters per surface, and duplicate source entries stay visible.
+  const { events, sourceFetchedAt } = getSamanthaDressEventSnapshot();
 
   return {
     config: SAMANTHA_DRESS_SOURCE,

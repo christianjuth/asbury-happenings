@@ -19,6 +19,8 @@ async function importModules() {
     scheduler: await import("../src/geocode/geocode.scheduler.js"),
     cache: await import("../src/calendar/calendar.cache.js"),
     config: await import("../src/calendar/calendar.config.js"),
+    samanthaDressCache:
+      await import("../src/samantha-dress/samantha-dress.cache.js"),
     samanthaDress:
       await import("../src/samantha-dress/samantha-dress.service.js"),
   };
@@ -48,7 +50,8 @@ describe("startGeocodeScheduler", () => {
   // rate-limited provider cannot delay event freshness.
   it("caches events first and decorates them afterwards", async () => {
     const logger = createLogger();
-    const { scheduler, cache, config, samanthaDress } = await importModules();
+    const { scheduler, cache, config, samanthaDressCache, samanthaDress } =
+      await importModules();
     let releaseGeocode = (_response: Response) => {};
     const geocodeRequested = new Promise<void>((resolveRequested) => {
       vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
@@ -64,11 +67,7 @@ describe("startGeocodeScheduler", () => {
         });
       });
     });
-    const source = config.getCalendarSource("samantha-dress");
-
-    if (!source) {
-      throw new Error("Missing Samantha Dress calendar config");
-    }
+    const source = requireSamanthaDress(config);
 
     const stopGeocode = scheduler.startGeocodeScheduler(
       logger as unknown as FastifyBaseLogger,
@@ -76,8 +75,16 @@ describe("startGeocodeScheduler", () => {
     const stopCalendars = cache.startCalendarCacheScheduler(
       logger as unknown as FastifyBaseLogger,
     );
+    const stopSamanthaDressEvents =
+      samanthaDressCache.startSamanthaDressEventsScheduler(
+        logger as unknown as FastifyBaseLogger,
+      );
 
     await geocodeRequested;
+
+    await vi.waitUntil(
+      () => cache.getCachedCalendarEventSnapshot(source).events.length === 1,
+    );
 
     // The geocoder has not answered yet, and the event is already served.
     expect(cache.getCachedCalendarEventSnapshot(source).events).toHaveLength(1);
@@ -115,12 +122,13 @@ describe("startGeocodeScheduler", () => {
 
     await stopGeocode();
     await stopCalendars();
+    await stopSamanthaDressEvents();
     cache.clearCalendarPageCache();
   }, 20_000);
 
   it("stops geocoding after the returned stop function runs", async () => {
     const logger = createLogger();
-    const { scheduler, cache, config } = await importModules();
+    const { scheduler, samanthaDressCache } = await importModules();
     const fetchMock = mockCalendarFetch();
     const stopGeocode = scheduler.startGeocodeScheduler(
       logger as unknown as FastifyBaseLogger,
@@ -128,20 +136,21 @@ describe("startGeocodeScheduler", () => {
 
     await stopGeocode();
 
-    const stopCalendars = cache.startCalendarCacheScheduler(
-      logger as unknown as FastifyBaseLogger,
-    );
-    const source = requireSamanthaDress(config);
+    const stopSamanthaDressEvents =
+      samanthaDressCache.startSamanthaDressEventsScheduler(
+        logger as unknown as FastifyBaseLogger,
+      );
 
     await vi.waitUntil(
-      () => cache.getCachedCalendarEventSnapshot(source).events.length === 1,
+      () =>
+        samanthaDressCache.getSamanthaDressEventSnapshot().events.length === 1,
       { timeout: 10_000 },
     );
 
     expect(geocodeCalls(fetchMock)).toEqual([]);
 
-    await stopCalendars();
-    cache.clearCalendarPageCache();
+    await stopSamanthaDressEvents();
+    samanthaDressCache.clearSamanthaDressEventSnapshot();
   }, 20_000);
 });
 

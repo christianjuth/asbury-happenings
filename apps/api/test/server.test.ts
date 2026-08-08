@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clearCalendarPageCache,
+  getCachedCalendarEventSnapshot,
   getCachedCalendarDebugText,
   warmCalendarPage,
 } from "../src/calendar/calendar.cache.js";
@@ -9,6 +10,11 @@ import dayjs from "../src/calendar/calendar.dates.js";
 import { clearCalendarFetchState } from "../src/calendar/calendar.service.js";
 import { clearCoordinateStore } from "../src/geocode/geocode.store.js";
 import { clearNixleRssCache } from "../src/nixle/nixle.cache.js";
+import {
+  clearSamanthaDressEventSnapshot,
+  warmSamanthaDressEventsPage,
+} from "../src/samantha-dress/samantha-dress.cache.js";
+import { clearSamanthaDressFetchState } from "../src/samantha-dress/samantha-dress.fetch.js";
 import { buildServer } from "../src/server.js";
 
 afterEach(() => {
@@ -16,6 +22,8 @@ afterEach(() => {
   clearCalendarFetchState();
   clearCoordinateStore();
   clearNixleRssCache();
+  clearSamanthaDressEventSnapshot();
+  clearSamanthaDressFetchState();
   vi.restoreAllMocks();
   vi.useRealTimers();
 });
@@ -69,13 +77,7 @@ describe("server", () => {
         ].join("\r\n"),
       ),
     );
-    const config = getCalendarSource("samantha-dress");
-
-    if (!config) {
-      throw new Error("Missing Samantha Dress calendar config");
-    }
-
-    await warmCalendarPage(config, 0, dayjs("2026-07-03T00:00:00Z"));
+    await warmSamanthaDressEventsPage();
 
     const warmResponse = await server.inject({
       method: "GET",
@@ -575,7 +577,7 @@ describe("server", () => {
       throw new Error("Missing Samantha Dress calendar config");
     }
 
-    await warmCalendarPage(config, 0, dayjs("2026-08-03T00:00:00Z"));
+    await warmSamanthaDressEventsPage();
 
     const response = await server.inject({
       method: "GET",
@@ -644,7 +646,7 @@ describe("server", () => {
       throw new Error("Missing Samantha Dress calendar config");
     }
 
-    await warmCalendarPage(config, 0, dayjs("2026-08-03T00:00:00Z"));
+    await warmSamanthaDressEventsPage();
 
     const response = await server.inject({
       method: "GET",
@@ -722,6 +724,8 @@ describe("server", () => {
     }
 
     await warmCalendarPage(config, 0, dayjs("2026-08-03T00:00:00Z"));
+
+    expect(getCachedCalendarEventSnapshot(config).events).toHaveLength(1);
 
     const response = await server.inject({
       method: "GET",

@@ -20,10 +20,8 @@ import dayjs from "../src/calendar/calendar.dates.js";
 import { isEventCancelled } from "../src/calendar/calendar.utils.js";
 import { stripHtmlFromEventLocation } from "../src/calendar/calendar.post-processing.js";
 import { extractArt629Events } from "../src/calendar/config/art629.js";
-import {
-  SAMANTHA_DRESS_SOURCE,
-  samanthaDressEventUrl,
-} from "../src/calendar/config/samantha-dress.js";
+import { SAMANTHA_DRESS_SOURCE } from "../src/calendar/config/samantha-dress.js";
+import { samanthaDressEventUrl } from "../src/samantha-dress/samantha-dress.config.js";
 import { extractUncorkedWineInspiredEvents } from "../src/calendar/config/uncorked-wine-inspired.js";
 import { rewriteLocation } from "../src/calendar/location-transform.js";
 

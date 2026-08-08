@@ -17,7 +17,7 @@ import {
   SAMANTHA_DRESS_TIME_ZONE,
   samanthaDressEventUrl,
   samanthaDressRegionalUrl,
-} from "../calendar/config/samantha-dress.js";
+} from "../samantha-dress/samantha-dress.config.js";
 
 const INDEXNOW_ENDPOINT = "https://api.indexnow.org/indexnow";
 const INDEXNOW_MAX_URLS_PER_BATCH = 10_000;

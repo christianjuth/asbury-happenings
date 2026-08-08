@@ -26,8 +26,8 @@ IndexNow debug status:
 curl http://localhost:3000/debug/index-now
 ```
 
-The response reports whether IndexNow is enabled and whether the Samantha Dress
-calendar cache is warm.
+The response reports whether IndexNow is enabled and whether the dedicated
+Samantha Dress source is warm.
 
 List configured calendars:
 
@@ -105,6 +105,19 @@ pnpm start      # run compiled app
 pnpm test       # run Vitest
 pnpm lint       # typecheck
 ```
+
+## Feature Boundaries
+
+`feature-boundaries.config.js` is an opt-in dependency allowlist enforced by
+`import-x/no-restricted-paths`. Each edge points from importer to imported
+feature, for example `index-now -> samantha-dress`. Same-feature imports and
+imports from unenrolled infrastructure are allowed. Add a feature folder to the
+config before adding cross-feature imports; if both directions are intentional,
+declare both edges. The legacy `calendar` feature is deliberately unenrolled.
+Samantha Dress is being spun out in stages: `/calendar/samantha-dress.ics` is
+the v1 endpoint from the original calendar service, while `/samantha-dress/events`
+is v2. The eventual goal is to sunset only Samantha's v1 endpoint; the other
+`/calendar/...` feeds remain part of the calendar service.
 
 ## Calendar Endpoint
 
@@ -186,7 +199,7 @@ Addresses can be parsed with `address`; if no separate `location` is found, the 
 
 `{year}` and `{month}` use the current UTC year and zero-padded month. If a source URL contains `{month}`, the app caches this month plus the next two months. URLs without `{month}` have one cache page. Each `containerSelector` match becomes one event. `title` plus either `start` or `startDate` are required; containers missing them are skipped. If no end date/time is found, `defaultDurationMinutes` is used.
 
-The app keeps parsed calendar pages in memory. On startup it kicks off every page for every calendar immediately, then refreshes each calendar every 30 minutes. That 30-minute scheduler cadence is the only normal upstream crawl cadence for calendar sources. Sources with `{month}` warm this month plus the next two months; sources without `{month}` have one page. Each calendar has its own scheduler queue, so failures back off with jitter for that calendar without slowing other calendars. Calendar routes return only cached data and respond with `503 Calendar cache warming` until at least one page is warm.
+The app keeps parsed calendar pages in memory. On startup it kicks off every page for every calendar immediately, then refreshes each calendar every 30 minutes. That 30-minute scheduler cadence remains the normal upstream crawl cadence for the ICS calendar routes. The Samantha Dress JSON service has a separate snapshot and polls its source every 5 minutes without changing the legacy ICS snapshot. Sources with `{month}` warm this month plus the next two months; sources without `{month}` have one page. Each calendar has its own scheduler queue, so failures back off with jitter for that calendar without slowing other calendars. Calendar routes return only cached data and respond with `503 Calendar cache warming` until at least one page is warm.
 
 Fly is configured with `min_machines_running = 1` so the scheduler keeps running.
 
@@ -195,16 +208,17 @@ Fly is configured with `min_machines_running = 1` so the scheduler keeps running
 `GET /samantha-dress/events`
 
 The transport `samanthadress.com` consumes, served by `src/samantha-dress/`. It
-carries the same events as the ICS feed plus fields iCalendar has nowhere to put:
-resolved coordinates, their resolution status, a parsed city and state, and
+reads the same upstream ICS source as v1 and adds fields iCalendar has nowhere to
+put: resolved coordinates, their resolution status, a parsed city and state, and
 whether an event's time zone came from the feed or was inferred by us.
 
-This is scoped to the one calendar on purpose. It lives on its own route rather
-than under `/calendar/` because it is meant to outlive
-`/calendar/samantha-dress.ics`, which stays for backwards compatibility and is
-the one eventually up for deprecation. The other ICS calendars are not following:
-they keep the calendar routes as they are, get no JSON transport, and no
-coordinate decoration.
+This is scoped to the one calendar on purpose. It is the v2 service in a staged
+extraction from the original calendar service: `/calendar/samantha-dress.ics` is
+v1 and remains available for existing subscribers, while `/samantha-dress/events`
+is the replacement. The eventual goal is to sunset only that Samantha Dress v1
+endpoint. The other ICS calendars are not following: they remain in the calendar
+service, keep their routes as they are, and get no JSON transport or coordinate
+decoration.
 
 **This endpoint is pre-release and its shape is still free to change.** Until it
 is declared released, the right fix for an awkward field is to change it rather
@@ -344,12 +358,14 @@ site's event listings.
 ### Deliberate differences from the ICS feed
 
 This runs alongside `/calendar/samantha-dress.ics` rather than replacing it yet,
-so the two are otherwise expected to describe the same events. Three intentional
-divergences:
+with four intentional transport differences:
 
 - **No `?filter=` search.** The site reads the whole document and filters per
-  surface. The source's own `defaultFilters` still apply, so both feeds agree on
-  which events exist.
+  surface.
+- **No generic calendar post-processing.** v2 does not apply the calendar
+  service's `defaultFilters`, event transforms or deduplication. The Samantha
+  source currently defines no default filters or transforms, but exact duplicate
+  VEVENTs are deliberately preserved in v2 while v1 deduplicates them.
 - **No upstream `URL` property.** The ICS feed still publishes it; this service
   masks it, so the Google Calendar link stays behind an endpoint the site
   controls.
@@ -430,11 +446,11 @@ validation — which could put a confident pin in the wrong town.
 
 ### How it runs
 
-The job is triggered by `onCalendarRefresh` after each 30-minute calendar cycle
-completes, and only for the Samantha Dress calendar — every other source is
-ignored. It is **not** part of the fetch path: events land in the cache first and
-unchanged, and the run is never awaited, so a slow or rate-limited geocoder can
-only delay pins, never event freshness.
+The job is triggered by `onSamanthaDressRefresh` after a Samantha Dress refresh
+completes. The dedicated source runs this every 5 minutes; the legacy calendar
+service is not involved. It is **not** part of the fetch path: events land in the
+cache first and unchanged, and the run is never awaited, so a slow or rate-limited
+geocoder can only delay pins, never event freshness.
 
 Each run:
 
@@ -598,7 +614,7 @@ when Samantha Dress event pages materially change, so search engines recrawl
 request construction, key handling, URL batching, event fingerprinting, and the
 in-memory record of what has already been submitted. Nothing else in the app
 talks to IndexNow; `src/index-now/index-now.scheduler.ts` is the only wiring, and
-it hooks into the calendar cache rather than into routes or rendering.
+it hooks into the dedicated Samantha Dress source rather than routes or rendering.
 
 There is no database. Submitted state lives in a `Map` keyed by event UID. The
 first successful refresh after a restart only seeds that map, so a restart does
@@ -634,16 +650,16 @@ IndexNow disabled because INDEXNOW_KEY is not configured
 
 No submissions are attempted and nothing else in the app changes. IndexNow
 failures never propagate: submissions are awaited inside the service, every
-error is caught and logged, and the calendar scheduler is not blocked on them.
+error is caught and logged, and the Samantha Dress source scheduler is not
+blocked on them.
 
 ### Incremental submissions
 
-The Samantha Dress calendar is refreshed on the shared calendar cache cadence
-(`CACHE_REFRESH_MS` in `src/calendar/calendar.cache.ts`, currently 30 minutes).
-IndexNow has no independent timer. After each cycle in which every page warmed
-successfully:
+The Samantha Dress JSON snapshot is refreshed every 5 minutes by its separate
+events cache. IndexNow has no independent timer. After each successful Samantha
+Dress refresh:
 
-1. The cache notifies its refresh listeners with the current snapshot.
+1. The Samantha Dress source notifies its refresh listeners with the current snapshot.
 2. The first successful refresh after startup only **seeds** fingerprints, so a
    restart never looks like a calendar full of changes and restart loops do not
    produce submission bursts.
@@ -686,14 +702,14 @@ Only canonical `https://samanthadress.com` pages are submitted:
 - `https://samanthadress.com/events/<state>/<city>`
 - `https://samanthadress.com/events/<state>/<city>/<YYYY-MM-DD>/<uid>`
 
-Event URLs are generated only for IndexNow from the existing
-`samanthaDressEventUrl` helper in `src/calendar/config/samantha-dress.ts`, so
-calendar normalization does not rewrite the source event's `url`. The helper
-requires a parsed city and state from the event address; events whose address
-cannot be parsed are skipped entirely. Anything else is dropped before the
-request is built: search URLs, query-string or fragment variants, trailing-slash
-aliases, `http://`, other hosts, and calendar-source URLs. A regional page is
-submitted only when the same address resolves to a real city and state.
+Event URLs are generated only for IndexNow from the dedicated Samantha Dress
+configuration, so calendar normalization does not rewrite the source event's
+`url`. The source requires a parsed city and state from the event address; events
+whose address cannot be parsed are skipped entirely. Anything else is dropped
+before the request is built: search URLs, query-string or fragment variants,
+trailing-slash aliases, `http://`, other hosts, and calendar-source URLs. A
+regional page is submitted only when the same address resolves to a real city and
+state.
 
 `<state>` includes the territory codes `pr`, `vi`, `gu`, `as` and `mp`. Addresses
 in them used to parse to no state and were skipped here entirely, so these are

@@ -10,6 +10,7 @@ import { startGeocodeScheduler } from "./geocode/geocode.scheduler.js";
 import { startIndexNowScheduler } from "./index-now/index-now.scheduler.js";
 import { registerIndexNowRoutes } from "./index-now/index-now.routes.js";
 import { registerNixleRoutes } from "./nixle/nixle.routes.js";
+import { startSamanthaDressEventsScheduler } from "./samantha-dress/samantha-dress.cache.js";
 import { registerSamanthaDressRoutes } from "./samantha-dress/samantha-dress.routes.js";
 
 export async function buildServer() {
@@ -27,15 +28,21 @@ export async function buildServer() {
     // already has a listener to trigger coordinate decoration.
     const stopGeocodeScheduler = startGeocodeScheduler(server.log);
     const stopCalendarCacheScheduler = startCalendarCacheScheduler(server.log);
+    const stopSamanthaDressEventsScheduler = startSamanthaDressEventsScheduler(
+      server.log,
+    );
     const stopHappyHourCacheScheduler = startHappyHourCacheScheduler(
       server.log,
     );
 
     server.addHook("onClose", async () => {
       stopIndexNowScheduler();
-      await stopGeocodeScheduler();
-      await stopCalendarCacheScheduler();
-      await stopHappyHourCacheScheduler();
+      await Promise.all([
+        stopSamanthaDressEventsScheduler(),
+        stopGeocodeScheduler(),
+        stopCalendarCacheScheduler(),
+        stopHappyHourCacheScheduler(),
+      ]);
     });
   }
 

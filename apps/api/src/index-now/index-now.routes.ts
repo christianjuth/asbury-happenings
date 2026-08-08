@@ -1,12 +1,12 @@
 import type { FastifyInstance } from "fastify";
 
-import { getCachedCalendarStatus } from "../calendar/calendar.cache.js";
-import { SAMANTHA_DRESS_SOURCE } from "../calendar/config/samantha-dress.js";
 import { ENV } from "../env.js";
+import { getSamanthaDressEventStatus } from "../samantha-dress/samantha-dress.cache.js";
+import { SAMANTHA_DRESS_SOURCE } from "../samantha-dress/samantha-dress.config.js";
 
 export async function registerIndexNowRoutes(server: FastifyInstance) {
   server.get("/debug/index-now", async () => {
-    const calendar = getCachedCalendarStatus(SAMANTHA_DRESS_SOURCE);
+    const calendar = getSamanthaDressEventStatus();
 
     return {
       service: "index-now",
