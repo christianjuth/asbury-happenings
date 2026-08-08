@@ -23,8 +23,17 @@ const NOMINATIM_MIN_TIME_MS = 1_000;
 const NOMINATIM_MAX_ATTEMPTS = 3;
 const NOMINATIM_RETRY_BASE_MS = 2_000;
 const RESPONSE_BODY_LOG_LIMIT = 200;
+const NOMINATIM_RESULT_LIMIT = 10;
+const ADDRESSABLE_POI_TYPES = new Set([
+  "amenity",
+  "office",
+  "shop",
+  "tourism",
+  "leisure",
+]);
 
 const ADDRESS_SCHEMA = z.object({
+  house_number: z.string().optional(),
   city: z.string().optional(),
   town: z.string().optional(),
   village: z.string().optional(),
@@ -41,6 +50,8 @@ const ADDRESS_SCHEMA = z.object({
 const RESULT_SCHEMA = z.object({
   lat: z.string(),
   lon: z.string(),
+  type: z.string().optional(),
+  addresstype: z.string().optional(),
   address: ADDRESS_SCHEMA.optional(),
 });
 
@@ -146,7 +157,7 @@ export function createNominatimGeocoder(
         };
       }
 
-      const [result] = parsed.data;
+      const result = selectBestResult(parsed.data, query);
 
       if (!result) {
         return { kind: "no-result" };
@@ -224,13 +235,74 @@ export function createNominatimGeocoder(
 function buildSearchUrl(query: string): string {
   const params = new URLSearchParams({
     format: "json",
-    limit: "1",
+    limit: String(NOMINATIM_RESULT_LIMIT),
     addressdetails: "1",
     countrycodes: "us",
     q: query,
   });
 
   return `${NOMINATIM_ENDPOINT}?${params.toString()}`;
+}
+
+// Nominatim ranks a road segment above a more useful address when it cannot
+// resolve the house number. Keep its ranking for real addressable results, but
+// use a small road-type preference as a fallback: residential segments are more
+// likely to represent an address than a tertiary road carrying the same name.
+function selectBestResult(
+  results: z.infer<typeof RESPONSE_SCHEMA>,
+  query: string,
+): z.infer<typeof RESULT_SCHEMA> | undefined {
+  const requestedHouseNumber = readHouseNumber(query);
+  let best: z.infer<typeof RESULT_SCHEMA> | undefined;
+  let bestScore = -1;
+
+  for (const result of results) {
+    const score = scoreResult(result, requestedHouseNumber);
+
+    if (score > bestScore) {
+      best = result;
+      bestScore = score;
+    }
+  }
+
+  return best;
+}
+
+function scoreResult(
+  result: z.infer<typeof RESULT_SCHEMA>,
+  requestedHouseNumber: string | undefined,
+): number {
+  const houseNumber = result.address?.house_number?.toUpperCase();
+
+  if (houseNumber && houseNumber === requestedHouseNumber) {
+    return 300;
+  }
+
+  if (houseNumber || result.type === "house" || result.type === "building") {
+    return 200;
+  }
+
+  if (ADDRESSABLE_POI_TYPES.has(result.addresstype ?? "")) {
+    return 100;
+  }
+
+  if (result.addresstype !== "road") {
+    return 0;
+  }
+
+  return (
+    {
+      residential: 30,
+      unclassified: 20,
+      tertiary: 10,
+    }[result.type ?? ""] ?? 0
+  );
+}
+
+function readHouseNumber(query: string): string | undefined {
+  return query
+    .match(/^\s*(\d+[A-Za-z]?(?:-\d+[A-Za-z]?)?)(?:\s|,|$)/)?.[1]
+    ?.toUpperCase();
 }
 
 // Only a 400 blames the query string. Everything else the provider can say —

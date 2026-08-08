@@ -92,7 +92,7 @@ describe("nominatim geocoder", () => {
     );
     expect(Object.fromEntries(parsed.searchParams)).toEqual({
       format: "json",
-      limit: "1",
+      limit: "10",
       // Required to validate the answer's city and state at all.
       addressdetails: "1",
       countrycodes: "us",
@@ -105,6 +105,84 @@ describe("nominatim geocoder", () => {
 
     expect(headers["accept"]).toBe("application/json");
     expect(headers["user-agent"]).toMatch(/samanthadress\.com.*@/);
+  });
+
+  it("prefers a residential road fallback over a major road fallback", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      jsonResponse([
+        {
+          lat: "40.2175089",
+          lon: "-74.0065418",
+          type: "tertiary",
+          addresstype: "road",
+          address: { city: "Asbury Park", state: "New Jersey" },
+        },
+        {
+          lat: "40.2158822",
+          lon: "-74.0111016",
+          type: "residential",
+          addresstype: "road",
+          address: { city: "Asbury Park", state: "New Jersey" },
+        },
+        {
+          lat: "40.2157924",
+          lon: "-74.0140514",
+          type: "unclassified",
+          addresstype: "road",
+          address: { city: "Asbury Park", state: "New Jersey" },
+        },
+        {
+          lat: "40.2200000",
+          lon: "-74.0000000",
+          type: "city",
+          addresstype: "city",
+          address: { city: "Asbury Park", state: "New Jersey" },
+        },
+      ]),
+    );
+
+    await expect(
+      createGeocoder(fetchImpl).geocode(
+        "623A Cookman Ave, Asbury Park, NJ 07712, United States",
+      ),
+    ).resolves.toMatchObject({
+      kind: "resolved",
+      coordinates: { lat: 40.2158822, lon: -74.0111016 },
+    });
+  });
+
+  it("prefers an exact house result even when it is not first", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      jsonResponse([
+        {
+          lat: "40.2175089",
+          lon: "-74.0065418",
+          type: "tertiary",
+          addresstype: "road",
+          address: { city: "Asbury Park", state: "New Jersey" },
+        },
+        {
+          lat: "40.2158822",
+          lon: "-74.0111016",
+          type: "house",
+          addresstype: "place",
+          address: {
+            house_number: "623A",
+            city: "Asbury Park",
+            state: "New Jersey",
+          },
+        },
+      ]),
+    );
+
+    await expect(
+      createGeocoder(fetchImpl).geocode(
+        "623A Cookman Ave, Asbury Park, NJ 07712, United States",
+      ),
+    ).resolves.toMatchObject({
+      kind: "resolved",
+      coordinates: { lat: 40.2158822, lon: -74.0111016 },
+    });
   });
 
   it("reports an empty result set as a real negative", async () => {
