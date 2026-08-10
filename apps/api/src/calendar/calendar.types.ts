@@ -54,7 +54,6 @@ interface BaseCalendarSourceConfig {
   id: string;
   name: string;
   url: string;
-  browserAllowedOrigins?: string[];
   timeZone?: string;
   defaultAddress?: string;
   defaultFilters?: string[];
@@ -86,13 +85,6 @@ export interface IcsCalendarSourceConfig extends BaseCalendarSourceConfig {
 
 export type CalendarEventStatus = "confirmed" | "tentative" | "cancelled";
 
-// How the source expressed the time, which is not recoverable from the parsed
-// instant afterwards. `utc` and `tzid` both pin a real moment; `floating` is a
-// wall clock with no zone attached, which parsing had to place in *some* zone to
-// produce an instant at all — the one case where a wrong zone is baked in
-// unrecoverably, so it must stay visible. Set by the ICS reader only.
-export type CalendarTimeSource = "utc" | "tzid" | "floating" | "date";
-
 export interface CalendarEvent {
   uid?: string;
   title: string;
@@ -104,15 +96,6 @@ export interface CalendarEvent {
   address?: string;
   url?: string;
   status?: CalendarEventStatus;
-  // Set only when the source carried an explicit, valid TZID for that date.
-  // A missing value means the feed did not say which zone the wall-clock time
-  // belongs to, so the JSON snapshot has to infer a display zone and label it as
-  // inferred. Never backfilled from a config default; that would erase the
-  // difference between a certain zone and a guess.
-  startTimeZone?: string;
-  endTimeZone?: string;
-  startTimeSource?: CalendarTimeSource;
-  endTimeSource?: CalendarTimeSource;
 }
 
 export type CalendarEventTransform = (

@@ -7,56 +7,18 @@ const eslint = new ESLint({
   overrideConfigFile: path.resolve("eslint.config.js"),
 });
 const PROBE_MODULES = {
-  geocode: "geocode.scheduler.js",
-  "samantha-dress": "samantha-dress.cache.js",
+  "happy-hour": "happy-hour.cache.js",
+  nixle: "nixle.cache.js",
 };
 
 describe("feature dependency boundaries", () => {
-  it("allows an explicitly declared directed edge", async () => {
-    const messages = await lintFeatureImport("index-now", "samantha-dress");
-
-    expect(messages).not.toContainEqual(
-      expect.objectContaining({ ruleId: "import-x/no-restricted-paths" }),
-    );
-  });
-
   it("rejects an undeclared directed edge", async () => {
-    const messages = await lintFeatureImport("index-now", "geocode");
+    const messages = await lintFeatureImport("happy-hour", "nixle");
 
     expect(messages).toContainEqual(
       expect.objectContaining({
         ruleId: "import-x/no-restricted-paths",
-        message: expect.stringContaining("index-now -> geocode"),
-      }),
-    );
-  });
-
-  it("rejects the legacy Samantha calendar shim", async () => {
-    const messages = await lintImport(
-      "index-now",
-      "../calendar/config/samantha-dress.js",
-    );
-
-    expect(messages).toContainEqual(
-      expect.objectContaining({
-        ruleId: "import-x/no-restricted-paths",
-        message: expect.stringContaining("legacy Samantha Dress calendar shim"),
-      }),
-    );
-  });
-
-  it("rejects aggregate calendar configuration that exposes the shim", async () => {
-    const messages = await lintImport(
-      "index-now",
-      "../calendar/calendar.config.js",
-    );
-
-    expect(messages).toContainEqual(
-      expect.objectContaining({
-        ruleId: "import-x/no-restricted-paths",
-        message: expect.stringContaining(
-          "aggregate legacy calendar configuration",
-        ),
+        message: expect.stringContaining("happy-hour -> nixle"),
       }),
     );
   });

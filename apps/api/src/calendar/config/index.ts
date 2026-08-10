@@ -12,7 +12,6 @@ import { HOUSE_OF_INDEPENDENTS_SOURCE } from "./house-of-independents.js";
 import { IRON_WHALE_SOURCE } from "./iron-whale.js";
 import { PNC_BANK_ARTS_CENTER_SOURCE } from "./pnc-bank-arts-center.js";
 import { R_BAR_SOURCE } from "./r-bar.js";
-import { SAMANTHA_DRESS_SOURCE } from "./samantha-dress.js";
 import { SHOWROOM_CINEMAS_SOURCE } from "./showroom-cinemas.js";
 import { STONE_PONY_SOURCE } from "./stone-pony.js";
 import { TIM_MCLOONES_SUPPER_CLUB_SOURCE } from "./tim-mcloones-supper-club.js";
@@ -38,7 +37,6 @@ export const CALENDAR_SOURCES = [
   BLACK_SWAN_SOURCE,
   ASBURY_LANES_SOURCE,
   ASBURY_PARK_CITY_SOURCE,
-  SAMANTHA_DRESS_SOURCE,
 ] satisfies CalendarSourceConfig[];
 
 export function getCalendarSource(

@@ -21,7 +21,6 @@
   },
   "dependencies": {
     "@fastify/sensible": "^6.0.0",
-    "addresser": "^1.1.20",
     "bottleneck": "2.19.5",
     "cheerio": "^1.0.0",
     "dayjs": "^1.11.13",

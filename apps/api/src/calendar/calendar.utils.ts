@@ -1,9 +1,7 @@
 import _ from "lodash";
 
-import { cityStateFromLocation } from "./address.utils.js";
-import type { CalendarEvent, SelectorSpec } from "./calendar.types.js";
+import type { SelectorSpec } from "./calendar.types.js";
 import dayjs, { type Dayjs } from "./calendar.dates.js";
-import { timeZoneForState } from "./state-time-zones.js";
 
 const DEFAULT_DATE_FORMATS = [
   "ddd, M/D/YYYY",
@@ -36,58 +34,6 @@ const DEFAULT_TIME_FORMATS = [
 
 export function normalizeText(value: string | undefined): string {
   return value?.replace(/\s+/g, " ").trim() ?? "";
-}
-
-export function eventTimeZone(
-  event: CalendarEvent,
-  fallbackTimeZone: string,
-): string {
-  if (event.startTimeZone) {
-    return event.startTimeZone;
-  }
-
-  const state = cityStateFromLocation(event.location ?? event.address)
-    ?.split(",")[1]
-    ?.trim();
-
-  return timeZoneForState(state)?.timeZone ?? fallbackTimeZone;
-}
-
-export function eventEndInTimeZone(
-  event: CalendarEvent,
-  fallbackTimeZone: string,
-): Dayjs {
-  if (!event.allDay) {
-    return event.end;
-  }
-
-  return dayjs.tz(eventEndDate(event), eventTimeZone(event, fallbackTimeZone));
-}
-
-export function eventEndDate(event: CalendarEvent): string {
-  const endDate = event.end.utc().format("YYYY-MM-DD");
-
-  if (!event.allDay || endDate !== event.start.utc().format("YYYY-MM-DD")) {
-    return endDate;
-  }
-
-  // Keep the legacy ICS event untouched, but expose the one-day interpretation
-  // to the Samantha JSON and its internal lifecycle consumers.
-  return event.start.utc().add(1, "day").format("YYYY-MM-DD");
-}
-
-// Mirrors `isEventCanceled` on samanthadress.com: an event counts as cancelled
-// when iCalendar STATUS says so, or when the summary says so in either
-// spelling. Organizers do both, and the site renders a cancellation based on
-// this combined rule, so anything deriving page state must use the same one.
-export function isEventCancelled(event: CalendarEvent): boolean {
-  if (event.status === "cancelled") {
-    return true;
-  }
-
-  const summary = event.title.toLowerCase();
-
-  return summary.includes("canceled") || summary.includes("cancelled");
 }
 
 export function resolveOptionalUrl(

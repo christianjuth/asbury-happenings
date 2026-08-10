@@ -17,11 +17,8 @@ import {
 } from "../src/calendar/calendar.service.js";
 import { getCalendarSource } from "../src/calendar/calendar.config.js";
 import dayjs from "../src/calendar/calendar.dates.js";
-import { isEventCancelled } from "../src/calendar/calendar.utils.js";
 import { stripHtmlFromEventLocation } from "../src/calendar/calendar.post-processing.js";
 import { extractArt629Events } from "../src/calendar/config/art629.js";
-import { SAMANTHA_DRESS_SOURCE } from "../src/calendar/config/samantha-dress.js";
-import { samanthaDressEventUrl } from "../src/samantha-dress/samantha-dress.config.js";
 import { extractUncorkedWineInspiredEvents } from "../src/calendar/config/uncorked-wine-inspired.js";
 import { rewriteLocation } from "../src/calendar/location-transform.js";
 
@@ -1381,8 +1378,7 @@ describe("extractEventsFromIcs", () => {
     ]);
   });
 
-  // samanthadress.com reads STATUS off the generated feed, so a cancellation
-  // that only exists as a STATUS property has to survive the round trip.
+  // Cancellation state from an ICS source must survive regeneration.
   it("keeps STATUS through parse and regeneration", () => {
     const events = extractEventsFromIcs(
       [
@@ -1404,7 +1400,7 @@ describe("extractEventsFromIcs", () => {
       ].join("\r\n"),
       icsConfig,
     );
-    const ics = eventsToIcs("Samantha Dress", events);
+    const ics = eventsToIcs("City", events);
 
     expect(ics).toContain("STATUS:CANCELLED");
     expect(ics.match(/STATUS:/g)).toHaveLength(1);
@@ -1549,144 +1545,6 @@ describe("extractEventsFromIcs", () => {
     expect(events[0]?.allDay).toBe(true);
     expect(feed).toContain("DTSTART;VALUE=DATE:20260828");
     expect(feed).toContain("DTEND;VALUE=DATE:20260829");
-  });
-
-  it("generates Samantha Dress event URLs from a resolved address", () => {
-    const event = samanthaDressEventUrl({
-      uid: "1rabr53rm6j5ml2op2l7ffcqb4@google.com",
-      title: "The Roomies DUO @ LBI Distilling Company",
-      start: dayjs.tz("2026-07-23T20:00:00", "America/New_York"),
-      end: dayjs.tz("2026-07-23T21:00:00", "America/New_York"),
-      location: "123 Main St, Freehold, NJ 07728",
-    });
-
-    expect(event).toBe(
-      "https://samanthadress.com/events/nj/freehold/2026-07-23/1rabr53rm6j5ml2op2l7ffcqb4%40google.com",
-    );
-  });
-
-  it("generates Samantha Dress URLs from venue locations with full state names", () => {
-    const event = samanthaDressEventUrl({
-      uid: "stone-pony",
-      title: "The Stone Pony show",
-      start: dayjs.tz("2026-07-23T20:00:00", "America/New_York"),
-      end: dayjs.tz("2026-07-23T21:00:00", "America/New_York"),
-      location: "The Stone Pony, Asbury Park, New Jersey, USA",
-    });
-
-    expect(event).toBe(
-      "https://samanthadress.com/events/nj/asbury-park/2026-07-23/stone-pony",
-    );
-  });
-
-  it("uses the venue zone for an event URL date", () => {
-    const event = samanthaDressEventUrl({
-      uid: "west-coast-event",
-      title: "Late show",
-      start: dayjs("2026-09-10T06:00:00Z"),
-      end: dayjs("2026-09-10T08:00:00Z"),
-      location: "The Fillmore, 1805 Geary Blvd, San Francisco, CA",
-    });
-
-    expect(event).toBe(
-      "https://samanthadress.com/events/ca/san-francisco/2026-09-09/west-coast-event",
-    );
-  });
-
-  it("keeps a territory event URL date aligned with its feed date", () => {
-    const event = samanthaDressEventUrl({
-      uid: "puerto-rico-event",
-      title: "San Juan show",
-      start: dayjs("2026-01-10T04:30:00Z"),
-      end: dayjs("2026-01-10T06:30:00Z"),
-      location: "1 Main St, San Juan, PR, 00901, Puerto Rico",
-    });
-
-    expect(event).toBe(
-      "https://samanthadress.com/events/pr/san-juan/2026-01-10/puerto-rico-event",
-    );
-  });
-
-  it("does not generate a Samantha Dress URL when the address cannot be parsed", () => {
-    const event = samanthaDressEventUrl({
-      uid: "fe4ce34a-5cfc-422f-b811-4bbc55b1f6e1",
-      title: "The Roomies DUO @ LBI Distilling Company",
-      start: dayjs.tz("2026-07-17T20:00:00", "America/New_York"),
-      end: dayjs.tz("2026-07-17T21:00:00", "America/New_York"),
-    });
-
-    expect(event).toBeUndefined();
-  });
-
-  it("does not add Samantha Dress URLs to the generated calendar feed", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        [
-          "BEGIN:VCALENDAR",
-          "BEGIN:VEVENT",
-          "UID:calendar-only-event",
-          "SUMMARY:Calendar Only Event",
-          "DTSTART:20260723T200000Z",
-          "LOCATION:123 Main St, Freehold, NJ 07728",
-          "END:VEVENT",
-          "END:VCALENDAR",
-        ].join("\r\n"),
-      ),
-    );
-
-    const { events } = await fetchCalendarEvents(SAMANTHA_DRESS_SOURCE);
-    const feed = eventsToIcs("Samantha Dress", events);
-
-    expect(feed).not.toContain("URL:");
-  });
-});
-
-// Pins the cancellation rule shared with samanthadress.com's isEventCanceled.
-// Both sides must agree, or the site renders a cancellation the backend never
-// notices.
-describe("isEventCancelled", () => {
-  function eventWith(
-    title: string,
-    status?: CalendarEvent["status"],
-  ): CalendarEvent {
-    return {
-      title,
-      start: dayjs("2026-09-17T22:00:00Z"),
-      end: dayjs("2026-09-18T00:00:00Z"),
-      status,
-    };
-  }
-
-  it("treats a cancelled STATUS as cancelled", () => {
-    expect(isEventCancelled(eventWith("Trunk Show", "cancelled"))).toBe(true);
-  });
-
-  it("treats either summary spelling as cancelled", () => {
-    expect(isEventCancelled(eventWith("Trunk Show - canceled"))).toBe(true);
-    expect(isEventCancelled(eventWith("Trunk Show - cancelled"))).toBe(true);
-  });
-
-  it("matches the summary regardless of case or position", () => {
-    expect(isEventCancelled(eventWith("CANCELED: Trunk Show"))).toBe(true);
-    expect(isEventCancelled(eventWith("Trunk Show (Cancelled)"))).toBe(true);
-    expect(isEventCancelled(eventWith("Trunk show CanCeLLeD"))).toBe(true);
-  });
-
-  it("treats a summary cancellation as cancelled even when STATUS disagrees", () => {
-    expect(
-      isEventCancelled(eventWith("Trunk Show (Canceled)", "confirmed")),
-    ).toBe(true);
-  });
-
-  it("is not cancelled without either signal", () => {
-    expect(isEventCancelled(eventWith("Trunk Show"))).toBe(false);
-    expect(isEventCancelled(eventWith("Trunk Show", "confirmed"))).toBe(false);
-    expect(isEventCancelled(eventWith("Trunk Show", "tentative"))).toBe(false);
-  });
-
-  it("does not match other words built on cancel", () => {
-    expect(isEventCancelled(eventWith("Cancellation Policy Q&A"))).toBe(false);
-    expect(isEventCancelled(eventWith("Cancel Anytime Workshop"))).toBe(false);
   });
 });
 

@@ -1,29 +1,19 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clearCalendarPageCache,
-  getCachedCalendarEventSnapshot,
   getCachedCalendarDebugText,
   warmCalendarPage,
 } from "../src/calendar/calendar.cache.js";
 import { getCalendarSource } from "../src/calendar/calendar.config.js";
 import dayjs from "../src/calendar/calendar.dates.js";
 import { clearCalendarFetchState } from "../src/calendar/calendar.service.js";
-import { clearCoordinateStore } from "../src/geocode/geocode.store.js";
 import { clearNixleRssCache } from "../src/nixle/nixle.cache.js";
-import {
-  clearSamanthaDressEventSnapshot,
-  warmSamanthaDressEventsPage,
-} from "../src/samantha-dress/samantha-dress.cache.js";
-import { clearSamanthaDressFetchState } from "../src/samantha-dress/samantha-dress.fetch.js";
 import { buildServer } from "../src/server.js";
 
 afterEach(() => {
   clearCalendarPageCache();
   clearCalendarFetchState();
-  clearCoordinateStore();
   clearNixleRssCache();
-  clearSamanthaDressEventSnapshot();
-  clearSamanthaDressFetchState();
   vi.restoreAllMocks();
   vi.useRealTimers();
 });
@@ -40,56 +30,6 @@ describe("server", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       ok: true,
-    });
-
-    await server.close();
-  });
-
-  it("reports IndexNow and Samantha Dress calendar warm status", async () => {
-    const server = await buildServer();
-
-    const coldResponse = await server.inject({
-      method: "GET",
-      url: "/debug/index-now",
-    });
-
-    expect(coldResponse.statusCode).toBe(200);
-    expect(coldResponse.json()).toEqual({
-      service: "index-now",
-      enabled: false,
-      calendar: {
-        id: "samantha-dress",
-        warm: false,
-        eventCount: 0,
-      },
-    });
-
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        [
-          "BEGIN:VCALENDAR",
-          "BEGIN:VEVENT",
-          "UID:status-event",
-          "SUMMARY:Status Event",
-          "DTSTART:20260706T190000Z",
-          "END:VEVENT",
-          "END:VCALENDAR",
-        ].join("\r\n"),
-      ),
-    );
-    await warmSamanthaDressEventsPage();
-
-    const warmResponse = await server.inject({
-      method: "GET",
-      url: "/debug/index-now",
-    });
-
-    expect(warmResponse.json()).toMatchObject({
-      calendar: {
-        id: "samantha-dress",
-        warm: true,
-        eventCount: 1,
-      },
     });
 
     await server.close();
@@ -195,11 +135,6 @@ describe("server", () => {
           id: "asbury-park-city",
           name: "City of Asbury Park",
           path: "/calendar/asbury-park-city.ics",
-        },
-        {
-          id: "samantha-dress",
-          name: "Samantha Dress",
-          path: "/calendar/samantha-dress.ics",
         },
         {
           id: "status",
@@ -432,61 +367,18 @@ describe("server", () => {
     await server.close();
   });
 
-  it("allows browser access only for Samantha Dress from the configured origin", async () => {
-    const server = await buildServer();
-
-    const allowedResponse = await server.inject({
-      method: "GET",
-      url: "/calendar/samantha-dress.ics",
-      headers: {
-        origin: "https://samanthadress.com",
-      },
-    });
-    const disallowedFeedResponse = await server.inject({
-      method: "GET",
-      url: "/calendar/asbury-book-coop.ics",
-      headers: {
-        origin: "https://samanthadress.com",
-      },
-    });
-    const disallowedOriginResponse = await server.inject({
-      method: "GET",
-      url: "/calendar/samantha-dress.ics",
-      headers: {
-        origin: "https://example.com",
-      },
-    });
-
-    expect(allowedResponse.headers["access-control-allow-origin"]).toBe(
-      "https://samanthadress.com",
-    );
-    expect(allowedResponse.headers.vary).toBe("Origin");
-    expect(
-      disallowedFeedResponse.headers["access-control-allow-origin"],
-    ).toBeUndefined();
-    expect(
-      disallowedOriginResponse.headers["access-control-allow-origin"],
-    ).toBeUndefined();
-
-    await server.close();
-  });
-
-  it("supports Samantha Dress CORS preflight from the configured origin", async () => {
+  it("supports calendar CORS preflight", async () => {
     const server = await buildServer();
 
     const response = await server.inject({
       method: "OPTIONS",
-      url: "/calendar/samantha-dress.ics",
+      url: "/calendar/asbury-book-coop.ics",
       headers: {
-        origin: "https://samanthadress.com",
         "access-control-request-method": "GET",
       },
     });
 
     expect(response.statusCode).toBe(204);
-    expect(response.headers["access-control-allow-origin"]).toBe(
-      "https://samanthadress.com",
-    );
     expect(response.headers["access-control-allow-methods"]).toBe(
       "GET, OPTIONS",
     );
@@ -494,258 +386,7 @@ describe("server", () => {
     await server.close();
   });
 
-  it("allows Samantha Dress browser access from localhost and Cloudflare Pages branch builds", async () => {
-    const server = await buildServer();
-
-    const localhostResponse = await server.inject({
-      method: "GET",
-      url: "/calendar/samantha-dress.ics",
-      headers: {
-        origin: "http://localhost:3000",
-      },
-    });
-    const namedBranchBuildResponse = await server.inject({
-      method: "GET",
-      url: "/calendar/samantha-dress.ics",
-      headers: {
-        origin: "https://318b4aca.sams-portfolio-6ir.pages.dev",
-      },
-    });
-    const otherBranchBuildResponse = await server.inject({
-      method: "GET",
-      url: "/calendar/samantha-dress.ics",
-      headers: {
-        origin: "https://preview.sams-portfolio-6ir.pages.dev",
-      },
-    });
-    const unrelatedPagesResponse = await server.inject({
-      method: "GET",
-      url: "/calendar/samantha-dress.ics",
-      headers: {
-        origin: "https://someone-else.pages.dev",
-      },
-    });
-    const nestedSubdomainResponse = await server.inject({
-      method: "GET",
-      url: "/calendar/samantha-dress.ics",
-      headers: {
-        origin: "https://evil.318b4aca.sams-portfolio-6ir.pages.dev",
-      },
-    });
-
-    expect(localhostResponse.headers["access-control-allow-origin"]).toBe(
-      "http://localhost:3000",
-    );
-    expect(
-      namedBranchBuildResponse.headers["access-control-allow-origin"],
-    ).toBe("https://318b4aca.sams-portfolio-6ir.pages.dev");
-    expect(
-      otherBranchBuildResponse.headers["access-control-allow-origin"],
-    ).toBe("https://preview.sams-portfolio-6ir.pages.dev");
-    expect(
-      unrelatedPagesResponse.headers["access-control-allow-origin"],
-    ).toBeUndefined();
-    expect(
-      nestedSubdomainResponse.headers["access-control-allow-origin"],
-    ).toBeUndefined();
-
-    await server.close();
-  });
-
-  // The JSON transport the website consumes instead of parsing ICS.
-  it("serves Samantha Dress events as JSON from the warm cache", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        [
-          "BEGIN:VCALENDAR",
-          "BEGIN:VEVENT",
-          "UID:json-event",
-          "SUMMARY:Sunset Set",
-          "DTSTART:20260910T230000Z",
-          "DTEND:20260911T020000Z",
-          "LOCATION:The Boardwalk\\, 100 Ocean Ave\\, Ship Bottom\\, NJ",
-          "END:VEVENT",
-          "END:VCALENDAR",
-        ].join("\r\n"),
-      ),
-    );
-
-    const server = await buildServer();
-    const config = getCalendarSource("samantha-dress");
-
-    if (!config) {
-      throw new Error("Missing Samantha Dress calendar config");
-    }
-
-    await warmSamanthaDressEventsPage();
-
-    const response = await server.inject({
-      method: "GET",
-      url: "/samantha-dress/events",
-      headers: { origin: "https://samanthadress.com" },
-    });
-
-    expect(response.statusCode).toBe(200);
-    expect(response.headers["content-type"]).toContain("application/json");
-    expect(response.headers["access-control-allow-origin"]).toBe(
-      "https://samanthadress.com",
-    );
-    expect(response.json()).toMatchObject({
-      events: [
-        {
-          uid: "json-event",
-          title: "Sunset Set",
-          status: "confirmed",
-          start: {
-            iso: "2026-09-10T19:00:00-04:00",
-            timeZone: "America/New_York",
-            timeZoneSource: "state",
-          },
-          location: {
-            raw: "The Boardwalk, 100 Ocean Ave, Ship Bottom, NJ",
-            venue: "The Boardwalk",
-            city: "Ship Bottom",
-            state: "NJ",
-            coordinates: null,
-            coordinatesStatus: "pending",
-          },
-        },
-      ],
-    });
-    expect(
-      response.json<{ sourceFetchedAt: string }>().sourceFetchedAt,
-    ).toEqual(expect.any(String));
-
-    await server.close();
-  });
-
-  // The published document carries conclusions only, so a zone that was guessed
-  // is indistinguishable from one the feed stated. This is the view that makes
-  // the guess checkable without access to the running service.
-  it("serves resolver provenance from the same route under ?debug=1", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        [
-          "BEGIN:VCALENDAR",
-          "BEGIN:VEVENT",
-          "UID:json-event",
-          "SUMMARY:Sunset Set",
-          "DTSTART:20260910T230000Z",
-          "DTEND:20260911T020000Z",
-          "LOCATION:The Boardwalk\\, 100 Ocean Ave\\, Ship Bottom\\, NJ",
-          "END:VEVENT",
-          "END:VCALENDAR",
-        ].join("\r\n"),
-      ),
-    );
-
-    const server = await buildServer();
-    const config = getCalendarSource("samantha-dress");
-
-    if (!config) {
-      throw new Error("Missing Samantha Dress calendar config");
-    }
-
-    await warmSamanthaDressEventsPage();
-
-    const response = await server.inject({
-      method: "GET",
-      url: "/samantha-dress/events?debug=1",
-    });
-
-    expect(response.statusCode).toBe(200);
-    expect(response.headers["content-type"]).toContain("application/json");
-    // Read against the live feed, so it must never be served from a cache.
-    expect(response.headers["cache-control"]).toBe("no-store");
-    expect(response.json()).toMatchObject({
-      defaultTimeZone: "America/New_York",
-      events: [
-        {
-          uid: "json-event",
-          start: {
-            sourceWallClock: "2026-09-10T23:00:00",
-            sourceTimeSource: "utc",
-            sourceTimeZone: null,
-            resolver: "state",
-            resolved: { timeZone: "America/New_York" },
-          },
-          location: { geocodeQuery: "100 Ocean Ave, Ship Bottom, NJ" },
-          titleSignals: { timeUnknown: false, cancelled: false },
-        },
-      ],
-    });
-
-    await server.close();
-  });
-
-  // Unlike the ICS feed, which 503s while warming. An empty list is what the
-  // site already degrades to, so a cold cache must not be an error.
-  it("serves an empty JSON event list while the calendar cache is cold", async () => {
-    const server = await buildServer();
-
-    const response = await server.inject({
-      method: "GET",
-      url: "/samantha-dress/events",
-    });
-
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({
-      sourceFetchedAt: null,
-      events: [],
-    });
-
-    await server.close();
-  });
-
-  // The JSON service is meant to replace this one eventually, but not yet:
-  // existing subscribers hold the .ics URL and it has to keep working.
-  it("keeps serving the Samantha Dress ICS feed alongside the JSON service", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        [
-          "BEGIN:VCALENDAR",
-          "BEGIN:VEVENT",
-          "UID:ics-event",
-          "SUMMARY:Sunset Set",
-          "DTSTART:20260910T230000Z",
-          "DTEND:20260911T020000Z",
-          "LOCATION:The Boardwalk\\, 100 Ocean Ave\\, Ship Bottom\\, NJ",
-          "END:VEVENT",
-          "END:VCALENDAR",
-        ].join("\r\n"),
-      ),
-    );
-
-    const server = await buildServer();
-    const config = getCalendarSource("samantha-dress");
-
-    if (!config) {
-      throw new Error("Missing Samantha Dress calendar config");
-    }
-
-    await warmCalendarPage(config, 0, dayjs("2026-08-03T00:00:00Z"));
-
-    expect(getCachedCalendarEventSnapshot(config).events).toHaveLength(1);
-
-    const response = await server.inject({
-      method: "GET",
-      url: "/calendar/samantha-dress.ics",
-      headers: { origin: "https://samanthadress.com" },
-    });
-
-    expect(response.statusCode).toBe(200);
-    expect(response.headers["content-type"]).toContain("text/calendar");
-    expect(response.headers["access-control-allow-origin"]).toBe(
-      "https://samanthadress.com",
-    );
-    expect(response.body).toContain("SUMMARY:Sunset Set");
-
-    await server.close();
-  });
-
-  // Samantha Dress is the only calendar getting the JSON upgrade. The rest stay
-  // on ICS, so nothing may advertise or serve a JSON transport for them.
-  it("does not extend the JSON service to the other calendars", async () => {
+  it("advertises only ICS calendar routes", async () => {
     const server = await buildServer();
 
     const index = await server.inject({ method: "GET", url: "/calendar" });
@@ -771,43 +412,6 @@ describe("server", () => {
     });
 
     expect(response.statusCode).toBe(404);
-
-    await server.close();
-  });
-
-  it("reports unresolved geocoding addresses without an admin UI", async () => {
-    const server = await buildServer();
-
-    const response = await server.inject({
-      method: "GET",
-      url: "/debug/geocode",
-    });
-
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({
-      service: "geocode",
-      unresolved: [],
-    });
-
-    await server.close();
-  });
-
-  // The manual pins never reach the job, so this route is the only place they are
-  // visible at runtime — including a row that matches no event and does nothing.
-  it("reports hand-set coordinate overrides", async () => {
-    const server = await buildServer();
-
-    const response = await server.inject({
-      method: "GET",
-      url: "/debug/geocode",
-    });
-
-    expect(response.json().overrides).toContainEqual(
-      expect.objectContaining({
-        address: "6805 long beach blvd, long beach, nj 08008",
-        coordinates: { lat: 39.61583, lon: -74.19869 },
-      }),
-    );
 
     await server.close();
   });

@@ -156,8 +156,7 @@ export function eventsToIcs(
       description: event.description,
       location: event.location,
       url: event.url,
-      // samanthadress.com reads STATUS off this feed to render cancellations,
-      // so a cancelled source event has to stay cancelled downstream.
+      // Preserve source cancellation state for downstream calendar consumers.
       status: event.status ? ICS_EVENT_STATUS[event.status] : undefined,
     });
   }

@@ -116,42 +116,20 @@ export default [
 
 function buildFeatureBoundaryZones() {
   const features = Object.keys(FEATURE_DEPENDENCIES);
-  const featureTargets = features.map((feature) => path.join("src", feature));
 
-  return [
-    ...features.flatMap((importer) =>
-      features
-        .filter(
-          (imported) =>
-            imported !== importer &&
-            !FEATURE_DEPENDENCIES[importer].includes(imported),
-        )
-        .map((imported) => ({
-          target: path.join("src", importer),
-          from: path.join("src", imported),
-          message: `Feature "${importer}" may not import "${imported}". Add the directed edge "${importer} -> ${imported}" to feature-boundaries.config.js if this dependency is intentional.`,
-        })),
-    ),
-    {
-      // This is the compatibility source registration for the legacy ICS
-      // route, not a dependency surface for the enrolled feature graph.
-      target: featureTargets,
-      from: path.join("src", "calendar", "config", "samantha-dress.ts"),
-      message:
-        "Enrolled features may not import the legacy Samantha Dress calendar shim. Import the dedicated samantha-dress feature instead.",
-    },
-    {
-      // These aggregate every legacy source, including the Samantha shim above,
-      // so importing either facade would bypass the direct restriction.
-      target: featureTargets,
-      from: [
-        path.join("src", "calendar", "calendar.config.ts"),
-        path.join("src", "calendar", "config", "index.ts"),
-      ],
-      message:
-        "Enrolled features may not import aggregate legacy calendar configuration. Import the owning feature or focused calendar infrastructure instead.",
-    },
-  ];
+  return features.flatMap((importer) =>
+    features
+      .filter(
+        (imported) =>
+          imported !== importer &&
+          !FEATURE_DEPENDENCIES[importer].includes(imported),
+      )
+      .map((imported) => ({
+        target: path.join("src", importer),
+        from: path.join("src", imported),
+        message: `Feature "${importer}" may not import "${imported}". Add the directed edge "${importer} -> ${imported}" to feature-boundaries.config.js if this dependency is intentional.`,
+      })),
+  );
 }
 
 function buildDeadExportGraph({ exportRoots, usageRoots }) {
