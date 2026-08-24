@@ -1,4 +1,5 @@
 import Fastify from "fastify";
+import cors from "@fastify/cors";
 import sensible from "@fastify/sensible";
 import { startCalendarCacheScheduler } from "./calendar/calendar.cache.js";
 import { registerCalendarRoutes } from "./calendar/calendar.routes.js";
@@ -13,6 +14,10 @@ export async function buildServer() {
   });
 
   await server.register(sensible);
+  await server.register(cors, {
+    origin: ENV.WEB_ORIGIN,
+    methods: ["GET", "OPTIONS"],
+  });
 
   if (ENV.NODE_ENV !== "test") {
     const stopCalendarCacheScheduler = startCalendarCacheScheduler(server.log);

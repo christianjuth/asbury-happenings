@@ -374,6 +374,7 @@ describe("server", () => {
       method: "OPTIONS",
       url: "/calendar/asbury-book-coop.ics",
       headers: {
+        origin: "http://localhost:3100",
         "access-control-request-method": "GET",
       },
     });
@@ -381,6 +382,9 @@ describe("server", () => {
     expect(response.statusCode).toBe(204);
     expect(response.headers["access-control-allow-methods"]).toBe(
       "GET, OPTIONS",
+    );
+    expect(response.headers["access-control-allow-origin"]).toBe(
+      "http://localhost:3100",
     );
 
     await server.close();

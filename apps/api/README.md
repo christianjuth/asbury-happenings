@@ -5,36 +5,38 @@ feeds. It also serves the Asbury Park happy-hour calendar and Nixle RSS feeds.
 
 ## First Run
 
+From the repository root:
+
 ```bash
 pnpm install
-cp .env.example .env
-pnpm dev
+cp apps/api/.env.example apps/api/.env
+pnpm dev:api
 ```
 
 Health check:
 
 ```bash
-curl http://localhost:3000/health
+curl http://localhost:3101/health
 ```
 
 List configured calendars:
 
 ```bash
-curl http://localhost:3000/calendar
+curl http://localhost:3101/calendar
 ```
 
 Calendar feeds:
 
 ```bash
-curl http://localhost:3000/calendar/tim-mcloones-supper-club.ics
-curl http://localhost:3000/happy-hours/asbury-park.ics
+curl http://localhost:3101/calendar/tim-mcloones-supper-club.ics
+curl http://localhost:3101/happy-hours/asbury-park.ics
 ```
 
 Plain-text debug output:
 
 ```bash
-curl "http://localhost:3000/calendar/tim-mcloones-supper-club.ics?debug=1"
-curl "http://localhost:3000/happy-hours/asbury-park.ics?debug=1"
+curl "http://localhost:3101/calendar/tim-mcloones-supper-club.ics?debug=1"
+curl "http://localhost:3101/happy-hours/asbury-park.ics?debug=1"
 ```
 
 Calendar debug output includes per-page fetch and revalidation status. `Fetch:
@@ -147,26 +149,27 @@ infrastructure are allowed.
 ## Docker
 
 ```bash
-docker compose up --build
+docker compose -f apps/api/docker-compose.yml up --build
 ```
 
 ## Fly.io
 
-The app listens on `0.0.0.0:3000`. `fly.toml` keeps one machine running so the
+The app listens on `0.0.0.0:3101`. `fly.toml` keeps one machine running so the
 background calendar schedulers continue to refresh their caches.
 
 ```bash
-fly deploy
+fly deploy --config apps/api/fly.toml
 ```
 
 ## Scripts
 
 ```bash
-pnpm dev          # local development with tsx watch
-pnpm build        # compile TypeScript to dist
-pnpm start        # run the compiled app
-pnpm test         # run Vitest
-pnpm test:ts      # typecheck without emitting
-pnpm lint         # run ESLint
-pnpm format:check # verify Prettier formatting
+pnpm dev:api                                      # local development with tsx watch
+pnpm --filter @repo/api build    # compile TypeScript to dist
+pnpm --filter @repo/api start    # run the compiled app
+pnpm --filter @repo/api test     # run Vitest
+pnpm --filter @repo/api test:ts  # typecheck without emitting
+pnpm --filter @repo/api lint     # run ESLint
+pnpm lint:dead                   # run Knip across the workspace
+pnpm format                      # write Prettier changes across the workspace
 ```

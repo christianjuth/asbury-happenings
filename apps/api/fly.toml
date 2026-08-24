@@ -7,14 +7,15 @@ app = 'backend-services-qwp9aw'
 primary_region = 'ams'
 
 [build]
+  dockerfile = 'apps/api/Dockerfile'
 
 [env]
   NODE_ENV = 'production'
-  PORT = '3000'
+  PORT = '3101'
   HOST = '0.0.0.0'
 
 [http_service]
-  internal_port = 3000
+  internal_port = 3101
   force_https = true
   auto_stop_machines = 'off'
   auto_start_machines = true

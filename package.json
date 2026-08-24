@@ -1,0 +1,45 @@
+{
+  "name": "asbury-happenings",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "prepare": "husky",
+    "dev": "pnpm --parallel --filter @repo/api --filter @repo/web run dev:workspace",
+    "dev:api": "pnpm --filter @repo/api run dev",
+    "dev:web": "pnpm --filter @repo/web run dev",
+    "build": "pnpm --recursive --if-present run build:workspace",
+    "format": "prettier --write .",
+    "lint": "pnpm --recursive --if-present run lint:workspace",
+    "lint:dead": "pnpm --recursive --if-present run lint:dead:workspace",
+    "test:ts": "pnpm --recursive --if-present run test:ts:workspace",
+    "test": "pnpm --recursive --if-present run test:workspace"
+  },
+  "devDependencies": {
+    "husky": "9.1.7",
+    "lint-staged": "17.0.8",
+    "prettier": "3.9.4"
+  },
+  "pnpm": {
+    "supportedArchitectures": {
+      "os": [
+        "current",
+        "darwin",
+        "linux"
+      ],
+      "cpu": [
+        "current",
+        "x64",
+        "arm64"
+      ],
+      "libc": [
+        "current",
+        "glibc",
+        "musl"
+      ]
+    }
+  }
+}

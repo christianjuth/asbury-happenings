@@ -1,0 +1,13 @@
+{
+  "name": "@repo/eslint-config",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./feature-boundaries": "./feature-boundaries.js"
+  },
+  "scripts": {
+    "lint:workspace": "node --check feature-boundaries.js && node --check feature-boundaries.test.js",
+    "test:workspace": "node --test feature-boundaries.test.js"
+  }
+}

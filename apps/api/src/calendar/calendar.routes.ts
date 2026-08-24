@@ -6,7 +6,6 @@ import {
   getCachedCalendarStatusFeed,
 } from "./calendar.cache.js";
 import { CALENDAR_SOURCES, getCalendarSource } from "./calendar.config.js";
-import { applyCalendarPreflightHeaders } from "./calendar.cors.js";
 
 const STATUS_CALENDAR_ID = "status";
 const STATUS_CALENDAR = {
@@ -73,21 +72,6 @@ export async function registerCalendarRoutes(server: FastifyInstance) {
       .type("text/calendar; charset=utf-8")
       .send(feed);
   });
-
-  server.options<{ Params: { calendarId: string } }>(
-    "/calendar/:calendarId.ics",
-    async (request, reply) => {
-      if (request.params.calendarId !== STATUS_CALENDAR_ID) {
-        const config = getCalendarSource(request.params.calendarId);
-
-        if (!config) {
-          throw server.httpErrors.notFound("Unknown calendar");
-        }
-      }
-
-      return applyCalendarPreflightHeaders(reply).code(204).send();
-    },
-  );
 }
 
 function isDebugRequest(value: string | undefined): boolean {
