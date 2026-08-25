@@ -25,16 +25,17 @@ List configured calendars:
 curl http://localhost:3101/calendar
 ```
 
-All currently cached, ongoing, and future events for the web calendar:
+All cached events that overlap a selected local calendar date:
 
 ```bash
-curl http://localhost:3101/calendar/events
+curl "http://localhost:3101/calendar/events?date=2026-07-04"
 ```
 
 The aggregate response includes every configured calendar as a resource, even
-while that source is warming. Events carry a `resourceId`; timed values are ISO
-instants and all-day values are exclusive `YYYY-MM-DD` date ranges. Requests
-only read the background cache and never fetch upstream sources directly.
+while that source is warming. It includes only events overlapping `date` in the
+source timezone. Events carry a `resourceId`; timed values are ISO instants and
+all-day values are exclusive `YYYY-MM-DD` date ranges. Requests only read the
+background cache and never fetch upstream sources directly.
 
 Calendar feeds:
 
@@ -62,7 +63,7 @@ and `error` means the latest refresh failed.
 
 ```text
 GET /calendar
-GET /calendar/events
+GET /calendar/events?date=YYYY-MM-DD
 GET /calendar/:calendarId.ics
 GET /calendar/:calendarId.ics?debug=1
 GET /calendar/status.ics

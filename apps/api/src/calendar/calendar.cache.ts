@@ -41,6 +41,7 @@ interface CalendarSnapshot {
 
 interface CachedCalendarEvents {
   events: CalendarEvent[];
+  loading: boolean;
   ready: boolean;
 }
 
@@ -87,6 +88,7 @@ export function getCachedCalendarEvents(
       undefined,
       config.defaultFilters,
     ),
+    loading: snapshot.statuses.includes("warming"),
     ready: snapshot.ready,
   };
 }

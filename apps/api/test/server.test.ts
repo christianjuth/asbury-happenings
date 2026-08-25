@@ -215,14 +215,16 @@ END:VCALENDAR
     const server = await buildServer();
     const response = await server.inject({
       method: "GET",
-      url: "/calendar/events",
+      url: "/calendar/events?date=2026-07-03",
     });
     const payload = response.json<{
+      date: string;
       generatedAt: string;
       resources: {
         id: string;
         name: string;
         timeZone: string;
+        loading: boolean;
         ready: boolean;
         subscriptionPath: string;
       }[];
@@ -239,23 +241,26 @@ END:VCALENDAR
 
     expect(response.statusCode).toBe(200);
     expect(response.headers["cache-control"]).toBe("no-store");
+    expect(payload.date).toBe("2026-07-03");
     expect(payload.generatedAt).toBe("2026-07-03T16:00:00.000Z");
     expect(payload.resources).toHaveLength(CALENDAR_SOURCES.length);
     expect(payload.resources).toContainEqual({
       id: "asbury-lanes",
       name: "Asbury Lanes / Hotel",
       timeZone: "America/New_York",
+      loading: false,
       ready: true,
       subscriptionPath: "/calendar/asbury-lanes.ics",
     });
     expect(
       payload.resources.find((resource) => resource.id === "stone-pony"),
-    ).toMatchObject({ ready: false });
+    ).toMatchObject({ loading: true, ready: false });
     expect(payload.events.map((event) => event.title)).toEqual([
       "All Day Event",
+      "Past Event",
+      "Just Ended",
       "Ongoing Event",
       "Future Event",
-      "All Day Without End",
     ]);
     expect(payload.events).toContainEqual(
       expect.objectContaining({
@@ -276,14 +281,6 @@ END:VCALENDAR
     );
     expect(payload.events).toContainEqual(
       expect.objectContaining({
-        title: "All Day Without End",
-        start: "2026-07-04",
-        end: "2026-07-05",
-        allDay: true,
-      }),
-    );
-    expect(payload.events).toContainEqual(
-      expect.objectContaining({
         title: "Future Event",
         status: "cancelled",
       }),
@@ -294,6 +291,32 @@ END:VCALENDAR
     expect(
       payload.events.every((event) => event.id.startsWith("asbury-lanes:")),
     ).toBe(true);
+
+    const nextDayResponse = await server.inject({
+      method: "GET",
+      url: "/calendar/events?date=2026-07-04",
+    });
+    const nextDayPayload = nextDayResponse.json<{
+      date: string;
+      events: { title: string; start: string; end: string }[];
+    }>();
+
+    expect(nextDayResponse.statusCode).toBe(200);
+    expect(nextDayPayload.date).toBe("2026-07-04");
+    expect(nextDayPayload.events).toEqual([
+      expect.objectContaining({
+        title: "All Day Without End",
+        start: "2026-07-04",
+        end: "2026-07-05",
+      }),
+    ]);
+
+    const invalidDateResponse = await server.inject({
+      method: "GET",
+      url: "/calendar/events?date=2026-07-40",
+    });
+
+    expect(invalidDateResponse.statusCode).toBe(400);
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     await server.close();

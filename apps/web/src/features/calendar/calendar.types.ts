@@ -2,6 +2,7 @@ export interface CalendarResourceData {
   id: string;
   name: string;
   timeZone: string;
+  loading: boolean;
   ready: boolean;
   subscriptionPath: string;
 }
@@ -22,6 +23,7 @@ export interface CalendarEventData {
 }
 
 export interface CalendarEventsResponse {
+  date: string;
   generatedAt: string;
   resources: CalendarResourceData[];
   events: CalendarEventData[];

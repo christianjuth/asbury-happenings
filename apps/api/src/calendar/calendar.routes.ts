@@ -6,7 +6,10 @@ import {
   getCachedCalendarStatusFeed,
 } from "./calendar.cache.js";
 import { CALENDAR_SOURCES, getCalendarSource } from "./calendar.config.js";
-import { getCalendarEventsResponse } from "./calendar.events.js";
+import {
+  getCalendarEventsResponse,
+  isCalendarDate,
+} from "./calendar.events.js";
 
 const STATUS_CALENDAR_ID = "status";
 const STATUS_CALENDAR = {
@@ -27,8 +30,19 @@ export async function registerCalendarRoutes(server: FastifyInstance) {
     ],
   }));
 
-  server.get("/calendar/events", async (_request, reply) =>
-    reply.header("cache-control", "no-store").send(getCalendarEventsResponse()),
+  server.get<{ Querystring: { date?: string } }>(
+    "/calendar/events",
+    async (request, reply) => {
+      if (!isCalendarDate(request.query.date)) {
+        throw server.httpErrors.badRequest(
+          "date must use the YYYY-MM-DD format",
+        );
+      }
+
+      return reply
+        .header("cache-control", "no-store")
+        .send(getCalendarEventsResponse(request.query.date));
+    },
   );
 
   server.get<{

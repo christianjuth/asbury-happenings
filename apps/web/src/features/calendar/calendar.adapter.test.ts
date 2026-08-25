@@ -5,12 +5,14 @@ import type { CalendarEventsResponse } from "./calendar.types";
 describe("toCalendarScheduleData", () => {
   it("converts UTC instants to resource-local schedule times", () => {
     const response: CalendarEventsResponse = {
+      date: "2026-07-03",
       generatedAt: "2026-07-03T16:00:00.000Z",
       resources: [
         {
           id: "stone-pony",
           name: "The Stone Pony",
           timeZone: "America/New_York",
+          loading: false,
           ready: true,
           subscriptionPath: "/calendar/stone-pony.ics",
         },
@@ -37,12 +39,14 @@ describe("toCalendarScheduleData", () => {
 
   it("keeps all-day events as exclusive local date ranges", () => {
     const response: CalendarEventsResponse = {
+      date: "2026-07-04",
       generatedAt: "2026-07-03T16:00:00.000Z",
       resources: [
         {
           id: "city",
           name: "City of Asbury Park",
           timeZone: "America/New_York",
+          loading: false,
           ready: true,
           subscriptionPath: "/calendar/city.ics",
         },

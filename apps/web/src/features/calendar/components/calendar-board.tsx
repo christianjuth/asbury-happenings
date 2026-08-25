@@ -30,37 +30,39 @@ import { useCalendarEvents } from "../use-calendar-events";
 const DISPLAY_TIME_ZONE = "America/New_York";
 
 export function CalendarBoard() {
-  const { data, error, loading, reload } = useCalendarEvents();
   const today = getCalendarDate(DISPLAY_TIME_ZONE);
   const [date, setDate] = useState(today);
+  const { data, error, loading, reload } = useCalendarEvents(date);
   const [selectedEvent, setSelectedEvent] = useState<ScheduleEventData | null>(
     null,
   );
 
-  if (!data && loading) {
+  if (!data && error) {
     return (
-      <div className="calendar-state" role="status">
-        <Loader color="orange" />
-        <Text>Loading local calendars...</Text>
+      <div className="calendar-state calendar-state--page">
+        <Alert color="red" title="Calendars are unavailable">
+          <Text mb="sm">{error}</Text>
+          <Button color="red" variant="light" onClick={reload}>
+            Try again
+          </Button>
+        </Alert>
       </div>
     );
   }
 
-  if (!data) {
+  if (!data || data.resources.some((resource) => resource.loading)) {
     return (
-      <Alert color="red" title="Calendars are unavailable">
-        <Text mb="sm">{error ?? "The calendar feed could not be loaded."}</Text>
-        <Button color="red" variant="light" onClick={reload}>
-          Try again
-        </Button>
-      </Alert>
+      <div
+        className="calendar-state calendar-state--page"
+        role="status"
+        aria-label="Loading events"
+      >
+        <Loader color="orange" size="lg" />
+      </div>
     );
   }
 
   const schedule = toCalendarScheduleData(data);
-  const warmingCount = data.resources.filter(
-    (resource) => !resource.ready,
-  ).length;
   const selectedPayload = selectedEvent?.payload as
     CalendarScheduleEventPayload | undefined;
 
@@ -110,13 +112,6 @@ export function CalendarBoard() {
       {error && (
         <Alert color="orange" mb="md" title="Refresh failed">
           Showing the last calendar data loaded in this tab.
-        </Alert>
-      )}
-
-      {warmingCount > 0 && (
-        <Alert color="yellow" mb="md" title="Some calendars are warming up">
-          {warmingCount} {warmingCount === 1 ? "source is" : "sources are"}{" "}
-          still loading. Ready calendars are shown now.
         </Alert>
       )}
 
@@ -219,8 +214,8 @@ function ResourceLabel({
       </Text>
       <Group gap="xs">
         {!source.ready && (
-          <Badge size="xs" color="yellow" variant="light">
-            Warming
+          <Badge size="xs" color="red" variant="light">
+            Unavailable
           </Badge>
         )}
         <Anchor

@@ -138,6 +138,15 @@ a {
   background: var(--paper-light);
 }
 
+.calendar-state--page {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  min-height: 100vh;
+  border: 0;
+  background: var(--paper);
+}
+
 .resource-label {
   width: 100%;
   padding-right: 0.25rem;

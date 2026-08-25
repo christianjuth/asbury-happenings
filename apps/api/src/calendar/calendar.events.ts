@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { getCachedCalendarEvents } from "./calendar.cache.js";
 import { CALENDAR_SOURCES } from "./calendar.config.js";
-import dayjs, { type Dayjs } from "./calendar.dates.js";
+import dayjs from "./calendar.dates.js";
 import type {
   CalendarEvent,
   CalendarEventStatus,
@@ -14,6 +14,7 @@ interface CalendarEventsResource {
   id: string;
   name: string;
   timeZone: string;
+  loading: boolean;
   ready: boolean;
   subscriptionPath: string;
 }
@@ -34,12 +35,14 @@ interface CalendarEventData {
 }
 
 interface CalendarEventsResponse {
+  date: string;
   generatedAt: string;
   resources: CalendarEventsResource[];
   events: CalendarEventData[];
 }
 
 export function getCalendarEventsResponse(
+  date: string,
   now = dayjs(),
 ): CalendarEventsResponse {
   const resources: CalendarEventsResource[] = [];
@@ -53,13 +56,14 @@ export function getCalendarEventsResponse(
       id: config.id,
       name: config.name,
       timeZone,
+      loading: cached.loading,
       ready: cached.ready,
       subscriptionPath: `/calendar/${config.id}.ics`,
     });
 
     events.push(
       ...cached.events
-        .filter((event) => isCurrentOrFutureEvent(event, timeZone, now))
+        .filter((event) => isEventOnDate(event, timeZone, date))
         .map((event) => serializeCalendarEvent(config, event)),
     );
   }
@@ -72,25 +76,37 @@ export function getCalendarEventsResponse(
   );
 
   return {
+    date,
     generatedAt: now.toISOString(),
     resources,
     events,
   };
 }
 
-function isCurrentOrFutureEvent(
+export function isCalendarDate(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+    dayjs(value, "YYYY-MM-DD", true).isValid()
+  );
+}
+
+function isEventOnDate(
   event: CalendarEvent,
   timeZone: string,
-  now: Dayjs,
+  date: string,
 ): boolean {
-  if (!event.allDay) {
-    return event.end.isAfter(now);
+  if (event.allDay) {
+    const range = getAllDayRange(event);
+
+    return range.start <= date && range.end > date;
   }
 
-  const { end } = getAllDayRange(event);
-  const today = now.tz(timeZone).format("YYYY-MM-DD");
+  const dayStart = dayjs.tz(`${date} 00:00:00`, timeZone);
+  const nextDate = dayjs.utc(date).add(1, "day").format("YYYY-MM-DD");
+  const dayEnd = dayjs.tz(`${nextDate} 00:00:00`, timeZone);
 
-  return end > today;
+  return event.end.isAfter(dayStart) && event.start.isBefore(dayEnd);
 }
 
 function serializeCalendarEvent(
