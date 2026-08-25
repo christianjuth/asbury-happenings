@@ -23,8 +23,13 @@
     "test:ts:workspace": "tsc -b --pretty false"
   },
   "dependencies": {
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "@mantine/core": "9.5.2",
+    "@mantine/dates": "9.5.2",
+    "@mantine/hooks": "9.5.2",
+    "@mantine/schedule": "9.5.2",
+    "dayjs": "1.11.23",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",

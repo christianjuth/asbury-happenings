@@ -39,6 +39,11 @@ The web app defaults to `http://localhost:3100` and the API defaults to
 `http://localhost:3101`. Set `VITE_API_URL` in `apps/web/.env` and `WEB_ORIGIN`
 in `apps/api/.env` when using different origins.
 
+The homepage renders the API's cached future events in Mantine's resource day
+view, with one resource row per calendar source. Each resource exposes its
+existing ICS feed as a subscription link; the aggregate JSON route does not
+replace or modify those feeds.
+
 ## Checks
 
 ```bash

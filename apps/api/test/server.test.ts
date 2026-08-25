@@ -4,7 +4,10 @@ import {
   getCachedCalendarDebugText,
   warmCalendarPage,
 } from "../src/calendar/calendar.cache.js";
-import { getCalendarSource } from "../src/calendar/calendar.config.js";
+import {
+  CALENDAR_SOURCES,
+  getCalendarSource,
+} from "../src/calendar/calendar.config.js";
 import dayjs from "../src/calendar/calendar.dates.js";
 import { clearCalendarFetchState } from "../src/calendar/calendar.service.js";
 import { clearNixleRssCache } from "../src/nixle/nixle.cache.js";
@@ -143,6 +146,155 @@ describe("server", () => {
         },
       ],
     });
+
+    await server.close();
+  });
+
+  it("returns cached current and future events by calendar resource", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-03T16:00:00.000Z"));
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(`
+BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:past
+SUMMARY:Past Event
+DTSTART;TZID=America/New_York:20260703T100000
+DTEND;TZID=America/New_York:20260703T110000
+END:VEVENT
+BEGIN:VEVENT
+UID:just-ended
+SUMMARY:Just Ended
+DTSTART;TZID=America/New_York:20260703T110000
+DTEND;TZID=America/New_York:20260703T120000
+END:VEVENT
+BEGIN:VEVENT
+UID:ongoing
+SUMMARY:Ongoing Event
+DTSTART;TZID=America/New_York:20260703T113000
+DTEND;TZID=America/New_York:20260703T123000
+LOCATION:Asbury Lanes
+URL:https://example.com/ongoing
+END:VEVENT
+BEGIN:VEVENT
+UID:future
+SUMMARY:Future Event
+DTSTART;TZID=America/New_York:20260703T180000
+DTEND;TZID=America/New_York:20260703T200000
+STATUS:CANCELLED
+END:VEVENT
+BEGIN:VEVENT
+UID:all-day
+SUMMARY:All Day Event
+DTSTART;VALUE=DATE:20260703
+DTEND;VALUE=DATE:20260704
+END:VEVENT
+BEGIN:VEVENT
+UID:all-day-no-end
+SUMMARY:All Day Without End
+DTSTART;VALUE=DATE:20260704
+END:VEVENT
+BEGIN:VEVENT
+UID:filtered
+SUMMARY:Open Bowling
+DTSTART;TZID=America/New_York:20260704T100000
+DTEND;TZID=America/New_York:20260704T110000
+END:VEVENT
+END:VCALENDAR
+`),
+    );
+    const config = getCalendarSource("asbury-lanes");
+
+    if (!config) {
+      throw new Error("Missing Asbury Lanes calendar config");
+    }
+
+    await warmCalendarPage(config, 0, dayjs());
+
+    const server = await buildServer();
+    const response = await server.inject({
+      method: "GET",
+      url: "/calendar/events",
+    });
+    const payload = response.json<{
+      generatedAt: string;
+      resources: {
+        id: string;
+        name: string;
+        timeZone: string;
+        ready: boolean;
+        subscriptionPath: string;
+      }[];
+      events: {
+        id: string;
+        resourceId: string;
+        title: string;
+        start: string;
+        end: string;
+        allDay: boolean;
+        status?: string;
+      }[];
+    }>();
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(payload.generatedAt).toBe("2026-07-03T16:00:00.000Z");
+    expect(payload.resources).toHaveLength(CALENDAR_SOURCES.length);
+    expect(payload.resources).toContainEqual({
+      id: "asbury-lanes",
+      name: "Asbury Lanes / Hotel",
+      timeZone: "America/New_York",
+      ready: true,
+      subscriptionPath: "/calendar/asbury-lanes.ics",
+    });
+    expect(
+      payload.resources.find((resource) => resource.id === "stone-pony"),
+    ).toMatchObject({ ready: false });
+    expect(payload.events.map((event) => event.title)).toEqual([
+      "All Day Event",
+      "Ongoing Event",
+      "Future Event",
+      "All Day Without End",
+    ]);
+    expect(payload.events).toContainEqual(
+      expect.objectContaining({
+        resourceId: "asbury-lanes",
+        title: "Ongoing Event",
+        start: "2026-07-03T15:30:00.000Z",
+        end: "2026-07-03T16:30:00.000Z",
+        allDay: false,
+      }),
+    );
+    expect(payload.events).toContainEqual(
+      expect.objectContaining({
+        title: "All Day Event",
+        start: "2026-07-03",
+        end: "2026-07-04",
+        allDay: true,
+      }),
+    );
+    expect(payload.events).toContainEqual(
+      expect.objectContaining({
+        title: "All Day Without End",
+        start: "2026-07-04",
+        end: "2026-07-05",
+        allDay: true,
+      }),
+    );
+    expect(payload.events).toContainEqual(
+      expect.objectContaining({
+        title: "Future Event",
+        status: "cancelled",
+      }),
+    );
+    expect(new Set(payload.events.map((event) => event.id)).size).toBe(
+      payload.events.length,
+    );
+    expect(
+      payload.events.every((event) => event.id.startsWith("asbury-lanes:")),
+    ).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
 
     await server.close();
   });

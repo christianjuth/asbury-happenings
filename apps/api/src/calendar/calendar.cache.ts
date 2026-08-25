@@ -39,6 +39,11 @@ interface CalendarSnapshot {
   ready: boolean;
 }
 
+interface CachedCalendarEvents {
+  events: CalendarEvent[];
+  ready: boolean;
+}
+
 interface CalendarFailure {
   calendarId: string;
   calendarName: string;
@@ -68,6 +73,22 @@ export function getCachedCalendarFeed(
     config.name,
     filterCalendarEvents(snapshot.events, filters, config.defaultFilters),
   );
+}
+
+export function getCachedCalendarEvents(
+  config: CalendarSourceConfig,
+  now = dayjs(),
+): CachedCalendarEvents {
+  const snapshot = getCalendarSnapshot(config, now);
+
+  return {
+    events: filterCalendarEvents(
+      snapshot.events,
+      undefined,
+      config.defaultFilters,
+    ),
+    ready: snapshot.ready,
+  };
 }
 
 export function getCachedCalendarDebugText(
@@ -370,7 +391,7 @@ function buildCalendarStatusEvents(now: Dayjs): CalendarEvent[] {
     return [];
   }
 
-  const start = now.startOf("day");
+  const start = now.utc().startOf("day");
 
   return [
     {

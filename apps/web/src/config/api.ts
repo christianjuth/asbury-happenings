@@ -1,6 +1,6 @@
 const DEFAULT_API_URL = "http://localhost:3101";
 
-export const API_URL = normalizeBaseUrl(
+const API_URL = normalizeBaseUrl(
   import.meta.env.VITE_API_URL ?? DEFAULT_API_URL,
 );
 
